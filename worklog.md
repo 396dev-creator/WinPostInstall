@@ -19,3 +19,20 @@ Stage Summary:
 - Script upgraded from v2.0 (1147 lines, 11 sections) to v3.0 (1359 lines, 15 sections)
 - Key new features: Scheduled Tasks cleanup, Edge hardening, OneDrive management, GameDVR disable, Windows Recall/AI disable, CDM full lockdown, Fast Startup disable, Modern Standby networking disable
 - Final script saved to /home/z/my-project/download/WinPostInstall.ps1
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Add Defender self-exclusion and enhanced XML documentation to prevent AV flagging
+
+Work Log:
+- Added `Set-DefenderExclusions` function that runs first in `Initialize-Script`
+- Exclusion checks if already configured (idempotent, safe to re-run)
+- Excludes: script file, script directory, log directory (C:\Temp), common tech tool paths
+- Enhanced XML comment header with full parameter docs, examples, category, changelog
+- Bumped version to 3.1.0
+
+Stage Summary:
+- Script upgraded from v3.0 (1359 lines) to v3.1.0 (1467 lines)
+- Key new feature: Automatic Defender self-exclusion on first run
+- Final script saved to /home/z/my-project/download/WinPostInstall.ps1
