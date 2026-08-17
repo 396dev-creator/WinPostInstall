@@ -1,0 +1,1242 @@
+  2400→ 
+  2401→ Windows 11 shares more than you think. Here's how to lock it down and harden your privacy step by step. 
+  2402→
+  2403→ 
+  2404→
+  2405→When you purchase through links on our site, we may earn an affiliate commission. Here’s how it works .
+  2406→
+  2407→ 
+  2408→
+  2409→ 
+  2410→
+  2411→ 
+  2412→
+  2413→ 
+  2414→
+  2415→ 
+  2416→
+  2417→ 
+  2418→
+  2419→ 
+  2420→
+  2421→ 
+  2422→
+  2423→ 
+  2424→
+  2425→Click for next article
+  2426→
+  2427→ 
+  2428→
+  2429→ 
+  2430→
+  2431→ 
+  2432→
+  2433→ 
+  2434→
+  2435→ Windows 11 shares more data than you realize — here are 14 fixes from our in-house Windows expert. 
+  2436→ (Image credit: Future) 
+  2437→
+  2438→ 
+  2439→
+  2440→ 
+  2441→
+  2442→ 
+  2443→
+  2444→ 
+  2445→
+  2446→ 
+  2447→ Jump To: 
+  2448→
+  2449→ 
+  2450→
+  2451→Privacy
+  2452→
+  2453→ 
+  2454→
+  2455→ 
+  2456→FAQs
+  2457→
+  2458→ 
+  2459→
+  2460→ 
+  2461→
+  2462→ 
+  2463→
+  2464→ 
+  2465→
+  2466→ 
+  2467→
+  2468→ 
+  2469→
+  2470→ 
+  2471→
+  2472→ 
+  2473→
+  2474→ 
+  2475→
+  2476→ 
+  2477→
+  2478→ 
+  2479→
+  2480→ 
+  2481→
+  2482→ 
+  2483→
+  2484→Copy link
+  2485→
+  2486→ 
+  2487→
+  2488→ 
+  2489→
+  2490→ 
+  2491→
+  2492→ 
+  2493→Facebook
+  2494→
+  2495→ 
+  2496→
+  2497→ 
+  2498→
+  2499→ 
+  2500→
+  2501→ 
+  2502→X
+  2503→
+  2504→ 
+  2505→
+  2506→ 
+  2507→
+  2508→ 
+  2509→
+  2510→ 
+  2511→
+  2512→ 
+  2513→
+  2514→ 
+  2515→
+  2516→ 
+  2517→
+  2518→ 
+  2519→
+  2520→ 
+  2521→
+  2522→ 
+  2523→Reddit
+  2524→
+  2525→ 
+  2526→
+  2527→ 
+  2528→
+  2529→ 
+  2530→
+  2531→ 
+  2532→Pinterest
+  2533→
+  2534→ 
+  2535→
+  2536→ 
+  2537→
+  2538→ 
+  2539→
+  2540→ 
+  2541→Flipboard
+  2542→
+  2543→ 
+  2544→
+  2545→ 
+  2546→
+  2547→ 
+  2548→
+  2549→ 
+  2550→Bluesky
+  2551→
+  2552→ 
+  2553→
+  2554→ 
+  2555→
+  2556→ 
+  2557→
+  2558→ 
+  2559→Threads
+  2560→
+  2561→ 
+  2562→
+  2563→ 
+  2564→
+  2565→ 
+  2566→
+  2567→ 
+  2568→Email
+  2569→
+  2570→ 
+  2571→
+  2572→ 
+  2573→
+  2574→Share this article
+  2575→
+  2576→ 
+  2577→
+  2578→ 
+  2579→
+  2580→ 
+  2581→
+  2582→ 
+  2583→ 0 
+  2584→
+  2585→ 
+  2586→
+  2587→ 
+  2588→Join the conversation
+  2589→
+  2590→ 
+  2591→
+  2592→ 
+  2593→
+  2594→ 
+  2595→
+  2596→ 
+  2597→
+  2598→ 
+  2599→
+  2600→ 
+  2601→Follow us
+  2602→
+  2603→ 
+  2604→Add us as a preferred source on Google
+  2605→
+  2606→ 
+  2607→
+  2608→ 
+  2609→
+  2610→ 
+  2611→
+  2612→Newsletter
+  2613→
+  2614→ 
+  2615→Subscribe to our newsletter
+  2616→
+  2617→ 
+  2618→
+  2619→ 
+  2620→ Windows 11 works great out of the box, but it also connects, syncs, reports, backs up, and shares more than many people realize. If you care about privacy and want tighter control over what your computer sends to Microsoft and other services, you have to go beyond the default settings. Although you cannot make your computer completely private, there are tweaks you can use to harden Windows 11 for privacy. For instance, you can switch to a local account, reduce telemetry, turn off cloud-powered search, remove apps like OneDrive and Copilot (and Windows Recall, if available), disable sharing and backup integrations, control updates, and even replace BitLocker with an alternative encryption solution if you prefer a different trust model. In this how-to guide , I'll outline the steps to improve your privacy on Windows 11. Latest Videos From Windows Central Warning: Although these steps are non-destructive, you will be modifying system settings on Windows 11. It's strongly recommended that you create a full backup of your computer before proceeding, so you can restore your system if anything doesn't work as expected. 
+  2621→
+  2622→ 
+  2623→
+  2624→ Disclaimer 
+  2625→
+  2626→ Before diving in, remember that this guide focuses specifically on improving privacy at the operating system level and from the point of view of data collection from Microsoft. It does not cover third-party applications, online services, or network-level privacy measures, which may require additional configuration. Also, you don't have to apply every configuration outlined in these instructions, as it can make the experience more restrictive. You only have to apply the tweaks that you consider necessary. 
+  2627→
+  2628→ How to improve your privacy on Windows 11 On Windows 11, there are several practical changes you can make to strengthen your privacy, from switching to a local account and limiting telemetry to removing apps that raise privacy concerns. 
+  2629→
+  2630→ You may like
+  2631→
+  2632→ 
+  2633→
+  2634→ 
+  2635→
+  2636→ 
+  2637→
+  2638→ 
+  2639→ How to make Windows 11 feel calmer and less distracting 
+  2640→
+  2641→ 
+  2642→
+  2643→ 
+  2644→
+  2645→ 
+  2646→
+  2647→ 
+  2648→ I finally figured out what Enhanced Sign-in Security actually does on Windows 11 
+  2649→
+  2650→ 
+  2651→
+  2652→ 
+  2653→
+  2654→ 
+  2655→
+  2656→ 
+  2657→ 7 exciting new features in Windows 11 version 26H2 
+  2658→
+  2659→ 
+  2660→
+  2661→ 1. Disable Device Encryption Although it's always recommended to use encryption to protect and maintain your data private, if you enable Device Encryption (BitLocker) using the default settings, you would be relying on a third-party company network to store the recovery key, which is not ideal. When I say disable encryption to protect your privacy, I'm referring to disabling Device Encryption and then using another solution to encrypt your files. To disable Device Encryption on Windows 11, follow these steps: Open Settings . Click on Privacy & security . Click the Device Encryption page on the right side. 
+  2662→
+  2663→ 
+  2664→ (Image credit: Mauro Huculak) Turn off the Device encryption toggle switch. 
+  2665→
+  2666→ 
+  2667→ (Image credit: Mauro Huculak) Click the Yes button. Once you complete the steps, the recovery key already stored in your Microsoft account will no longer work on your computer. However, you can always sign in to your Microsoft account to delete the decryption key. It's important to note that if you use Windows 11 Pro, you can enable BitLocker and save the recovery key locally. However, the Home edition doesn't have this feature, because Device Encryption is a limited version of BitLocker, and it requires saving the key in your Microsoft account. 
+  2668→
+  2669→ What to read next
+  2670→
+  2671→ 
+  2672→
+  2673→ 
+  2674→
+  2675→ 
+  2676→
+  2677→ 
+  2678→ Windows 11 begins the 26H2 cycle with 9 new Insider features 
+  2679→
+  2680→ 
+  2681→
+  2682→ 
+  2683→
+  2684→ 
+  2685→
+  2686→ 
+  2687→ How to turn Windows 11 Pro into a secure hybrid work system 
+  2688→
+  2689→ 
+  2690→
+  2691→ 
+  2692→
+  2693→ 
+  2694→
+  2695→ 
+  2696→ 13 of the biggest new Windows 11 features arriving July 14 
+  2697→
+  2698→ 
+  2699→
+  2700→ If you have a device running Windows 11 Home, you can upgrade to Windows 11 Pro or choose a third-party solution to encrypt your data. 2. Disable Find my device If you originally configured your device with a Microsoft account, chances are that the "Find my device" feature is turned on, and it'll send your device's geo location data periodically to Microsoft. If you want to increase your privacy, it's recommended to check and disable the feature. To turn off the Find my device feature on Windows 11, use these steps: Open Settings . Click on Privacy & security . Click the Find my device page on the right side. 
+  2701→
+  2702→ 
+  2703→ (Image credit: Mauro Huculak) Turn off the Find my device toggle switch. 
+  2704→
+  2705→ 
+  2706→ (Image credit: Mauro Huculak) After you complete the steps, the system will no longer send the physical location of the device. 3. Disable telemetry Although you cannot completely disable telemetry on Windows 11, you can reduce the amount of data Microsoft collects about your activities. To change the diagnostic and feedback settings, use these steps: Open Settings . Click on Privacy & security . Click the Diagnostic & feedback page on the right side. 
+  2707→
+  2708→ 
+  2709→ (Image credit: Mauro Huculak) Click the Diagnostic data setting. Turn off the "Send optional diagnostic data" toggle switch. 
+  2710→
+  2711→ 
+  2712→ (Image credit: Mauro Huculak) Quick note: This option will also turn off the "Improve inking and typing" data collection. Click the Tailored experiences setting. Turn off the toggle switch to prevent Microsoft from using diagnostic data against you to personalize different types of promotions. 
+  2713→
+  2714→ 
+  2715→ (Image credit: Mauro Huculak) (Optional) Click the "Delete diagnostic data" setting. Click the Delete button to erase diagnostic data stored on your device. Select the Never option in the "Feedback frequency" setting. 
+  2716→
+  2717→ 
+  2718→ (Image credit: Mauro Huculak) Once you complete the steps, the system will reduce the amount of diagnostic data that is sent to Microsoft. 4. Disable activity tracking Windows 11 tracks certain activities to personalize advertisements, Start menu recommendations, search results, and overall device experience. If you prefer a more private setup, you can disable these options directly from the Settings app. To disable activity tracking on Windows 11, use these steps: Open Settings . Click on Privacy & security . Click the General page on the right side. 
+  2719→
+  2720→ 
+  2721→ (Image credit: Mauro Huculak) Turn off the "Let apps show me personalized ads by using my advertising ID" toggle switch. Turn off the "Let websites show me locally relevant content by accessing my language list" toggle switch. Turn off the "Let Windows improve Start and search results by tracking app launches" toggle switch. Turn off the "Show me suggested content in the Settings app" toggle switch. 
+  2722→
+  2723→ 
+  2724→ (Image credit: Mauro Huculak) Click on Personalization . Click the Device usage page on the right side. Turn off all toggles to prevent the system from sending device activity data to Microsoft. 
+  2725→
+  2726→ 
+  2727→ (Image credit: Mauro Huculak) Click on Personalization . Click the Start page on the right side. Turn off the "Show recommendations for tips, shortcuts, new apps, and more" toggle switch. 
+  2728→
+  2729→ 
+  2730→ (Image credit: Mauro Huculak) After you complete the steps, Windows 11 will stop using your activity data to personalize ads, recommendations, and other on-device experiences, resulting in a more private and less tailored system experience. 5. Disable location tracking Windows 11 allows apps and traditional programs to access your location to deliver maps, weather updates, and other location-based features. However, you can control exactly how and when that information is shared. To prevent apps from accessing your location data, use these steps: Open Settings . Click on Privacy & security . Click the Location page on the right side. 
+  2731→
+  2732→ 
+  2733→ (Image credit: Mauro Huculak) (Option 1) Turn off the Location Services toggle switch to stop all apps from accessing your location. 
+  2734→
+  2735→ 
+  2736→ (Image credit: Mauro Huculak) Quick note: Turning off this feature may prevent some apps from working correctly. (Option 2) Turn off the toggle switch for those apps that you want to access your location information. Turn off the "Let desktop apps access your location" toggle switch. 
+  2737→
+  2738→ 
+  2739→ (Image credit: Mauro Huculak) Once you complete the steps, applications will no longer be able to access your approximate location. 6. Disable search highlights Windows Search can display highlights and suggestions on the Search home, including trending topics and web-based content. If you prefer a cleaner and more private experience, you can disable this feature from the Settings app. To turn off search suggestions in the Windows Search home, use these steps: Open Settings . Click on Privacy & security . Click the Search page on the right side. 
+  2740→
+  2741→ 
+  2742→ (Image credit: Mauro Huculak) Turn off the "Show search highlights" toggle switch. 
+  2743→
+  2744→ 
+  2745→ (Image credit: Mauro Huculak) After you complete the steps, the Search home will no longer show highlights or suggested content, giving you a more streamlined interface with fewer web-driven recommendations. 7. Disable cloud search Windows 11 can extend its search capabilities beyond your device by pulling results from your Microsoft, work, or school accounts. While this integration can be convenient, it also means search queries may interact with cloud services. If you prefer to keep searches limited to local content, you can turn off cloud search from the Settings app. To turn off the search history feature on Windows 11, use these steps: Open Settings . Click on Privacy & security . Click the Search page on the right side. 
+  2746→
+  2747→ 
+  2748→ (Image credit: Mauro Huculak) Click the Search my accounts setting. Turn off the "Microsoft account" toggle switch. Turn off the "Work or School account" toggle switch. 
+  2749→
+  2750→ 
+  2751→ (Image credit: Mauro Huculak) After you complete the steps, Windows Search will no longer display results from your Microsoft, work, or school accounts. Your searches will remain focused on local files, apps, and settings, reducing cloud interaction and improving overall privacy control. If you end up switching to a local account, you don't have to worry about this feature unless you connect a work or school account, which on consumer devices is not usually the case. 8. Switch to a local account By default, Windows 11 encourages you to use a Microsoft account, which connects your settings, preferences, and certain activity data to the cloud. If you prefer a more isolated setup with fewer cloud integrations, you can switch to a local account directly from the Settings app. To disconnect your account from your Microsoft account for a more private experience on Windows 11, use these steps: Open Settings . Click on Accounts . Click the Your Info page on the right side. 
+  2752→
+  2753→ 
+  2754→ (Image credit: Mauro Huculak) Click the "Sign in a local account instead" option under the "Accounts settings" section. 
+  2755→
+  2756→ 
+  2757→ (Image credit: Mauro Huculak) Click the Next button. Confirm your current password. Create the new local account username, password, and hint. 
+  2758→
+  2759→ 
+  2760→ (Image credit: Mauro Huculak) Click the Next button. Click the Sign out button. Once you complete the steps, your device will use a local account that is no longer linked to your Microsoft account for sign-in. This reduces cloud synchronization of settings, preferences, and account-related data, giving you a more self-contained and privacy-focused experience. 9. Uninstall OneDrive Microsoft OneDrive is deeply integrated into the operating system to sync files, settings, and folders with the cloud. While convenient, this integration means files and activity can be continuously connected to the cloud using your Microsoft account. If you prefer to keep your data strictly local, you can remove OneDrive from the system. If you plan to stop using the OneDrive service, before uninstalling the app, from OneDrive > Sync and backup > Advanced settings , turn on the option to "Download all the files," to maintain a local copy. Once the file synchronization finishes, you can proceed to uninstall the app. To uninstall the OneDrive app on Windows 11, use these steps: Open Settings . Click on Apps . Click the Installed apps page on the right side. 
+  2761→
+  2762→ 
+  2763→ (Image credit: Mauro Huculak) Click the menu button in Microsoft OneDrive , then choose Uninstall . 
+  2764→
+  2765→ 
+  2766→ (Image credit: Mauro Huculak) Click the Uninstall button one more time. After you complete the steps, OneDrive will be removed from your computer, stopping automatic file synchronization with the Microsoft cloud. If you want to stop using the cloud storage, it's important to delete your files from your OneDrive account (online). But before proceeding with this action, confirm that all your files are available locally on your PC. 10. Uninstall Copilot The Copilot app on Windows 11 connects to Microsoft's cloud-based AI services to provide assistance, content generation, and contextual answers. If you prefer a more traditional desktop experience with fewer AI-driven and cloud-connected features, you can remove the app from your computer. To uninstall the Copilot app on Windows 11, use these steps: Open Settings . Click on Apps . Click the Installed apps page on the right side. 
+  2767→
+  2768→ 
+  2769→ (Image credit: Mauro Huculak) Click the menu button in Copilot , then choose Uninstall . 
+  2770→
+  2771→ 
+  2772→ (Image credit: Mauro Huculak) Click the Uninstall button one more time. Once you complete the steps, the Copilot app will be removed from your device. 11. Uninstall Windows Recall Windows Recall is an AI feature designed to capture and index snapshots of your activity so you can quickly revisit past content. While the feature runs locally, it still records a timeline of on-device activity. If you prefer not to have this type of tracking enabled, you can remove the Recall components entirely from Windows Features for peace of mind and privacy. To completely uninstall the Windows Recall components from your computer, use these steps: Open Start . Search for Turn Windows features on or off and select the top result to open the "Windows Features" settings. 
+  2773→
+  2774→ 
+  2775→ (Image credit: Windows Central) Clear the Recall option. 
+  2776→
+  2777→ 
+  2778→ (Image credit: Windows Central) Click the OK button. Restart the computer. Open Start . Search for Turn Windows features on or off and select the top result to open the "Windows Features" settings. Clear the Recall option. Restart the computer. After you complete the steps, the Recall components will be removed from your device, and Windows 11 will no longer capture and store snapshots for this feature. 12. Disable Windows Backup On Windows 11, the Windows Backup system works in two layers. If OneDrive is installed, files stored in the OneDrive folder are automatically synced to the cloud. In addition, when you sign in with a Microsoft account, the operating system can back up a list of installed apps and various system preferences to your account. By default, the operating system may store details such as accessibility settings, account preferences, Wi-Fi networks and passwords, personalization choices, language settings, and other configurations. This information helps restore your setup on a new device, but it also means certain data is uploaded to the cloud. If you use a local account, this cloud-based backup does not happen unless you connect a Microsoft account. If you continue using a Microsoft account, you can manually turn off the options that sync apps and preferences. And if you have already removed OneDrive, you do not need to adjust file backup settings. To prevent sending apps and personal preferences to Microsoft, use these steps: Open Settings . Click on Accounts . Click the Windows Backup page on the right side. 
+  2779→
+  2780→ 
+  2781→ (Image credit: Mauro Huculak) Turn off the "Remember my apps" toggle switch. Turn off the "Remember my preferences" toggle switch. 
+  2782→
+  2783→ 
+  2784→ (Image credit: Mauro Huculak) After you complete the steps, Windows 11 will no longer sync your installed apps list or system preferences to your Microsoft account. This keeps your configuration data stored locally on the device and limits what is uploaded as part of the Windows Backup feature. 13. Disable Windows Update Windows 11 automatically downloads and installs updates, which can also send diagnostic and telemetry data to Microsoft, because update services routinely gather data to ensure proper installation, detect errors, and optimize performance. If you want to limit this data flow and have more control over when your system communicates with Microsoft servers, you can use Group Policy to permanently disable automatic updates. To disable automatic Windows 11 updates permanently from Group Policy, use these steps: Open Start . Search for gpedit.msc and click the top result to launch the Local Group Policy Editor . Navigate to the following path: Computer Configuration > Administrative Templates > Windows Components > Windows Update > Manage end user experience Double-click the "Configure Automatic Updates" policy on the right side. 
+  2785→
+  2786→ 
+  2787→ (Image credit: Mauro Huculak) Check the Disabled option to turn off automatic updates permanently on Windows 11. 
+  2788→
+  2789→ 
+  2790→ (Image credit: Mauro Huculak) Click the Apply button. Click the OK button. After you complete the steps, Windows 11 will stop downloading and installing updates automatically. However, you can still trigger the updates manually from the "Windows Update" settings page. The recommendation here is not to skip updates. You should always keep your computer updated. However, if you want to reduce the amount of data that Microsoft collects, it would be better to download and install them manually from the Microsoft Update Catalog website . If you want to re-enable automatic updates, follow the same instructions outlined above, but in step 5 , select the "Not Configured" option. If you have a device running Windows 11 Home, you can still disable automatic updates, but you'll need to use the Registry . If you prefer to keep automatic updates enabled, you can enhance privacy by adjusting the "Delivery Optimization" settings. This prevents your computer from connecting to Microsoft's peer-to-peer network to download updates, limiting data sharing with other devices. Open Settings > Windows Update > Advanced options > Delivery Optimization and turn off the "Allow download from other devices" toggle switch. If you need to update the system manually, open Settings > Windows Update and click the "Check for updates" button. 14. Limit Microsoft Edge telemetry If you happen to use Microsoft Edge as your preferred web browser, there are a few settings you may want to turn off to reduce the amount of data Microsoft collects about your browsing experience. Also, if you don't feel comfortable about Copilot, you can disable it too. To limit data collection on Microsoft Edge, use these steps: Open Microsoft Edge . Open the main menu from the top-right and choose the Settings option. Click on Privacy, search, and services from the left pane. Click on Privacy . Turn off the "Help improve Microsoft products by sending the results from search on the web" toggle switch. Turn off the "Allow Microsoft to save your browsing activity, including history, usage, favorites, web content, and other browsing data to personalize Microsoft Edge and Microsoft services like ads, search, shopping, and news" toggle switch. 
+  2791→
+  2792→ 
+  2793→ (Image credit: Mauro Huculak) Click on Appearance from the left pane. Click the "Copilot and sidebar" setting. 
+  2794→
+  2795→ 
+  2796→ (Image credit: Mauro Huculak) Click on Copilot . 
+  2797→
+  2798→ 
+  2799→ (Image credit: Mauro Huculak) Turn off the "Show Copilot button on the toolbar" toggle switch to disable the Copilot access from the top-right. 
+  2800→
+  2801→ 
+  2802→ (Image credit: Mauro Huculak) Click on AI innovations from the left pane. Turn off the Copilot Mode toggle switch (if applicable) to disable. 
+  2803→
+  2804→ 
+  2805→ (Image credit: Mauro Huculak) Once you complete these steps, you'll reduce the amount of data the browser shares with Microsoft. If you want to go one step further, you may want to disconnect the browser from your Microsoft account. To remove your profile connected to a Microsoft account, open the "Profiles" settings page from edge://settings/profiles , and either click the "Sign out" button to disconnect and key your current setup. Or click the "Delete" button and then click the "Remove profile" button. This action will delete your old profile data from the computer, but already synced data will continue to be available on your Microsoft account until you delete it manually . Let’s be honest If you truly want absolute privacy, the only guaranteed solution is to disconnect completely. Unplug the Ethernet cable, turn off Wi-Fi, and stay offline. That is the only scenario where nothing leaves your device. Realistically, that is not how most of us use our computers. What you can do, however, is reduce exposure to a practical minimum. By applying the right privacy settings and system tweaks, you can stay connected, keep using your favorite apps and services, and significantly limit the diagnostic and background data your system sends. It is not total isolation, but it's a balanced, controlled approach that gives you far more transparency and control over your experience. FAQs about making Windows 11 more private These are common questions regarding changing settings to make Windows 11 more private. Does Windows 11 really collect data about my activity? Yes. Windows 11 collects required diagnostic data to keep the system secure and functional. By default, it can also collect optional diagnostic data, app activity signals, search interactions, and personalization information. Can I completely disable telemetry in Windows 11? No, not entirely. Required diagnostic data is built into the operating system. However, you can turn off optional diagnostic data, tailored experiences, feedback frequency, and activity tracking to minimize what is sent to Microsoft. Is switching to a local account better for privacy? Yes. A local account reduces cloud synchronization of settings, preferences, app lists, and certain activity data. When you use a Microsoft account, Windows 11 connects more features to cloud services, including backup and cross-device sync. Does disabling Device Encryption make my PC less secure? It can, if you do not replace it with another encryption method. Encryption protects your data if the device is lost or stolen. The privacy concern is that recovery keys may be stored in your Microsoft account. If you disable Device Encryption, you should use an alternative encryption solution to maintain data protection. What is Windows Recall, and should I disable it? Windows Recall is an AI-powered feature that captures and indexes snapshots of your activity so you can search your past actions. While designed to run locally, it still records a timeline of on-device activity. If you are uncomfortable with continuous activity indexing, you can remove it from Windows Features. Does uninstalling OneDrive improve privacy? Yes, if you prefer to keep files strictly local. OneDrive continuously syncs files and some folders to the Microsoft cloud when signed in. Removing it stops automatic cloud synchronization. Is Copilot required in Windows 11? No. Copilot is optional. It connects to Microsoft’s cloud-based AI services. You can uninstall the Copilot app and disable Copilot integrations in Microsoft Edge if you prefer a more traditional desktop experience. Will disabling Windows Backup stop all cloud syncing? It depends on your setup. If you use a local account, cloud backup of apps and preferences does not occur. If you use a Microsoft account, you can manually disable “Remember my apps” and “Remember my preferences” to prevent configuration data from syncing. Should I disable Windows Update for privacy? Completely disabling updates is not recommended for security reasons. Updates protect your device from vulnerabilities. If privacy is your concern, you can manually control updates or disable Delivery Optimization to prevent peer-to-peer update sharing. Does Microsoft Edge collect browsing data? Yes, especially if you are signed in with a Microsoft account. Edge can sync browsing history, favorites, usage data, and web content to personalize services. You can reduce data collection from the settings page, and you can sign out or remove your profile to stop syncing. More resources For more helpful articles, coverage, and answers to common questions about Windows 10 and Windows 11, visit the following resources: Windows 11 on Windows Central — All you need to know Windows 10 on Windows Central — All you need to know 
+  2806→
+  2807→ 
+  2808→ Join us on Reddit at r/WindowsCentral to share your insights and discuss our latest news, reviews, and more. 
+  2809→
+  2810→ Mauro Huculak Social Links Navigation Windows How-To Expert Mauro Huculak has been a Windows How-To Expert contributor for WindowsCentral.com for nearly a decade and has over 23 years of combined experience in IT and technical writing. He holds various professional certifications from Microsoft, Cisco, VMware, and CompTIA and has been recognized as a Microsoft MVP for many years. 
+  2811→
+  2812→ 
+  2813→
+  2814→ 
+  2815→
+  2816→ 
+  2817→
+  2818→ 
+  2819→
+  2820→ 
+  2821→
+  2822→ 
+  2823→ View More 
+  2824→
+  2825→ 
+  2826→
+  2827→ 
+  2828→ You must confirm your public display name before commenting 
+  2829→ Please logout and then login again, you will then be prompted to enter your display name. 
+  2830→
+  2831→Logout
+  2832→
+  2833→ 
+  2834→
+  2835→ 
+  2836→
+  2837→ 
+  2838→
+  2839→ 
+  2840→
+  2841→ 
+  2842→ Read more 
+  2843→
+  2844→ 
+  2845→
+  2846→ 
+  2847→
+  2848→ 
+  2849→
+  2850→ 
+  2851→
+  2852→ 
+  2853→
+  2854→ 
+  2855→
+  2856→ 
+  2857→ Windows 11 
+  2858→
+  2859→ How to make Windows 11 feel calmer and less distracting 
+  2860→
+  2861→ 
+  2862→
+  2863→ 
+  2864→
+  2865→ 
+  2866→
+  2867→ 
+  2868→
+  2869→ 
+  2870→
+  2871→ 
+  2872→
+  2873→ 
+  2874→
+  2875→ 
+  2876→
+  2877→ 
+  2878→
+  2879→ 
+  2880→
+  2881→ 
+  2882→
+  2883→ 
+  2884→
+  2885→ 
+  2886→
+  2887→ 
+  2888→ Windows 11 
+  2889→
+  2890→ I finally figured out what Enhanced Sign-in Security actually does on Windows 11 
+  2891→
+  2892→ 
+  2893→
+  2894→ 
+  2895→
+  2896→ 
+  2897→
+  2898→ 
+  2899→
+  2900→ 
+  2901→
+  2902→ 
+  2903→
+  2904→ 
+  2905→
+  2906→ 
+  2907→
+  2908→ 
+  2909→
+  2910→ 
+  2911→
+  2912→ 
+  2913→
+  2914→ 
+  2915→
+  2916→ 
+  2917→
+  2918→ 
+  2919→ Windows 11 
+  2920→
+  2921→ 7 exciting new features in Windows 11 version 26H2 
+  2922→
+  2923→ 
+  2924→
+  2925→ 
+  2926→
+  2927→ 
+  2928→
+  2929→ 
+  2930→
+  2931→ 
+  2932→
+  2933→ 
+  2934→
+  2935→ 
+  2936→
+  2937→ 
+  2938→
+  2939→ 
+  2940→
+  2941→ 
+  2942→
+  2943→ 
+  2944→
+  2945→ 
+  2946→
+  2947→ 
+  2948→
+  2949→ 
+  2950→ Windows 11 
+  2951→
+  2952→ Windows 11 begins the 26H2 cycle with 9 new Insider features 
+  2953→
+  2954→ 
+  2955→
+  2956→ 
+  2957→
+  2958→ 
+  2959→
+  2960→ 
+  2961→
+  2962→ 
+  2963→
+  2964→ 
+  2965→
+  2966→ 
+  2967→
+  2968→ 
+  2969→
+  2970→ 
+  2971→
+  2972→ 
+  2973→
+  2974→ 
+  2975→
+  2976→ 
+  2977→
+  2978→ 
+  2979→
+  2980→ 
+  2981→ Windows 11 
+  2982→
+  2983→ How to turn Windows 11 Pro into a secure hybrid work system 
+  2984→
+  2985→ 
+  2986→
+  2987→ 
+  2988→
+  2989→ 
+  2990→
+  2991→ 
+  2992→
+  2993→ 
+  2994→
+  2995→ 
+  2996→
+  2997→ 
+  2998→
+  2999→ 
+  3000→
+  3001→ 
+  3002→
+  3003→ 
+  3004→
+  3005→ 
+  3006→
+  3007→ 
+  3008→
+  3009→ 
+  3010→
+  3011→ 
+  3012→ Windows 11 
+  3013→
+  3014→ 13 of the biggest new Windows 11 features arriving July 14 
+  3015→
+  3016→ 
+  3017→
+  3018→ 
+  3019→
+  3020→ 
+  3021→
+  3022→ 
+  3023→
+  3024→ 
+  3025→
+  3026→ 
+  3027→
+  3028→ 
+  3029→
+  3030→ 
+  3031→
+  3032→ 
+  3033→
+  3034→ 
+  3035→
+  3036→ 
+  3037→
+  3038→ Latest in Windows 11 
+  3039→
+  3040→ 
+  3041→
+  3042→ 
+  3043→
+  3044→ 
+  3045→
+  3046→ 
+  3047→
+  3048→ 
+  3049→
+  3050→ 
+  3051→
+  3052→ 
+  3053→ Windows 11 
+  3054→
+  3055→ Windows Wrap: Should the next big Windows 11 upgrade be Windows 12? 
+  3056→
+  3057→ 
+  3058→
+  3059→ 
+  3060→
+  3061→ 
+  3062→
+  3063→ 
+  3064→
+  3065→ 
+  3066→
+  3067→ 
+  3068→
+  3069→ 
+  3070→
+  3071→ 
+  3072→
+  3073→ 
+  3074→
+  3075→ 
+  3076→
+  3077→ 
+  3078→
+  3079→ 
+  3080→
+  3081→ 
+  3082→
+  3083→ 
+  3084→ Windows 11 
+  3085→
+  3086→ Windows 11's context menus are getting a major glow up: Hands on! 
+  3087→
+  3088→ 
+  3089→
+  3090→ 
+  3091→
+  3092→ 
+  3093→
+  3094→ 
+  3095→
+  3096→ 
+  3097→
+  3098→ 
+  3099→
+  3100→ 
+  3101→
+  3102→ 
+  3103→
+  3104→ 
+  3105→
+  3106→ 
+  3107→
+  3108→ 
+  3109→
+  3110→ 
+  3111→
+  3112→ 
+  3113→
+  3114→ 
+  3115→ Windows 11 
+  3116→
+  3117→ Windows 11's new movable Taskbar and customizable Start menu are just a few weeks away 
+  3118→
+  3119→ 
+  3120→
+  3121→ 
+  3122→
+  3123→ 
+  3124→
+  3125→ 
+  3126→
+  3127→ 
+  3128→
+  3129→ 
+  3130→
+  3131→ 
+  3132→
+  3133→ 
+  3134→
+  3135→ 
+  3136→
+  3137→ 
+  3138→
+  3139→ 
+  3140→
+  3141→ 
+  3142→
+  3143→ 
+  3144→
+  3145→ 
+  3146→ Windows 11 
+  3147→
+  3148→ Microsoft finally tests movable taskbar in Windows 11 preview channel 
+  3149→
+  3150→ 
+  3151→
+  3152→ 
+  3153→
+  3154→ 
+  3155→
+  3156→ 
+  3157→
+  3158→ 
+  3159→
+  3160→ 
+  3161→
+  3162→ 
+  3163→
+  3164→ 
+  3165→
+  3166→ 
+  3167→
+  3168→ 
+  3169→
+  3170→ 
+  3171→
+  3172→ 
+  3173→
+  3174→ 
+  3175→
+  3176→ 
+  3177→ Windows 11 
+  3178→
+  3179→ These 3 classic Windows tools desperately need a Windows 11 makeover 
+  3180→
+  3181→ 
+  3182→
+  3183→ 
+  3184→
+  3185→ 
+  3186→
+  3187→ 
+  3188→
+  3189→ 
+  3190→
+  3191→ 
+  3192→
+  3193→ 
+  3194→
+  3195→ 
+  3196→
+  3197→ 
+  3198→
+  3199→ 
+  3200→
+  3201→ 
+  3202→
+  3203→ 
+  3204→
+  3205→ 
+  3206→
+  3207→ 
+  3208→ Windows 11 
+  3209→
+  3210→ Stardock AltTabby hands-on: A fresh look for Alt+Tab on Windows 11 
+  3211→
+  3212→ 
+  3213→
+  3214→ 
+  3215→
+  3216→ 
+  3217→
+  3218→ 
+  3219→
+  3220→ 
+  3221→
+  3222→ 
+  3223→
+  3224→ 
+  3225→
+  3226→ 
+  3227→
+  3228→ 
+  3229→
+  3230→ 
+  3231→
+  3232→ 
+  3233→
+  3234→ Latest in How Tos 
+  3235→
+  3236→ 
+  3237→
+  3238→ 
+  3239→
+  3240→ 
+  3241→
+  3242→ 
+  3243→
+  3244→ 
+  3245→
+  3246→ 
+  3247→
+  3248→ 
+  3249→ Call of Duty 
+  3250→
+  3251→ Tune in to Call of Duty NEXT ahead of MW4's early access beta 
+  3252→
+  3253→ 
+  3254→
+  3255→ 
+  3256→
+  3257→ 
+  3258→
+  3259→ 
+  3260→
+  3261→ 
+  3262→
+  3263→ 
+  3264→
+  3265→ 
+  3266→
+  3267→ 
+  3268→
+  3269→ 
+  3270→
+  3271→ 
+  3272→
+  3273→ 
+  3274→
+  3275→ 
+  3276→
+  3277→ 
+  3278→
+  3279→ 
+  3280→ Windows 11 
+  3281→
+  3282→ How to make Windows 11 feel calmer and less distracting 
+  3283→
+  3284→ 
+  3285→
+  3286→ 
+  3287→
+  3288→ 
+  3289→
+  3290→ 
+  3291→
+  3292→ 
+  3293→
+  3294→ 
+  3295→
+  3296→ 
+  3297→
+  3298→ 
+  3299→
+  3300→ 
+  3301→
+  3302→ 
+  3303→
+  3304→ 
+  3305→
+  3306→ 
+  3307→
+  3308→ 
+  3309→
+  3310→ 
+  3311→ Windows 11 
+  3312→
+  3313→ Microsoft addresses 570 vulnerabilities in July 2026 Windows 11 update 
+  3314→
+  3315→ 
+  3316→
+  3317→ 
+  3318→
+  3319→ 
+  3320→
+  3321→ 
+  3322→
+  3323→ 
+  3324→
+  3325→ 
+  3326→
+  3327→ 
+  3328→
+  3329→ 
+  3330→
+  3331→ 
+  3332→
+  3333→ 
+  3334→
+  3335→ 
+  3336→
+  3337→ 
+  3338→
+  3339→ 
+  3340→
+  3341→ 
+  3342→ Windows 11 
+  3343→
+  3344→ Windows 11’s new recovery feature explained 
+  3345→
+  3346→ 
+  3347→
+  3348→ 
+  3349→
+  3350→ 
+  3351→
+  3352→ 
+  3353→
+  3354→ 
+  3355→
+  3356→ 
+  3357→
+  3358→ 
+  3359→
+  3360→ 
+  3361→
+  3362→ 
+  3363→
+  3364→ 
+  3365→
+  3366→ 
+  3367→
+  3368→ 
+  3369→
+  3370→ 
+  3371→
+  3372→ 
+  3373→ Windows 11 
+  3374→
+  3375→ BleachBit: Why we recommend this powerful open‑source Windows 11 cleanup tool 
+  3376→
+  3377→ 
+  3378→
+  3379→ 
+  3380→
+  3381→ 
+  3382→
+  3383→ 
+  3384→
+  3385→ 
+  3386→
+  3387→ 
+  3388→
+  3389→ 
+  3390→
+  3391→ 
+  3392→
+  3393→ 
+  3394→
+  3395→ 
+  3396→
+  3397→ 
+  3398→
+  3399→ 
+  3400→
+  3401→ 
+  3402→
+  3403→ 
+  3404→ Windows 11 
+  3405→
+  3406→ A hidden way to limit RAM on Windows 11 
+  3407→
+  3408→ 
+  3409→
+  3410→ 
+  3411→
+  3412→ 
+  3413→
+  3414→ 
+  3415→
+  3416→ 
+  3417→
+  3418→ 
+  3419→
+  3420→ 
+  3421→
+  3422→ 
+  3423→
+  3424→ 
+  3425→
+  3426→ 
+  3427→
+  3428→ 
+  3429→
+  3430→ 
+  3431→
+  3432→ 
+  3433→
+  3434→ 
+  3435→
+  3436→ 
+  3437→
+  3438→ 
+  3439→ Advertisement 
+  3440→
+  3441→ 
+  3442→
+  3443→ 
+  3444→
+  3445→ Advertisement 
+  3446→
+  3447→ 
+  3448→
+  3449→ 
+  3450→
+  3451→ 
+  3452→
+  3453→ 
+  3454→LATEST ARTICLES
+  3455→
+  3456→ 
+  3457→
+  3458→ 
+  3459→
+  3460→ 
+  3461→
+  3462→ 
+  3463→
+  3464→ 
+  3465→
+  3466→ 
+  3467→
+  3468→ 
+  3469→
+  3470→ 
+  3471→ 1 
+  3472→
+  3473→ 
+  3474→Windows 11 has transformed dramatically since launch, but three classic Windows tools remain untouched — and it’s time Microsoft finally modernizes them
+  3475→
+  3476→ 
+  3477→
+  3478→ 
+  3479→
+  3480→ 
+  3481→
+  3482→ 
+  3483→ 2 
+  3484→
+  3485→ 
+  3486→Cherry MX built the mechanical keyboard, but Hall Effect, optical, and Topre switches are changing the game — Here's how to pick the right one
+  3487→
+  3488→ 
+  3489→
+  3490→ 
+  3491→
+  3492→ 
+  3493→
+  3494→ 
+  3495→ 3 
+  3496→
+  3497→ 
+  3498→Windows 11’s upcoming overhaul adds a movable taskbar, redesigned Start menu, and faster performance — but should it just have been Windows 12?
+  3499→
+  3500→ 
+  3501→
+  3502→ 
+  3503→
+  3504→ 
+  3505→
+  3506→ 
+  3507→ 4 
+  3508→
+  3509→ 
+  3510→I tried Windows 11's new customizable context menus, and they're a major improvement: Microsoft will let you restore Windows 10 style vertical layout for primary actions and more
+  3511→
+  3512→ 
+  3513→
+  3514→ 
+  3515→
+  3516→ 
+  3517→
+  3518→ 
+  3519→ 5 
+  3520→
+  3521→ 
+  3522→The Windows 11 Microsoft shipped in 2021 and the Windows 11 we have in 2026 are worlds apart — this is the full breakdown of what changed
+  3523→
+  3524→ 
+  3525→
+  3526→ 
+  3527→
+  3528→ 
+  3529→
+  3530→ 
+  3531→
+  3532→ 
+  3533→
+  3534→ 
+  3535→
+  3536→ 
+  3537→
+  3538→ 
+  3539→
+  3540→ 
+  3541→
+  3542→ 
+  3543→
+  3544→ 
+  3545→
+  3546→ 
+  3547→Windows Central is part of Future US Inc, an international media group and leading digital publisher. Visit our corporate site .
+  3548→
+  3549→ 
+  3550→
+  3551→ 
+  3552→
+  3553→ 
+  3554→ Add as a preferred source on Google 
+  3555→
+  3556→ 
+  3557→
+  3558→ 
+  3559→ Terms and conditions 
+  3560→
+  3561→ 
+  3562→ Contact Future's experts 
+  3563→
+  3564→ 
+  3565→ Privacy policy 
+  3566→
+  3567→ 
+  3568→ Cookies policy 
+  3569→
+  3570→ 
+  3571→ Accessibility statement 
+  3572→
+  3573→ 
+  3574→ Careers 
+  3575→
+  3576→ 
+  3577→ Licensing 
+  3578→
+  3579→ 
+  3580→ About us 
+  3581→
+  3582→ 
+  3583→ Forums 
+  3584→
+  3585→ 
+  3586→ Advertise with us 
+  3587→
+  3588→ 
+  3589→ Android Central 
+  3590→
+  3591→ Do not sell or share my personal information 
+  3592→
+  3593→ ©
+  3594→Future US, Inc. Full 7th Floor, 130 West 42nd Street,
+  3595→New York,
+  3596→NY 10036. 
+  3597→
+  3598→ 
+  3599→
+  3600→ 
+  3601→
+  3602→ 
+  3603→
+  3604→ 
+  3605→
+  3606→ 
+  3607→
+  3608→ 
+  3609→
+  3610→ 
+  3611→
+  3612→ 
+  3613→
+  3614→ 
+  3615→
+  3616→ Close 
+  3617→
+  3618→ 
+  3619→
+  3620→ 
+  3621→
+  3622→ 
+  3623→
+  3624→ 
+  3625→
+  3626→ 
+  3627→
+  3628→ 
+  3629→
+  3630→Please login or signup to comment
+  3631→
+  3632→ Please wait... 
+  3633→
+  3634→ 
+  3635→
+  3636→ 
+  3637→
+  3638→Login
+  3639→
+  3640→ 
+  3641→Sign Up

@@ -1,0 +1,646 @@
+     1→     1→How to Debloat Windows 10 & 11: Disable Telemetry, Copilot, Recall and Bloatware (2026 Guide) 
+     2→     2→ 
+     3→     3→ 
+     4→     4→ 
+     5→     5→
+     6→     6→
+     7→     7→ 
+     8→     8→ 
+     9→     9→ 
+    10→    10→ 
+    11→    11→ 
+    12→    12→
+    13→    13→ 
+    14→    14→ 
+    15→    15→ 
+    16→    16→ 
+    17→    17→
+    18→    18→ 
+    19→    19→ 
+    20→    20→ 
+    21→    21→ 
+    22→    22→ 
+    23→    23→ 
+    24→    24→
+    25→    25→ 
+    26→    26→
+    27→    27→ 
+    28→    28→
+    29→    29→
+    30→    30→ 
+    31→    31→ 
+    32→    32→ 
+    33→    33→ Winslop Features Benefits Pricing Pro Debloat How-To Blog FAQ 
+    34→    34→ 
+    35→    35→ Get Pro 
+    36→    36→ 
+    37→    37→ 
+    38→    38→ 
+    39→    39→ 
+    40→    40→ Home 
+    41→    41→
+    42→    42→ 
+    43→    43→ 
+    44→    44→
+    45→    45→How-To Guide
+    46→    46→ 
+    47→    47→
+    48→    48→
+    49→    49→
+    50→    50→ 
+    51→    51→ 
+    52→    52→ How-To Guide
+    53→    53→
+    54→    54→How to debloat Windows 10 & 11 : disable telemetry, Copilot, Recall and bloatware
+    55→    55→
+    56→    56→A step-by-step Windows 11 debloat guide for 2026. Run a single PowerShell command to clean everything at once, or copy a per-category script — Telemetry, AI (Copilot & Recall), Cortana / Bing, Privacy, Bloatware, Firewall, Edge or OneDrive — and paste it into an administrator Command Prompt.
+    57→    57→
+    58→    58→ 
+    59→    59→
+    60→    60→
+    61→    61→On this page
+    62→    62→ All-in-one Telemetry AI features Cortana / Bing Privacy Bloatware Firewall Edge OneDrive After running FAQ 
+    63→    63→
+    64→    64→ 
+    65→    65→
+    66→    66→
+    67→    67→ 
+    68→    68→ 1. Remove only what you need
+    69→    69→ 
+    70→    70→ 1 Press & hold the Windows Key 
+    71→    71→ Win + R . 
+    72→    72→
+    73→    73→ 2 Copy the command below and paste it into the window. 
+    74→    74→
+    75→    75→ 3 Press Enter . After the script starts, a category selection step will appear — pick the categories you want to clean up: Telemetry , AI features , Cortana / Bing , Privacy , Bloatware , Firewall , Edge , OneDrive . 
+    76→    76→
+    77→    77→ 4 Wait 2–5 minutes until you see DEBLOAT COMPLETE . 
+    78→    78→ 
+    79→    79→
+    80→    80→Command
+    81→    81→
+    82→    82→
+    83→    83→powershell -ExecutionPolicy Bypass -Command "iwr 'https://winslop.io/Winslop-Debloat-Windows.ps1' -OutFile '%TEMP%Winslop-Debloat-Windows.ps1'; & '%TEMP%Winslop-Debloat-Windows.ps1'"
+    84→    84→
+    85→    85→ 
+    86→    86→ Copy 
+    87→    87→
+    88→    88→ 
+    89→    89→ 
+    90→    90→ Or get Winslop Pro (one-click GUI) 
+    91→    91→
+    92→    92→
+    93→    93→ 
+    94→    94→
+    95→    95→2. Manual removal
+    96→    96→
+    97→    97→Each script is a self-contained 
+    98→    98→.cmd
+    99→    99→ batch you can paste into an administrator Command Prompt. Pick only the categories you want.
+   100→   100→
+   101→   101→ 
+   102→   102→
+   103→   103→ 
+   104→   104→ 
+   105→   105→
+   106→   106→
+   107→   107→1. Telemetry
+   108→   108→
+   109→   109→Stops Windows from sending diagnostic data, application usage statistics and crash reports to Microsoft.
+   110→   110→
+   111→   111→
+   112→   112→
+   113→   113→
+   114→   114→
+   115→   115→What it does
+   116→   116→
+   117→   117→Sets AllowTelemetry=0 in both the policy and legacy data-collection paths, disables the DiagTrack and dmwappushservice services that ship telemetry, turns off CEIP (Customer Experience Improvement Program), the Inventory Collector and the Application Impact Telemetry agent, and disables every scheduled task under \Microsoft\Windows\Application Experience\, \Customer Experience Improvement Program\ and \Feedback\Siuf\.
+   118→   118→
+   119→   119→
+   120→   120→
+   121→   121→Can it be undone?
+   122→   122→
+   123→   123→Reversible. Re-enable the services with sc config <name> start= auto and re-enable the scheduled tasks with schtasks /Change /Enable, or roll back via System Restore.
+   124→   124→
+   125→   125→
+   126→   126→
+   127→   127→
+   128→   128→cmd (administrator) — copy & paste
+   129→   129→
+   130→   130→
+   131→   131→@echo off
+   132→   132→:: Disable Windows telemetry, diagnostic data and CEIP
+   133→   133→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
+   134→   134→reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" /v AllowTelemetry /t REG_DWORD /d 0 /f
+   135→   135→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v DoNotShowFeedbackNotifications /t REG_DWORD /d 1 /f
+   136→   136→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v LimitDiagnosticLogCollection /t REG_DWORD /d 1 /f
+   137→   137→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\DataCollection" /v LimitDumpCollection /t REG_DWORD /d 1 /f
+   138→   138→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat" /v AITEnable /t REG_DWORD /d 0 /f
+   139→   139→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat" /v DisableInventory /t REG_DWORD /d 1 /f
+   140→   140→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat" /v DisableUAR /t REG_DWORD /d 1 /f
+   141→   141→reg add "HKLM\SOFTWARE\Policies\Microsoft\SQMClient\Windows" /v CEIPEnable /t REG_DWORD /d 0 /f
+   142→   142→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v DisableTailoredExperiencesWithDiagnosticData /t REG_DWORD /d 1 /f
+   143→   143→
+   144→   144→:: Stop and disable telemetry services
+   145→   145→sc stop DiagTrack
+   146→   146→sc config DiagTrack start= disabled
+   147→   147→sc stop dmwappushservice
+   148→   148→sc config dmwappushservice start= disabled
+   149→   149→sc stop diagnosticshub.standardcollector.service
+   150→   150→sc config diagnosticshub.standardcollector.service start= disabled
+   151→   151→
+   152→   152→:: Disable telemetry scheduled tasks
+   153→   153→schtasks /Change /TN "\Microsoft\Windows\Application Experience\Microsoft Compatibility Appraiser" /Disable
+   154→   154→schtasks /Change /TN "\Microsoft\Windows\Application Experience\ProgramDataUpdater" /Disable
+   155→   155→schtasks /Change /TN "\Microsoft\Windows\Application Experience\StartupAppTask" /Disable
+   156→   156→schtasks /Change /TN "\Microsoft\Windows\Customer Experience Improvement Program\Consolidator" /Disable
+   157→   157→schtasks /Change /TN "\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip" /Disable
+   158→   158→schtasks /Change /TN "\Microsoft\Windows\Customer Experience Improvement Program\KernelCeipTask" /Disable
+   159→   159→schtasks /Change /TN "\Microsoft\Windows\Feedback\Siuf\DmClient" /Disable
+   160→   160→schtasks /Change /TN "\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload" /Disable
+   161→   161→schtasks /Change /TN "\Microsoft\Windows\Windows Error Reporting\QueueReporting" /Disable
+   162→   162→
+   163→   163→echo.
+   164→   164→echo === Telemetry disabled. Reboot recommended. ===
+   165→   165→
+   166→   166→ 
+   167→   167→ Copy 
+   168→   168→ 
+   169→   169→
+   170→   170→ 
+   171→   171→ 
+   172→   172→ 
+   173→   173→ 
+   174→   174→ 
+   175→   175→ 
+   176→   176→ 
+   177→   177→ 
+   178→   178→ 
+   179→   179→ 
+   180→   180→
+   181→   181→
+   182→   182→2. AI features
+   183→   183→
+   184→   184→Removes Windows Copilot, Recall, Click-to-Do and the generative AI tools baked into Paint and Photos.
+   185→   185→
+   186→   186→
+   187→   187→
+   188→   188→
+   189→   189→
+   190→   190→What it does
+   191→   191→
+   192→   192→Sets DisableAIDataAnalysis=1 and AllowRecallEnablement=0 to fully block Recall (Win 11 24H2+), and tries to remove Recall as an optional Windows feature. Also enforces TurnOffWindowsCopilot=1 in both HKLM and HKCU, hides the Copilot button in the taskbar, removes the Copilot AppX package and disables Click-to-Do, Image Creator, Cocreator and Generative Fill in Paint.
+   193→   193→
+   194→   194→
+   195→   195→
+   196→   196→Can it be undone?
+   197→   197→
+   198→   198→Reversible at the policy level (delete the values under HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI). The Copilot AppX package can be reinstalled from the Microsoft Store. Recall, once removed as an optional feature, requires re-enabling via Settings > Optional features.
+   199→   199→
+   200→   200→
+   201→   201→
+   202→   202→
+   203→   203→cmd (administrator) — copy & paste
+   204→   204→
+   205→   205→
+   206→   206→@echo off
+   207→   207→:: Disable Windows Recall (Win 11 24H2+)
+   208→   208→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v DisableAIDataAnalysis /t REG_DWORD /d 1 /f
+   209→   209→reg add "HKCU\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v DisableAIDataAnalysis /t REG_DWORD /d 1 /f
+   210→   210→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v AllowRecallEnablement /t REG_DWORD /d 0 /f
+   211→   211→reg add "HKCU\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v AllowRecallEnablement /t REG_DWORD /d 0 /f
+   212→   212→
+   213→   213→:: Disable Windows Copilot
+   214→   214→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f
+   215→   215→reg add "HKCU\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" /v TurnOffWindowsCopilot /t REG_DWORD /d 1 /f
+   216→   216→reg add "HKCU\SOFTWARE\Microsoft\Windows\Shell\Copilot" /v IsCopilotAvailable /t REG_DWORD /d 0 /f
+   217→   217→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" /v ShowCopilotButton /t REG_DWORD /d 0 /f
+   218→   218→
+   219→   219→:: Disable Click-to-Do, Image Creator, Cocreator, Generative Fill
+   220→   220→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v DisableClickToDo /t REG_DWORD /d 1 /f
+   221→   221→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v DisableImageCreator /t REG_DWORD /d 1 /f
+   222→   222→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v DisableCocreator /t REG_DWORD /d 1 /f
+   223→   223→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" /v DisableGenerativeFill /t REG_DWORD /d 1 /f
+   224→   224→reg add "HKLM\SOFTWARE\Policies\Microsoft\PaintStudio" /v DisableImageCreator /t REG_DWORD /d 1 /f
+   225→   225→reg add "HKLM\SOFTWARE\Policies\Microsoft\PaintStudio" /v DisableCocreator /t REG_DWORD /d 1 /f
+   226→   226→reg add "HKLM\SOFTWARE\Policies\Microsoft\PaintStudio" /v DisableGenerativeFill /t REG_DWORD /d 1 /f
+   227→   227→
+   228→   228→:: Remove the Copilot AppX package
+   229→   229→powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+   230→   230→ "Get-AppxPackage -AllUsers *Copilot* | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue; Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like '*Copilot*' | Remove-AppxProvisionedPackage -Online | Out-Null"
+   231→   231→
+   232→   232→:: Try to remove the optional Recall feature
+   233→   233→powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+   234→   234→ "Disable-WindowsOptionalFeature -Online -FeatureName 'Recall' -Remove -NoRestart -ErrorAction SilentlyContinue | Out-Null"
+   235→   235→
+   236→   236→echo.
+   237→   237→echo === AI features disabled. Reboot required for Copilot/Recall. ===
+   238→   238→
+   239→   239→ 
+   240→   240→ Copy 
+   241→   241→ 
+   242→   242→
+   243→   243→ 
+   244→   244→ 
+   245→   245→
+   246→   246→
+   247→   247→3. Cortana / Bing
+   248→   248→
+   249→   249→Removes Cortana and prevents the Start menu from sending your search queries to Bing.
+   250→   250→
+   251→   251→
+   252→   252→
+   253→   253→
+   254→   254→
+   255→   255→What it does
+   256→   256→
+   257→   257→Sets AllowCortana=0 and DisableWebSearch=1 under the Windows Search policy, turns off ConnectedSearchUseWeb, AllowCloudSearch and BingSearchEnabled, and removes the Cortana AppX package for all users along with its provisioned package so it does not come back for new users.
+   258→   258→
+   259→   259→
+   260→   260→
+   261→   261→Can it be undone?
+   262→   262→
+   263→   263→Reversible. Reinstall Cortana from the Microsoft Store and delete the policy keys to restore Bing search in the Start menu.
+   264→   264→
+   265→   265→
+   266→   266→
+   267→   267→
+   268→   268→cmd (administrator) — copy & paste
+   269→   269→
+   270→   270→
+   271→   271→@echo off
+   272→   272→:: Disable Cortana, Bing web search and cloud search in the Start menu
+   273→   273→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v AllowCortana /t REG_DWORD /d 0 /f
+   274→   274→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v DisableWebSearch /t REG_DWORD /d 1 /f
+   275→   275→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v ConnectedSearchUseWeb /t REG_DWORD /d 0 /f
+   276→   276→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v AllowSearchToUseLocation /t REG_DWORD /d 0 /f
+   277→   277→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Search" /v AllowCloudSearch /t REG_DWORD /d 0 /f
+   278→   278→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" /v BingSearchEnabled /t REG_DWORD /d 0 /f
+   279→   279→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" /v CortanaConsent /t REG_DWORD /d 0 /f
+   280→   280→
+   281→   281→:: Remove the Cortana AppX package (Windows 10/11)
+   282→   282→powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+   283→   283→ "Get-AppxPackage -AllUsers *Cortana* | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue; Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like '*Cortana*' | Remove-AppxProvisionedPackage -Online | Out-Null"
+   284→   284→
+   285→   285→echo.
+   286→   286→echo === Cortana and Bing search disabled. ===
+   287→   287→
+   288→   288→ 
+   289→   289→ Copy 
+   290→   290→ 
+   291→   291→
+   292→   292→ 
+   293→   293→ 
+   294→   294→
+   295→   295→
+   296→   296→4. Privacy
+   297→   297→
+   298→   298→Hardens advertising, location, activity, clipboard and personalization settings.
+   299→   299→
+   300→   300→
+   301→   301→
+   302→   302→
+   303→   303→
+   304→   304→What it does
+   305→   305→
+   306→   306→Disables the per-user Advertising ID, Activity History / Timeline (EnableActivityFeed=0, PublishUserActivities=0, UploadUserActivities=0), location tracking via lfsvc and the location consent store, cloud clipboard sync (AllowCrossDeviceClipboard=0), speech/handwriting/typing data collection, lock-screen Spotlight ads and Start menu suggestions/Consumer Features.
+   307→   307→
+   308→   308→
+   309→   309→
+   310→   310→Can it be undone?
+   311→   311→
+   312→   312→Fully reversible — every change is a registry value that can be deleted or set back to 1 to restore the original behavior.
+   313→   313→
+   314→   314→
+   315→   315→
+   316→   316→
+   317→   317→cmd (administrator) — copy & paste
+   318→   318→
+   319→   319→
+   320→   320→@echo off
+   321→   321→:: Advertising ID
+   322→   322→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" /v DisabledByGroupPolicy /t REG_DWORD /d 1 /f
+   323→   323→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" /v Enabled /t REG_DWORD /d 0 /f
+   324→   324→
+   325→   325→:: Activity History / Timeline
+   326→   326→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v EnableActivityFeed /t REG_DWORD /d 0 /f
+   327→   327→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v PublishUserActivities /t REG_DWORD /d 0 /f
+   328→   328→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v UploadUserActivities /t REG_DWORD /d 0 /f
+   329→   329→
+   330→   330→:: Location tracking
+   331→   331→reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" /v Value /t REG_SZ /d Deny /f
+   332→   332→reg add "HKLM\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" /v Status /t REG_DWORD /d 0 /f
+   333→   333→
+   334→   334→:: Cloud clipboard / clipboard history sync
+   335→   335→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v AllowCrossDeviceClipboard /t REG_DWORD /d 0 /f
+   336→   336→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\System" /v AllowClipboardHistory /t REG_DWORD /d 0 /f
+   337→   337→
+   338→   338→:: Speech / inking / typing data
+   339→   339→reg add "HKCU\SOFTWARE\Microsoft\InputPersonalization" /v RestrictImplicitTextCollection /t REG_DWORD /d 1 /f
+   340→   340→reg add "HKCU\SOFTWARE\Microsoft\InputPersonalization" /v RestrictImplicitInkCollection /t REG_DWORD /d 1 /f
+   341→   341→reg add "HKCU\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" /v HarvestContacts /t REG_DWORD /d 0 /f
+   342→   342→
+   343→   343→:: Start menu and lock screen suggestions / spotlight
+   344→   344→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SystemPaneSuggestionsEnabled /t REG_DWORD /d 0 /f
+   345→   345→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v SilentInstalledAppsEnabled /t REG_DWORD /d 0 /f
+   346→   346→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v PreInstalledAppsEnabled /t REG_DWORD /d 0 /f
+   347→   347→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v OemPreInstalledAppsEnabled /t REG_DWORD /d 0 /f
+   348→   348→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v RotatingLockScreenEnabled /t REG_DWORD /d 0 /f
+   349→   349→reg add "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" /v RotatingLockScreenOverlayEnabled /t REG_DWORD /d 0 /f
+   350→   350→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v DisableWindowsConsumerFeatures /t REG_DWORD /d 1 /f
+   351→   351→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\CloudContent" /v DisableSoftLanding /t REG_DWORD /d 1 /f
+   352→   352→
+   353→   353→echo.
+   354→   354→echo === Privacy settings hardened. ===
+   355→   355→
+   356→   356→ 
+   357→   357→ Copy 
+   358→   358→ 
+   359→   359→
+   360→   360→ 
+   361→   361→ 
+   362→   362→ 
+   363→   363→ 
+   364→   364→ 
+   365→   365→ 
+   366→   366→
+   367→   367→
+   368→   368→5. Bloatware
+   369→   369→
+   370→   370→Removes ~70 pre-installed UWP apps you almost certainly do not use.
+   371→   371→
+   372→   372→
+   373→   373→
+   374→   374→
+   375→   375→
+   376→   376→What it does
+   377→   377→
+   378→   378→Goes through a curated list (Xbox apps, Teams, Clipchamp, Solitaire, Your Phone, Maps, Candy Crush, Spotify, Disney+, TikTok, Netflix, etc.), removes the AppX package for every existing user with Remove-AppxPackage -AllUsers, and also removes the corresponding provisioned package so the app is not re-installed for new user profiles.
+   379→   379→
+   380→   380→
+   381→   381→
+   382→   382→Can it be undone?
+   383→   383→
+   384→   384→Most apps can be reinstalled from the Microsoft Store. Provisioned packages can be re-added with Add-AppxProvisionedPackage if you keep the original .appx files.
+   385→   385→
+   386→   386→
+   387→   387→
+   388→   388→
+   389→   389→cmd (administrator) — copy & paste
+   390→   390→
+   391→   391→
+   392→   392→@echo off
+   393→   393→:: Remove pre-installed UWP bloatware (current users + provisioned packages)
+   394→   394→powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+   395→   395→ "$apps=@('Microsoft.3DBuilder','Microsoft.BingFinance','Microsoft.BingNews','Microsoft.BingSports','Microsoft.BingTranslator','Microsoft.BingWeather','Microsoft.BingFoodAndDrink','Microsoft.BingHealthAndFitness','Microsoft.BingTravel','Microsoft.MinecraftUWP','Microsoft.GamingServices','Microsoft.GetHelp','Microsoft.Getstarted','Microsoft.Messaging','Microsoft.Microsoft3DViewer','Microsoft.MicrosoftOfficeHub','Microsoft.MicrosoftSolitaireCollection','Microsoft.MixedReality.Portal','Microsoft.NetworkSpeedTest','Microsoft.News','Microsoft.Office.Lens','Microsoft.Office.OneNote','Microsoft.Office.Sway','Microsoft.OneConnect','Microsoft.People','Microsoft.Print3D','Microsoft.RemoteDesktop','Microsoft.SkypeApp','Microsoft.Office.Todo.List','Microsoft.Whiteboard','Microsoft.WindowsAlarms','Microsoft.WindowsCommunicationsApps','Microsoft.WindowsFeedbackHub','Microsoft.WindowsMaps','Microsoft.WindowsSoundRecorder','Microsoft.YourPhone','Microsoft.ZuneMusic','Microsoft.ZuneVideo','MicrosoftCorporationII.QuickAssist','MicrosoftTeams','MSTeams','Microsoft.Teams','Microsoft.Wallet','Microsoft.Xbox.TCUI','Microsoft.XboxApp','Microsoft.XboxGameOverlay','Microsoft.XboxGamingOverlay','Microsoft.XboxIdentityProvider','Microsoft.XboxSpeechToTextOverlay','Microsoft.OutlookForWindows','Microsoft.PowerAutomateDesktop','Microsoft.Windows.DevHome','Microsoft.Windows.DevHomeGitHubExtension','Microsoft.Advertising.Xaml','Clipchamp.Clipchamp','SpotifyAB.SpotifyMusic','Disney.37853FC22B2CE','king.com.CandyCrushSaga','king.com.CandyCrushSodaSaga','*Netflix*','*TikTok*','*Twitter*','*Facebook*','*Instagram*'); foreach($a in $apps){ Get-AppxPackage -AllUsers $a | Remove-AppxPackage -AllUsers -ErrorAction SilentlyContinue; Get-AppxProvisionedPackage -Online | Where-Object DisplayName -like $a | Remove-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Out-Null }"
+   396→   396→
+   397→   397→echo.
+   398→   398→echo === Bloatware removed. ===
+   399→   399→
+   400→   400→ 
+   401→   401→ Copy 
+   402→   402→ 
+   403→   403→
+   404→   404→ 
+   405→   405→ 
+   406→   406→
+   407→   407→
+   408→   408→6. Firewall
+   409→   409→
+   410→   410→Adds outbound Windows Firewall rules that block ~20 known Microsoft telemetry endpoints.
+   411→   411→
+   412→   412→
+   413→   413→
+   414→   414→
+   415→   415→
+   416→   416→What it does
+   417→   417→
+   418→   418→Resolves each telemetry hostname (vortex.data.microsoft.com, watson.telemetry.microsoft.com, settings-win.data.microsoft.com, etc.) to its current IP addresses and creates an outbound block rule for those IPs. This works as a second layer of defense in case any process tries to bypass the policy-level telemetry switches.
+   419→   419→
+   420→   420→
+   421→   421→
+   422→   422→Can it be undone?
+   423→   423→
+   424→   424→Reversible. Open wf.msc, go to Outbound Rules and delete the rules whose name starts with 'Block telemetry:'.
+   425→   425→
+   426→   426→
+   427→   427→
+   428→   428→
+   429→   429→cmd (administrator) — copy & paste
+   430→   430→
+   431→   431→
+   432→   432→@echo off
+   433→   433→:: Block known Microsoft telemetry endpoints at the Windows Firewall (outbound)
+   434→   434→powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+   435→   435→ "$hosts=@('telemetry.microsoft.com','vortex.data.microsoft.com','vortex-win.data.microsoft.com','settings-win.data.microsoft.com','watson.telemetry.microsoft.com','oca.telemetry.microsoft.com','sqm.telemetry.microsoft.com','redir.metaservices.microsoft.com','choice.microsoft.com','choice.microsoft.com.nsatc.net','df.telemetry.microsoft.com','reports.wes.df.telemetry.microsoft.com','wes.df.telemetry.microsoft.com','services.wes.df.telemetry.microsoft.com','sqm.df.telemetry.microsoft.com','telemetry.appex.bing.net','telemetry.urs.microsoft.com','survey.watson.microsoft.com','feedback.windows.com','feedback.microsoft-hohm.com','feedback.search.microsoft.com'); foreach($h in $hosts){ try{ $ips=(Resolve-DnsName -Name $h -Type A -ErrorAction SilentlyContinue).IPAddress; if($ips){ New-NetFirewallRule -DisplayName ('Block telemetry: '+$h) -Direction Outbound -Action Block -RemoteAddress $ips -ErrorAction SilentlyContinue | Out-Null } }catch{} }"
+   436→   436→
+   437→   437→echo.
+   438→   438→echo === Firewall rules added for Microsoft telemetry endpoints. ===
+   439→   439→
+   440→   440→ 
+   441→   441→ Copy 
+   442→   442→ 
+   443→   443→
+   444→   444→ 
+   445→   445→ 
+   446→   446→ 
+   447→   447→
+   448→   448→
+   449→   449→7. Edge
+   450→   450→
+   451→   451→Hardens Microsoft Edge: telemetry off, Copilot sidebar off, no shopping assistant, no recommendations.
+   452→   452→
+   453→   453→
+   454→   454→
+   455→   455→
+   456→   456→
+   457→   457→What it does
+   458→   458→
+   459→   459→Writes Edge enterprise policies under HKLM\SOFTWARE\Policies\Microsoft\Edge to disable MetricsReporting, SendSiteInfoToImproveServices, PersonalizationReporting, DiagnosticData, UserFeedback, EdgeShoppingAssistant, ShowRecommendations, SearchSuggest, the HubsSidebar (Discover/Copilot side panel), CopilotPageContext and the local generative-AI foundational model.
+   460→   460→
+   461→   461→
+   462→   462→
+   463→   463→Can it be undone?
+   464→   464→
+   465→   465→Fully reversible — delete the values under HKLM\SOFTWARE\Policies\Microsoft\Edge to restore the defaults.
+   466→   466→
+   467→   467→
+   468→   468→
+   469→   469→
+   470→   470→cmd (administrator) — copy & paste
+   471→   471→
+   472→   472→
+   473→   473→@echo off
+   474→   474→:: Disable Microsoft Edge telemetry, Copilot sidebar and nag features
+   475→   475→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v MetricsReportingEnabled /t REG_DWORD /d 0 /f
+   476→   476→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v SendSiteInfoToImproveServices /t REG_DWORD /d 0 /f
+   477→   477→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v PersonalizationReportingEnabled /t REG_DWORD /d 0 /f
+   478→   478→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v DiagnosticData /t REG_DWORD /d 0 /f
+   479→   479→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v UserFeedbackAllowed /t REG_DWORD /d 0 /f
+   480→   480→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v EdgeShoppingAssistantEnabled /t REG_DWORD /d 0 /f
+   481→   481→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v ShowRecommendationsEnabled /t REG_DWORD /d 0 /f
+   482→   482→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v SearchSuggestEnabled /t REG_DWORD /d 0 /f
+   483→   483→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v HubsSidebarEnabled /t REG_DWORD /d 0 /f
+   484→   484→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v CopilotPageContext /t REG_DWORD /d 0 /f
+   485→   485→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v CopilotCDPPageContext /t REG_DWORD /d 0 /f
+   486→   486→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v GenAILocalFoundationalModelSettings /t REG_DWORD /d 1 /f
+   487→   487→reg add "HKLM\SOFTWARE\Policies\Microsoft\Edge" /v AdsSettingForIntrusiveAdsSites /t REG_DWORD /d 2 /f
+   488→   488→
+   489→   489→echo.
+   490→   490→echo === Edge hardened (telemetry, Copilot, shopping assistant disabled). ===
+   491→   491→
+   492→   492→ 
+   493→   493→ Copy 
+   494→   494→ 
+   495→   495→
+   496→   496→ 
+   497→   497→ 
+   498→   498→
+   499→   499→
+   500→   500→8. OneDrive
+   501→   501→
+   502→   502→Uninstalls OneDrive, blocks it via Group Policy and removes its folders.
+   503→   503→
+   504→   504→
+   505→   505→
+   506→   506→
+   507→   507→
+   508→   508→What it does
+   509→   509→
+   510→   510→Kills the running OneDrive.exe process, runs the official OneDriveSetup.exe /uninstall (both 32-bit and 64-bit), sets DisableFileSyncNGSC=1 and DisableFileSync=1 to block the sync engine via policy, removes the OneDrive entry from the File Explorer sidebar (CLSID 018D5C66-4533-4307-9B53-224DE2ED1FE6) and deletes the leftover %UserProfile%\OneDrive, %LocalAppData%\Microsoft\OneDrive, %ProgramData%\Microsoft OneDrive and C:\OneDriveTemp folders.
+   511→   511→
+   512→   512→
+   513→   513→
+   514→   514→Can it be undone?
+   515→   515→
+   516→   516→Reinstall OneDrive from https://onedrive.live.com/about/download/ and delete the two DisableFileSync* policy values to restore sync. Note: this script does not delete files inside the OneDrive cloud — only the local sync folder.
+   517→   517→
+   518→   518→
+   519→   519→
+   520→   520→
+   521→   521→cmd (administrator) — copy & paste
+   522→   522→
+   523→   523→
+   524→   524→@echo off
+   525→   525→:: Stop OneDrive, uninstall it, block sync via policy and clean up leftover folders
+   526→   526→taskkill /f /im OneDrive.exe >nul 2>&1
+   527→   527→
+   528→   528→if exist "%SystemRoot%\System32\OneDriveSetup.exe" (
+   529→   529→ "%SystemRoot%\System32\OneDriveSetup.exe" /uninstall
+   530→   530→)
+   531→   531→if exist "%SystemRoot%\SysWOW64\OneDriveSetup.exe" (
+   532→   532→ "%SystemRoot%\SysWOW64\OneDriveSetup.exe" /uninstall
+   533→   533→)
+   534→   534→
+   535→   535→:: Block OneDrive via Group Policy
+   536→   536→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /v DisableFileSyncNGSC /t REG_DWORD /d 1 /f
+   537→   537→reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive" /v DisableFileSync /t REG_DWORD /d 1 /f
+   538→   538→
+   539→   539→:: Hide OneDrive from File Explorer sidebar
+   540→   540→reg delete "HKCR\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f >nul 2>&1
+   541→   541→reg delete "HKCR\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}" /f >nul 2>&1
+   542→   542→
+   543→   543→:: Remove leftover folders
+   544→   544→rd /s /q "%UserProfile%\OneDrive" >nul 2>&1
+   545→   545→rd /s /q "%LocalAppData%\Microsoft\OneDrive" >nul 2>&1
+   546→   546→rd /s /q "%ProgramData%\Microsoft OneDrive" >nul 2>&1
+   547→   547→rd /s /q "C:\OneDriveTemp" >nul 2>&1
+   548→   548→
+   549→   549→echo.
+   550→   550→echo === OneDrive uninstalled and blocked. ===
+   551→   551→
+   552→   552→ 
+   553→   553→ Copy 
+   554→   554→ 
+   555→   555→
+   556→   556→ 
+   557→   557→
+   558→   558→
+   559→   559→ 
+   560→   560→ 
+   561→   561→ 3. After you run the scripts
+   562→   562→ 
+   563→   563→ 
+   564→   564→ Reboot. Most policies (Telemetry, Copilot, Edge) only take full effect after a restart. 
+   565→   565→
+   566→   566→ 
+   567→   567→ Re-run after Windows updates. Major Windows feature updates can re-introduce some bloatware and reset a few settings — re-run the master command. 
+   568→   568→
+   569→   569→ 
+   570→   570→ If something breaks (Microsoft Store, Settings, login), open Start > type 
+   571→   571→rstrui
+   572→   572→ and roll back to the System Restore point you created at the start. 
+   573→   573→ 
+   574→   574→ 
+   575→   575→ 
+   576→   576→ 
+   577→   577→
+   578→   578→Want a one-click GUI instead?
+   579→   579→
+   580→   580→ Winslop Pro gives you a signed executable with checkboxes for every section on this page, scheduled re-runs after Windows updates, custom profiles, firewall-level privacy and priority email support — $29 one-time.
+   581→   581→
+   582→   582→
+   583→   583→
+   584→   584→ 
+   585→   585→ 
+   586→   586→ Return to Home 
+   587→   587→
+   588→   588→
+   589→   589→ 
+   590→   590→
+   591→   591→
+   592→   592→ 
+   593→   593→ 
+   594→   594→ 4. Frequently asked questions about debloating Windows
+   595→   595→
+   596→   596→ Is it safe to debloat Windows 11? 
+   597→   597→ 
+   598→   598→Yes, when you stick to user-level changes such as the ones on this page. Every script disables features through documented registry policies, official Group Policy keys, the Windows Firewall and the standard Remove-AppxPackage command — nothing patches system files. You should still create a System Restore point before running anything (Start > type 'Create a restore point') so you can roll back in one click if you change your mind.
+   599→   599→ Can I undo the changes made by these debloat scripts? 
+   600→   600→ 
+   601→   601→Yes. All telemetry, AI, Cortana, privacy and Edge changes are pure registry policies — delete the corresponding keys under HKLM\SOFTWARE\Policies\Microsoft to revert. Disabled services can be re-enabled with 'sc config <name> start= auto'. UWP apps removed by the bloatware script can be reinstalled from the Microsoft Store. The OneDrive uninstall is fully reversible by reinstalling OneDrive from the official Microsoft download page.
+   602→   602→ Will debloating Windows break Windows Update or the Microsoft Store? 
+   603→   603→ 
+   604→   604→No. The scripts on this page intentionally do not touch Windows Update, the Microsoft Store, Defender or any core servicing component. Only telemetry, AI, advertising, Cortana/Bing, OneDrive and pre-installed UWP apps are affected, so your machine continues to receive security updates normally.
+   605→   605→ How do I disable Windows Recall on Windows 11 24H2? 
+   606→   606→ 
+   607→   607→Set 'DisableAIDataAnalysis' to 1 and 'AllowRecallEnablement' to 0 under HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI (and the matching HKCU path), then run 'Disable-WindowsOptionalFeature -Online -FeatureName Recall -Remove' from an elevated PowerShell. The 'AI features' script in section 3 of this guide does both automatically.
+   608→   608→ How do I remove Microsoft Copilot from Windows 11? 
+   609→   609→ 
+   610→   610→Apply the 'TurnOffWindowsCopilot=1' policy under HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot, hide the taskbar button by setting 'ShowCopilotButton=0' under HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced, then remove the AppX package with 'Get-AppxPackage -AllUsers *Copilot* | Remove-AppxPackage -AllUsers'. The 'AI features' script bundles all three steps.
+   611→   611→ Do I need to run these debloat scripts as administrator? 
+   612→   612→ 
+   613→   613→Yes. Every script writes to HKLM, modifies Windows services, schedules tasks, removes provisioned AppX packages or creates Windows Firewall rules — all of which require an elevated Command Prompt or PowerShell. Section 2 of this page shows three different ways to open an administrator terminal on Windows 10 and Windows 11.
+   614→   614→ Does this Windows debloat guide work on both Windows 10 and Windows 11? 
+   615→   615→ 
+   616→   616→Yes. Every policy, service and AppX package targeted by the scripts exists on both Windows 10 (1809 and later) and Windows 11 (including 23H2 and 24H2). AI-specific items such as Recall and Click-to-Do simply have nothing to disable on Windows 10 and the script silently skips them.
+   617→   617→ 
+   618→   618→
+   619→   619→
+   620→   620→ 
+   621→   621→
+   622→   622→Related Winslop resources
+   623→   623→
+   624→   624→ 
+   625→   625→ 
+   626→   626→ 
+   627→   627→ 
+   628→   628→ 
+   629→   629→ 
+   630→   630→ Interactive script builder
+   631→   631→
+   632→   632→Pick the categories you want with checkboxes and get a ready-to-paste debloat script — the simplified version of this page.
+   633→   633→ 
+   634→   634→ 
+   635→   635→ 
+   636→   636→ Winslop Pro – one-click debloater
+   637→   637→
+   638→   638→Skip the scripts: a signed Windows GUI for telemetry, AI, Cortana, bloatware, firewall, Edge and OneDrive cleanup.
+   639→   639→ 
+   640→   640→
+   641→   641→ 
+   642→   642→
+   643→   643→ Winslop 
+   644→   644→ Features Pricing Pro Buy Pro How-To Blog FAQ 
+   645→   645→
+   646→   646→Disclaimer: Winslop Pro is provided as-is. Use at your own risk. Always create a system restore point before making changes.
