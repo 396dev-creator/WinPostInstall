@@ -36,3 +36,25 @@ Stage Summary:
 - Script upgraded from v3.0 (1359 lines) to v3.1.0 (1467 lines)
 - Key new feature: Automatic Defender self-exclusion on first run
 - Final script saved to /home/z/my-project/download/WinPostInstall.ps1
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Add Browser Extensions & Privacy section (Section 15) for 5 browsers
+
+Work Log:
+- Created `Invoke-BrowserHardening` function with two parts: extension installation + privacy policies
+- Implemented Chromium extension force-install via `ExtensionInstallForcelist` registry policy (Chrome, Edge, Brave, Opera)
+- Implemented Firefox extension force-install via `policies.json` with registry fallback
+- Extensions: uBlock Origin + Privacy Badger on all 5 browsers
+- Added privacy policies per browser: Chrome (14 policies), Brave (12 policies), Opera (6 policies), Firefox (13+ policies)
+- Firefox: strict tracking protection, cryptomining/fingerprinting blocking, DoH, Pocket/telemetry disable, sanitize on shutdown
+- Chrome: 3rd party cookies, WebRTC leak prevent, sync disabled, metrics off, no default browser nag
+- Updated menu (item 15), section maps, switch statement, silent mode array, restart check
+- Verified: 20/20 region/endregion balance, 16 sections, 1760 lines
+
+Stage Summary:
+- Script upgraded from v3.1.0 (1467 lines) to v3.2.0 (1760 lines)
+- Key new feature: Automatic browser extension deployment + privacy hardening for Chrome, Edge, Firefox, Brave, Opera
+- Extensions install silently on next browser launch via enterprise policy
+- Policies apply even to browsers installed AFTER running the script

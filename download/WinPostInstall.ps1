@@ -34,6 +34,7 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v3.2.0 - Added Browser Extensions & Privacy section (uBlock Origin + Privacy Badger on 5 browsers)
     v3.1.0 - Added Defender self-exclusion, enhanced XML docs, AV-friendly metadata
     v3.0.0 - Added 5 new sections: Edge, OneDrive, Gaming, Scheduled Tasks, AI/Recall
     v2.0.0 - Initial release with 11 sections
@@ -49,7 +50,7 @@ param(
     [string[]]$Sections
 )
 
-$ScriptVersion = "3.1.0"
+$ScriptVersion = "3.2.0"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 #endregion
@@ -1265,7 +1266,297 @@ function Invoke-ScheduledTasksCleanup {
 #endregion
 
 #region ============================================================
-# SECTION 15: FINAL TOUCHES
+# SECTION 15: BROWSER EXTENSIONS & PRIVACY
+# ============================================================
+
+function Invoke-BrowserHardening {
+    Write-Host ""
+    Write-Host "--- BROWSER EXTENSIONS & PRIVACY ---" -ForegroundColor Magenta
+    Write-Host ""
+
+    # ================================================================
+    # Extension IDs and install URLs
+    # ================================================================
+    # uBlock Origin
+    $ublockChromeID    = "cjpalhdlnbpafiamejdnhcphjbkeiagm"
+    $ublockFirefoxID   = "uBlock0@raymondhill.net"
+    $ublockAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/addon-607454-latest.xpi"
+    # Privacy Badger
+    $badgerChromeID    = "pkehgijcmpdhfbdbbnkijodmdjhbjlgp"
+    $badgerFirefoxID   = "jid1-MnnxcxisBPnSXQ@jetpack"
+    $badgerAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/privacy-badger17/addon-576858-latest.xpi"
+
+    # Chromium extension update URLs
+    $chromeWebStoreUrl = "https://clients2.google.com/service/update2/crx"
+    $edgeAddonsUrl    = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+
+    # ================================================================
+    # PART A: Force-install extensions via Group Policy
+    # ================================================================
+    Write-Host "  [Extensions]" -ForegroundColor Yellow
+    Write-Host ""
+
+    # --- Helper: Add extension to Chromium ExtensionInstallForcelist ---
+    function Add-ChromiumExtension {
+        param(
+            [string]$RegPath,
+            [string]$ExtID,
+            [string]$UpdateUrl,
+            [string]$BrowserName,
+            [string]$ExtName
+        )
+        try {
+            if (-not (Test-Path $RegPath)) {
+                New-Item -Path $RegPath -Force -ErrorAction Stop | Out-Null
+            }
+            $entry = "$ExtID;$UpdateUrl"
+            # Check if already present (registry values are named 1, 2, 3...)
+            $existing = (Get-ItemProperty -Path $RegPath -ErrorAction SilentlyContinue)
+            $found = $false
+            if ($existing) {
+                $existing.PSObject.Properties | ForEach-Object {
+                    if ($_.Value -like "$ExtID;*") { $found = $true }
+                }
+            }
+            if ($found) {
+                Write-Step "$BrowserName`: $ExtName already in forcelist."
+            } else {
+                # Find next available index
+                $idx = 1
+                while ($existing.PSObject.Properties.Name -contains $idx.ToString()) { $idx++ }
+                New-ItemProperty -Path $RegPath -Name $idx.ToString() -Value $entry -PropertyType String -Force -ErrorAction Stop | Out-Null
+                Write-Success "$BrowserName`: Force-installed $ExtName ($ExtID)"
+            }
+        } catch {
+            Write-Warn "$BrowserName`: Could not add $ExtName`: $_"
+        }
+    }
+
+    # --- Google Chrome ---
+    Write-Step "Configuring Google Chrome extensions..."
+    $chromeInstalled = Test-Path "HKLM:\SOFTWARE\Google\Chrome\MBL" -ErrorAction SilentlyContinue
+    $chromeInstalled2 = Test-Path "HKLM:\SOFTWARE\WOW6432Node\Google\Chrome\MBL" -ErrorAction SilentlyContinue
+    $chromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist"
+    if ($chromeInstalled -or $chromeInstalled2 -or (Test-Path "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe") -or (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe")) {
+        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
+        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+    } else {
+        Write-Step "Google Chrome not detected. Setting policies anyway (applies if installed later)."
+        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
+        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+    }
+
+    # --- Microsoft Edge ---
+    Write-Step "Configuring Microsoft Edge extensions..."
+    $edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $ublockChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "uBlock Origin"
+    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $badgerChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "Privacy Badger"
+
+    # --- Brave ---
+    Write-Step "Configuring Brave extensions..."
+    $bravePolicyPath = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist"
+    $braveInstalled = (Test-Path "${env:LOCALAPPDATA}\BraveSoftware\Brave-Browser\Application\brave.exe") -or (Test-Path "${env:ProgramFiles}\BraveSoftware\Brave-Browser\Application\brave.exe")
+    if ($braveInstalled) {
+        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
+        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+    } else {
+        Write-Step "Brave not detected. Setting policies anyway (applies if installed later)."
+        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
+        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+    }
+
+    # --- Opera (uses Chrome Web Store, limited policy support) ---
+    Write-Step "Configuring Opera extensions..."
+    $operaPolicyPath = "HKLM:\SOFTWARE\Policies\Opera\ExtensionInstallForcelist"
+    $operaInstalled = (Test-Path "${env:ProgramFiles}\Opera\launcher.exe") -or (Test-Path "${env:LOCALAPPDATA}\Programs\Opera\launcher.exe")
+    if ($operaInstalled) {
+        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
+        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+    } else {
+        Write-Step "Opera not detected. Setting policies (may not apply - Opera has limited policy support)."
+        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
+        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+    }
+
+    # --- Firefox (uses policies.json - different mechanism) ---
+    Write-Step "Configuring Firefox extensions via policies..."
+    $firefoxPaths = @(
+        "${env:ProgramFiles}\Mozilla Firefox",
+        "${env:ProgramFiles(x86)}\Mozilla Firefox"
+    )
+    $firefoxRoot = $firefoxPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if ($firefoxRoot) {
+        $distDir = Join-Path $firefoxRoot "distribution"
+        if (-not (Test-Path $distDir)) { New-Item -Path $distDir -ItemType Directory -Force | Out-Null }
+        $policyFile = Join-Path $distDir "policies.json"
+
+        $firefoxPolicy = @{}
+        if (Test-Path $policyFile) {
+            try { $firefoxPolicy = Get-Content $policyFile -Raw | ConvertFrom-Json -AsHashtable } catch { $firefoxPolicy = @{} }
+        }
+
+        if (-not $firefoxPolicy.ContainsKey("policies")) { $firefoxPolicy["policies"] = @{} }
+        $p = $firefoxPolicy["policies"]
+
+        # ExtensionSettings for force-installing extensions
+        if (-not $p.ContainsKey("ExtensionSettings")) { $p["ExtensionSettings"] = @{} }
+        $extSettings = $p["ExtensionSettings"]
+
+        $extSettings[$ublockFirefoxID] = @{
+            "installation_mode" = "force_installed"
+            "install_url"       = $ublockAMOUrl
+        }
+        $extSettings[$badgerFirefoxID] = @{
+            "installation_mode" = "force_installed"
+            "install_url"       = $badgerAMOUrl
+        }
+
+        $firefoxPolicy["policies"] = $p
+        $jsonOutput = $firefoxPolicy | ConvertTo-Json -Depth 10 -Compress
+        Set-Content -Path $policyFile -Value $jsonOutput -Encoding UTF8 -Force
+        Write-Success "Firefox: Force-installed uBlock Origin + Privacy Badger via policies.json"
+    } else {
+        # Fallback: set via registry (Firefox also supports this)
+        Write-Step "Firefox not found in Program Files. Setting registry-based policies..."
+        $ffPolicyPath = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\ExtensionSettings"
+        try {
+            if (-not (Test-Path $ffPolicyPath)) { New-Item -Path $ffPolicyPath -Force -ErrorAction Stop | Out-Null }
+            $ublockJson = '{"installation_mode":"force_installed","install_url":"' + $ublockAMOUrl + '"}'
+            $badgerJson = '{"installation_mode":"force_installed","install_url":"' + $badgerAMOUrl + '"}'
+            Set-ItemProperty -Path $ffPolicyPath -Name $ublockFirefoxID -Value $ublockJson -Force -ErrorAction Stop
+            Set-ItemProperty -Path $ffPolicyPath -Name $badgerFirefoxID -Value $badgerJson -Force -ErrorAction Stop
+            Write-Success "Firefox: Extension policies set via registry (applies when Firefox is installed)."
+        } catch {
+            Write-Warn "Firefox: Could not set extension policies: $_"
+        }
+    }
+
+    # ================================================================
+    # PART B: Browser Privacy Settings
+    # ================================================================
+    Write-Host ""
+    Write-Host "  [Privacy Settings]" -ForegroundColor Yellow
+    Write-Host ""
+
+    # --- Google Chrome Privacy ---
+    Write-Step "Applying Chrome privacy policies..."
+    $chromePol = "HKLM:\SOFTWARE\Policies\Google\Chrome"
+    $chromePrivacySettings = @{
+        "BlockThirdPartyCookies"                = 1
+        "IncognitoModeAvailability"              = 1
+        "SyncDisabled"                           = 1
+        "BrowserSignin"                          = 0
+        "MetricsReportingEnabled"                = 0
+        "SendSiteInfoToImproveServices"          = 0
+        "SearchSuggestEnabled"                   = 0
+        "AlternateErrorPagesEnabled"             = 0
+        "UrlKeyedAnonymizedDataCollectionEnabled" = 0
+        "SafeBrowsingExtendedReportingEnabled"   = 0
+        "WebRtcLocalhostIpHandling"              = 1
+        "WebRtcUdpPortRange"                     = "0"
+        "RestoreOnStartup"                       = 4
+        "DefaultBrowserSettingEnabled"           = 0
+    }
+    foreach ($prop in $chromePrivacySettings.Keys) {
+        $val = $chromePrivacySettings[$prop]
+        $type = if ($val -is [int]) { "DWord" } else { "String" }
+        Set-Registry -Path $chromePol -Name $prop -Value $val -Type $type
+    }
+
+    # --- Brave Privacy (Brave has built-in shields, but we can set policies too) ---
+    Write-Step "Applying Brave privacy policies..."
+    $bravePol = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave"
+    $bravePrivacySettings = @{
+        "BlockThirdPartyCookies"                = 1
+        "SyncDisabled"                           = 1
+        "BrowserSignin"                          = 0
+        "MetricsReportingEnabled"                = 0
+        "SendSiteInfoToImproveServices"          = 0
+        "SearchSuggestEnabled"                   = 0
+        "AlternateErrorPagesEnabled"             = 0
+        "UrlKeyedAnonymizedDataCollectionEnabled" = 0
+        "WebRtcLocalhostIpHandling"              = 1
+        "RestoreOnStartup"                       = 4
+        "DefaultBrowserSettingEnabled"           = 0
+        "BraveSyncEnabled"                       = 0
+    }
+    foreach ($prop in $bravePrivacySettings.Keys) {
+        $val = $bravePrivacySettings[$prop]
+        $type = if ($val -is [int]) { "DWord" } else { "String" }
+        Set-Registry -Path $bravePol -Name $prop -Value $val -Type $type
+    }
+
+    # --- Opera Privacy ---
+    Write-Step "Applying Opera privacy policies..."
+    $operaPol = "HKLM:\SOFTWARE\Policies\Opera"
+    $operaPrivacySettings = @{
+        "BlockThirdPartyCookies"                = 1
+        "SyncDisabled"                           = 1
+        "MetricsReportingEnabled"                = 0
+        "SearchSuggestEnabled"                   = 0
+        "AlternateErrorPagesEnabled"             = 0
+        "UrlKeyedAnonymizedDataCollectionEnabled" = 0
+    }
+    foreach ($prop in $operaPrivacySettings.Keys) {
+        Set-Registry -Path $operaPol -Name $prop -Value $operaPrivacySettings[$prop] -Type DWord
+    }
+
+    # --- Firefox Privacy ---
+    Write-Step "Applying Firefox privacy policies..."
+    $ffPol = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox"
+    Set-Registry -Path $ffPol -Name "DisableTelemetry" -Value 1 -Type DWord
+    Set-Registry -Path $ffPol -Name "DisableFirefoxStudies" -Value 1 -Type DWord
+    Set-Registry -Path $ffPol -Name "DisablePocket" -Value 1 -Type DWord
+    Set-Registry -Path $ffPol -Name "DisableFormHistory" -Value 1 -Type DWord
+    Set-Registry -Path $ffPol -Name "OfferToSaveLogins" -Value 0 -Type DWord
+    Set-Registry -Path $ffPol -Name "PasswordManagerEnabled" -Value 0 -Type DWord
+    Set-Registry -Path $ffPol -Name "SanitizeOnShutdown" -Value 1 -Type DWord
+    Set-Registry -Path $ffPol -Name "DontCheckDefaultBrowser" -Value 1 -Type DWord
+
+    # Firefox tracking protection (strict mode) + DoH
+    Write-Step "Configuring Firefox strict tracking protection + DoH..."
+    $ffTpPath = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection"
+    Set-Registry -Path $ffTpPath -Name "Value" -Value 1 -Type DWord
+    Set-Registry -Path $ffTpPath -Name "Cryptomining" -Value 1 -Type DWord
+    Set-Registry -Path $ffTpPath -Name "Fingerprinting" -Value 1 -Type DWord
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" -Name "Enabled" -Value 1 -Type DWord
+
+    # If Firefox policies.json exists, also update it with privacy settings
+    if ($firefoxRoot -and (Test-Path (Join-Path $firefoxRoot "distribution\policies.json"))) {
+        Write-Step "Updating Firefox policies.json with privacy settings..."
+        try {
+            $policyFile = Join-Path $firefoxRoot "distribution\policies.json"
+            $ffPolicy = Get-Content $policyFile -Raw | ConvertFrom-Json -AsHashtable
+            $fp = $ffPolicy["policies"]
+            $fp["DisableTelemetry"]      = $true
+            $fp["DisableFirefoxStudies"] = $true
+            $fp["DisablePocket"]        = $true
+            $fp["DisableFormHistory"]   = $true
+            $fp["SanitizeOnShutdown"]   = $true
+            $fp["DontCheckDefaultBrowser"] = $true
+            $fp["EnableTrackingProtection"] = @{ "Value" = $true; "Cryptomining" = $true; "Fingerprinting" = $true }
+            $fp["DNSOverHTTPS"] = @{ "Enabled" = $true }
+            $ffPolicy["policies"] = $fp
+            Set-Content -Path $policyFile -Value ($ffPolicy | ConvertTo-Json -Depth 10 -Compress) -Encoding UTF8 -Force
+            Write-Success "Firefox policies.json updated with all privacy settings."
+        } catch {
+            Write-Warn "Could not update Firefox policies.json: $_"
+        }
+    }
+
+    Write-Host ""
+    Write-Success "Browser extensions & privacy configuration complete."
+    Write-Host ""
+    Write-Host "  NOTE: Extensions install on next browser launch." -ForegroundColor DarkGray
+    Write-Host "  NOTE: Policies apply even to browsers installed AFTER running this." -ForegroundColor DarkGray
+    Write-Host ""
+}
+
+#endregion
+
+#region ============================================================
+# SECTION 16: FINAL TOUCHES
 # ============================================================
 
 function Invoke-FinalTouches {
@@ -1342,7 +1633,8 @@ function Show-Menu {
         @{ ID = "12"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
         @{ ID = "13"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
         @{ ID = "14"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
-        @{ ID = "15"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" }
+        @{ ID = "15"; Key = "BrowserHardening";    Name = "Browser Extensions & Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
+        @{ ID = "16"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" }
     )
 
     Write-Host ""
@@ -1372,14 +1664,14 @@ function Get-UserSelection {
     if ($input.Trim().ToUpper() -eq 'A') {
         $selected = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                       "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                      "EdgeHardening","OneDrive","Gaming","ScheduledTasks","FinalTouches")
+                      "EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
     } else {
         $numbers = $input -split ',' | ForEach-Object { $_.Trim() }
         $allSections = @{
             '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
             '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
             '9'='DiskCleanup';'10'='Winget';'11'='EdgeHardening';'12'='OneDrive'
-            '13'='Gaming';'14'='ScheduledTasks';'15'='FinalTouches'
+            '13'='Gaming';'14'='ScheduledTasks';'15'='BrowserHardening';'16'='FinalTouches'
         }
         foreach ($num in $numbers) {
             if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
@@ -1403,7 +1695,7 @@ if ($Sections -and $Sections.Count -gt 0) {
 } elseif ($Silent) {
     $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                           "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                          "EdgeHardening","OneDrive","Gaming","ScheduledTasks","FinalTouches")
+                          "EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
     Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
 } else {
     $selectedSections = Get-UserSelection
@@ -1432,6 +1724,7 @@ foreach ($section in $selectedSections) {
         "OneDrive"          { Invoke-OneDriveManagement }
         "Gaming"            { Invoke-GamingDisable }
         "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
+        "BrowserHardening"  { Invoke-BrowserHardening }
         "FinalTouches"      { Invoke-FinalTouches }
         default { Write-Warn "Unknown section: $section (skipped)" }
     }
@@ -1449,7 +1742,7 @@ Write-Host "  Log saved to: $LogFile" -ForegroundColor DarkGray
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming")) {
+if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening")) {
     Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
     Write-Host ""
     if (-not $Silent) {
