@@ -34,6 +34,7 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v3.3.0 - Added Office 365 install + MAS activation, expanded privacy analytics lockdown
     v3.2.0 - Added Browser Extensions & Privacy section (uBlock Origin + Privacy Badger on 5 browsers)
     v3.1.0 - Added Defender self-exclusion, enhanced XML docs, AV-friendly metadata
     v3.0.0 - Added 5 new sections: Edge, OneDrive, Gaming, Scheduled Tasks, AI/Recall
@@ -50,7 +51,7 @@ param(
     [string[]]$Sections
 )
 
-$ScriptVersion = "3.2.0"
+$ScriptVersion = "3.3.0"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 #endregion
@@ -438,8 +439,101 @@ function Invoke-PrivacyTweaks {
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync" `
         -Name "DisableSettingSyncUserOverride" -Value 1 -Type DWord
 
+    # 21. Full diagnostics/analytics lockdown (Settings > Privacy > Diagnostics & Feedback)
+    Write-Step "Locking down all diagnostics & analytics for developers..."
+    # Diagnostic Data: Send required only (=1) or off (=0)
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+        -Name "AllowTelemetry" -Value 0 -Type DWord
+    # Tailored Experiences
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord
+    # Feedback frequency: Never
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord
+    # Diagnostic Data Viewer: disable
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+        -Name "EnableDiagnosticDataViewer" -Value 0 -Type DWord
+    # Limit diagnostic log collection
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord
+    # Limit dump collection
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+        -Name "LimitDumpCollection" -Value 1 -Type DWord
+    # Microsoft Compatibility Telemetry (AIT/Inventory/UAR) - already above but reinforced
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
+        -Name "AITEnable" -Value 0 -Type DWord
+    # Device Census (sends hardware inventory)
+    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceCensus" `
+        -Name "DisableDeviceCensus" -Value 1 -Type DWord
+    # Watson (error reporting telemetry)
+    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" `
+        -Name "Disabled" -Value 1 -Type DWord
+    # SQM (Customer Experience Improvement) - reinforced
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SQMClient\Windows" `
+        -Name "CEIPEnable" -Value 0 -Type DWord
+    # Disable Windows Error Reporting completely
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" `
+        -Name "Disabled" -Value 1 -Type DWord
+    # Disable Program Compatibility Assistant
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
+        -Name "DisablePCA" -Value 1 -Type DWord
+    # Disable Application Impact Telemetry
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost" `
+        -Name "EnableWebContentEvaluation" -Value 0 -Type DWord
+    # Disable活动记录 (Activity History) - additional key
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
+        -Name "PublishUserActivities" -Value 0 -Type DWord
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
+        -Name "UploadUserActivities" -Value 0 -Type DWord
+    # Disable Full Language Telemetry
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+        -Name "FullTelemetryOnInstall" -Value 0 -Type DWord
+    # Disable the diagnostic data viewer feature
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+        -Name "AllowUpdateComplianceTelemetry" -Value 0 -Type DWord
+
+    # 22. Disable all Background Activity / App Diagnostics permissions
+    Write-Step "Disabling background app diagnostics..."
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" `
+        -Name "GlobalUserDisabled" -Value 1 -Type DWord
+    # Disable App Diagnostics (Settings > Privacy > App Diagnostics)
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" `
+        -Name "LetAppsGetDiagnosticInfo" -Value 2 -Type DWord
+    # Disable App Activity History
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" `
+        -Name "LetAppsAccessActivityHistory" -Value 2 -Type DWord
+
+    # 23. Disable all Advertising and personalization data sharing
+    Write-Step "Disabling advertising & personalization data sharing..."
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" `
+        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord
+    # Disable Browse Web / Search suggestions personalization
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+        -Name "DisableCloudOptimizedContent" -Value 1 -Type DWord
+    # Disable third-party suggestions in Windows
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+        -Name "DisableThirdPartySuggestions" -Value 1 -Type DWord
+    # Disable Windows Spotlight (lock screen tips, suggestions)
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+        -Name "SubscribedContent-338389Enabled" -Value 0 -Type DWord
+    # Disable Get even more out of Windows / Tips
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+        -Name "SubscribedContent-310093Enabled" -Value 0 -Type DWord
+
+    # 24. Disable all optional diagnostic data (Kernel, network, app crashes)
+    Write-Step "Disabling optional diagnostic data providers..."
+    # Disable Windows Kernel telemetry
+    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener" `
+        -Name "Start" -Value 0 -Type DWord
+    # Disable NCSI passive polling (network connectivity telemetry)
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" `
+        -Name "NoActiveProbe" -Value 1 -Type DWord
+    # Disable User Profile service telemetry
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\UserProfile" `
+        -Name "DisableUserProfileTelemetry" -Value 1 -Type DWord
+
     Write-Host ""
-    Write-Success "Privacy & Telemetry section complete."
+    Write-Success "Privacy & Telemetry section complete (24 items)."
 }
 
 #endregion
@@ -1072,7 +1166,181 @@ function Invoke-WingetInstall {
 #endregion
 
 #region ============================================================
-# SECTION 11: EDGE HARDENING
+# SECTION 11: OFFICE 365 INSTALLATION & ACTIVATION
+# ============================================================
+
+function Invoke-OfficeActivation {
+    Write-Host ""
+    Write-Host "--- OFFICE 365 INSTALLATION & ACTIVATION ---" -ForegroundColor Magenta
+    Write-Host ""
+
+    $officeSetupUrl = "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=O365ProPlusRetail&platform=x64&language=en-us&version=O16GA"
+    $masUrl = "https://get.activate.win"
+    $officeSetupPath = "$env:TEMP\OfficeSetup.exe"
+    $masScriptPath = "$env:TEMP\MAS.ps1"
+
+    # --- Step 1: Download Office 365 ProPlus installer ---
+    Write-Host "  [Step 1/3] Office 365 Installation" -ForegroundColor Yellow
+    Write-Host ""
+
+    if (-not $Silent) {
+        Write-Host "  This will:" -ForegroundColor White
+        Write-Host "    1. Download Office 365 ProPlus (x64, English) installer (~4MB)" -ForegroundColor White
+        Write-Host "    2. Run the Office deployment (downloads apps, may take 10-20 min)" -ForegroundColor White
+        Write-Host "    3. Download and launch Microsoft Activation Scripts (MAS)" -ForegroundColor White
+        Write-Host "    4. You manually choose: [1] HWID for Windows, [2] Ohook for Office" -ForegroundColor White
+        Write-Host ""
+        $confirm = Read-Host "  Proceed with Office install + activation? (Y/n)"
+        if ($confirm -eq 'n' -or $confirm -eq 'N') { Write-Warn "Skipped."; return }
+    }
+
+    # Check if Office is already installed
+    $officeInstalled = $false
+    $officeRegPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Office\16.0",
+        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\16.0"
+    )
+    foreach ($path in $officeRegPaths) {
+        if (Test-Path $path) { $officeInstalled = $true; break }
+    }
+
+    if ($officeInstalled) {
+        Write-Step "Office 365/2019+ detected. Skipping download."
+        if (-not $Silent) {
+            $skip = Read-Host "  Office found. Skip to activation? (Y/n)"
+            if ($skip -ne 'n' -and $skip -ne 'N') {
+                Write-Host ""
+                goto ActivationStep
+            }
+        } else {
+            Write-Host ""
+            goto ActivationStep
+        }
+    }
+
+    # Download Office Setup
+    Write-Step "Downloading Office 365 ProPlus installer..."
+    try {
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($officeSetupUrl, $officeSetupPath)
+        if (Test-Path $officeSetupPath) {
+            Write-Success "Office installer downloaded: $officeSetupPath"
+        } else {
+            throw "Download completed but file not found."
+        }
+    } catch {
+        Write-Err "Failed to download Office installer: $_"
+        Write-Warn "Skipping Office installation. Check internet connection."
+        goto ActivationStep
+    }
+
+    # Run Office Setup (silent install)
+    Write-Step "Running Office 365 installation (this takes 10-20 minutes)..."
+    Write-Host "  Please wait... Office apps are being installed in the background." -ForegroundColor DarkGray
+    try {
+        $officeProcess = Start-Process -FilePath $officeSetupPath -ArgumentList "/quiet /norestart" `
+            -Wait -PassThru -ErrorAction Stop
+        if ($officeProcess.ExitCode -eq 0) {
+            Write-Success "Office 365 ProPlus installed successfully."
+        } else {
+            Write-Warn "Office setup exited with code $($officeProcess.ExitCode). It may still be installing."
+        }
+    } catch {
+        Write-Err "Office installation failed: $_"
+    }
+
+    # Clean up installer
+    if (Test-Path $officeSetupPath) { Remove-Item $officeSetupPath -Force -ErrorAction SilentlyContinue }
+
+    # --- Step 2: Download & Launch Microsoft Activation Scripts ---
+    :ActivationStep
+    Write-Host ""
+    Write-Host "  [Step 2/3] Windows & Office Activation (MAS)" -ForegroundColor Yellow
+    Write-Host ""
+
+    Write-Step "Downloading Microsoft Activation Scripts..."
+    try {
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($masUrl, $masScriptPath)
+        if (Test-Path $masScriptPath) {
+            Write-Success "MAS downloaded: $masScriptPath"
+        } else {
+            throw "Download completed but file not found."
+        }
+    } catch {
+        Write-Err "Failed to download MAS: $_"
+        Write-Host ""
+        Write-Host "  You can run manually: irm https://get.activate.win | iex" -ForegroundColor Yellow
+        Write-Host ""
+        return
+    }
+
+    # --- Step 3: Launch MAS interactively ---
+    Write-Host ""
+    Write-Host "  [Step 3/3] Launching MAS activation menu..." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  ================================================" -ForegroundColor Cyan
+    Write-Host "  MAS is opening in a NEW window." -ForegroundColor Cyan
+    Write-Host "  In the MAS window:" -ForegroundColor White
+    Write-Host "    [1] HWID     - Activate Windows" -ForegroundColor Green
+    Write-Host "    [2] Ohook    - Activate Office" -ForegroundColor Green
+    Write-Host "    [0] Exit     - Close MAS when done" -ForegroundColor Gray
+    Write-Host "  ================================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    try {
+        # Launch MAS in a new elevated PowerShell window
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
+            -Verb RunAs -ErrorAction Stop
+        Write-Success "MAS launched in a new Administrator window."
+    } catch {
+        # Fallback: launch in current window if UAC elevation fails
+        Write-Warn "Could not open new window. Running MAS in current session..."
+        try {
+            & $masScriptPath
+        } catch {
+            Write-Err "MAS execution failed: $_"
+        }
+    }
+
+    # Disable Office telemetry while we're here
+    Write-Host ""
+    Write-Host "  [Bonus] Disabling Office telemetry..." -ForegroundColor Yellow
+    Write-Host ""
+    $officeTelemetry = @(
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common"; Name = "sendcustomerdata"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common"; Name = "Uploaddocs"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Feedback"; Name = "Enabled"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Feedback"; Name = "IncludeScreenshot"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\ptws"; Name = "ptws"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Internet"; Name = "UseOnlineContent"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\SignIn"; Name = "SignInOptions"; Value = 3 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "ContentServicesEnabled"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "DownloadContent"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "EnableInsights"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "EnableUserInputTelemetry"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "EnablePersonalization"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Excel\Options"; Name = "Voice"; Value = 0 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\FirstRun"; Name = "BootedRTM"; Value = 1 },
+        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Outlook\Options\Calendar"; Name = "EnableOnlineCalendar"; Value = 0 },
+        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common"; Name = "sendcustomerdata"; Value = 0 },
+        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common"; Name = "Uploaddocs"; Value = 0 },
+        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy"; Name = "ContentServicesEnabled"; Value = 0 }
+    )
+    foreach ($item in $officeTelemetry) {
+        Set-Registry -Path $item.Path -Name $item.Name -Value $item.Value -Type DWord
+    }
+    Write-Success "Office telemetry disabled (18 keys)."
+
+    Write-Host ""
+    Write-Success "Office section complete. Complete activation in the MAS window."
+    Write-Host ""
+}
+
+#endregion
+
+#region ============================================================
+# SECTION 12: EDGE HARDENING
 # ============================================================
 
 function Invoke-EdgeHardening {
@@ -1124,7 +1392,7 @@ function Invoke-EdgeHardening {
 #endregion
 
 #region ============================================================
-# SECTION 12: ONEDRIVE MANAGEMENT
+# SECTION 13: ONEDRIVE MANAGEMENT
 # ============================================================
 
 function Invoke-OneDriveManagement {
@@ -1163,7 +1431,7 @@ function Invoke-OneDriveManagement {
 #endregion
 
 #region ============================================================
-# SECTION 13: GAMING / XBOX / DVR DISABLE
+# SECTION 14: GAMING / XBOX / DVR DISABLE
 # ============================================================
 
 function Invoke-GamingDisable {
@@ -1199,7 +1467,7 @@ function Invoke-GamingDisable {
 #endregion
 
 #region ============================================================
-# SECTION 14: SCHEDULED TASKS CLEANUP
+# SECTION 15: SCHEDULED TASKS CLEANUP
 # ============================================================
 
 function Invoke-ScheduledTasksCleanup {
@@ -1266,7 +1534,7 @@ function Invoke-ScheduledTasksCleanup {
 #endregion
 
 #region ============================================================
-# SECTION 15: BROWSER EXTENSIONS & PRIVACY
+# SECTION 16: BROWSER EXTENSIONS & PRIVACY
 # ============================================================
 
 function Invoke-BrowserHardening {
@@ -1556,7 +1824,7 @@ function Invoke-BrowserHardening {
 #endregion
 
 #region ============================================================
-# SECTION 16: FINAL TOUCHES
+# SECTION 17: FINAL TOUCHES
 # ============================================================
 
 function Invoke-FinalTouches {
@@ -1629,12 +1897,13 @@ function Show-Menu {
         @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update Configuration";           Desc = "Active hours, no auto-reboot, no delivery opt." },
         @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup & Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
         @{ ID = "10"; Key = "Winget";                Name = "Software Installation (Winget)";           Desc = "Chrome, Firefox, 7-Zip, VLC, Reader, Notepad++" },
-        @{ ID = "11"; Key = "EdgeHardening";         Name = "Edge Hardening (14 policies)";             Desc = "Shopping, Copilot, telemetry, preload, sync" },
-        @{ ID = "12"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
-        @{ ID = "13"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
-        @{ ID = "14"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
-        @{ ID = "15"; Key = "BrowserHardening";    Name = "Browser Extensions & Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
-        @{ ID = "16"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" }
+        @{ ID = "11"; Key = "OfficeActivation";      Name = "Office 365 Install + Activation";            Desc = "Download Office, MAS activation, Office telemetry off" },
+        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening (14 policies)";             Desc = "Shopping, Copilot, telemetry, preload, sync" },
+        @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
+        @{ ID = "14"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
+        @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
+        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Extensions & Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
+        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" }
     )
 
     Write-Host ""
@@ -1664,14 +1933,14 @@ function Get-UserSelection {
     if ($input.Trim().ToUpper() -eq 'A') {
         $selected = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                       "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                      "EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
+                      "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
     } else {
         $numbers = $input -split ',' | ForEach-Object { $_.Trim() }
         $allSections = @{
             '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
             '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
-            '9'='DiskCleanup';'10'='Winget';'11'='EdgeHardening';'12'='OneDrive'
-            '13'='Gaming';'14'='ScheduledTasks';'15'='BrowserHardening';'16'='FinalTouches'
+            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='EdgeHardening'
+            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches'
         }
         foreach ($num in $numbers) {
             if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
@@ -1695,7 +1964,7 @@ if ($Sections -and $Sections.Count -gt 0) {
 } elseif ($Silent) {
     $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                           "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                          "EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
+                          "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
     Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
 } else {
     $selectedSections = Get-UserSelection
@@ -1720,6 +1989,7 @@ foreach ($section in $selectedSections) {
         "WindowsUpdate"     { Invoke-WindowsUpdateConfig }
         "DiskCleanup"       { Invoke-DiskCleanup }
         "Winget"            { Invoke-WingetInstall }
+        "OfficeActivation"  { Invoke-OfficeActivation }
         "EdgeHardening"     { Invoke-EdgeHardening }
         "OneDrive"          { Invoke-OneDriveManagement }
         "Gaming"            { Invoke-GamingDisable }
@@ -1742,7 +2012,7 @@ Write-Host "  Log saved to: $LogFile" -ForegroundColor DarkGray
 Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening")) {
+if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation")) {
     Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
     Write-Host ""
     if (-not $Silent) {

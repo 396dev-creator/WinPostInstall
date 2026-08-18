@@ -58,3 +58,28 @@ Stage Summary:
 - Key new feature: Automatic browser extension deployment + privacy hardening for Chrome, Edge, Firefox, Brave, Opera
 - Extensions install silently on next browser launch via enterprise policy
 - Policies apply even to browsers installed AFTER running the script
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Add Office 365 install + MAS activation, expand privacy analytics lockdown
+
+Work Log:
+- Created `Invoke-OfficeActivation` function (Section 11) with 3-step flow:
+  1. Download Office 365 ProPlus x64 installer from official C2R URL
+  2. Download and launch MAS (Microsoft Activation Scripts) in new elevated window
+  3. User manually selects [1] HWID for Windows + [2] Ohook for Office
+- Added 18 Office telemetry registry keys (HKCU + HKLM policies)
+- Expanded Privacy section (Section 1) with items 21-24:
+  - Full diagnostics/analytics lockdown (Settings > Privacy > Diagnostics & Feedback equivalents)
+  - Background app diagnostics, App Diagnostics, Activity History permissions
+  - Advertising/personalization data sharing, Cloud optimized content, 3rd party suggestions
+  - Optional diagnostic data providers (kernel autologger, NCSI, user profile telemetry)
+- Renumbered all sections 11-16 -> 11-17 to accommodate new section
+- Updated menu (17 items), section maps (17 entries), switch (17 cases), silent mode array
+- Verified: 21/21 region balance, 2030 lines, v3.3.0
+
+Stage Summary:
+- Script upgraded from v3.2.0 (1760 lines) to v3.3.0 (2030 lines, 17 sections)
+- Key new features: Office 365 install + MAS activation, expanded analytics lockdown
+- Privacy section now covers 24 items covering every Settings > Diagnostics toggle

@@ -1,0 +1,700 @@
+  1155→                --ignore-security-hash --disable-interactivity 2>$null | Out-Null
+  1156→            if ($LASTEXITCODE -eq 0) { Write-Success "Installed: $($app.Name)"; $successCount++ }
+  1157→            else { Write-Warn "Exit code $LASTEXITCODE for $($app.Name)"; $failCount++ }
+  1158→        } catch { Write-Warn "Failed: $($app.Name): $_"; $failCount++ }
+  1159→    }
+  1160→
+  1161→    Write-Host ""
+  1162→    Write-Success "Software install complete. Success: $successCount | Issues: $failCount"
+  1163→}
+  1164→
+  1165→#endregion
+  1166→
+  1167→#region ============================================================
+  1168→# SECTION 11: EDGE HARDENING
+  1169→# ============================================================
+  1170→
+  1171→function Invoke-EdgeHardening {
+  1172→    Write-Host ""
+  1173→    Write-Host "--- EDGE HARDENING ---" -ForegroundColor Magenta
+  1174→    Write-Host ""
+  1175→
+  1176→    $edgePath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+  1177→    $edgePolicies = @{
+  1178→        "MetricsReportingEnabled"       = 0
+  1179→        "SendSiteInfoToImproveServices" = 0
+  1180→        "PersonalizationReportingEnabled" = 0
+  1181→        "DiagnosticData"                = 0
+  1182→        "UserFeedbackAllowed"           = 0
+  1183→        "EdgeShoppingAssistantEnabled"  = 0
+  1184→        "ShowRecommendationsEnabled"    = 0
+  1185→        "SearchSuggestEnabled"          = 0
+  1186→        "HubsSidebarEnabled"            = 0
+  1187→        "CopilotPageContext"            = 0
+  1188→        "CopilotCDPPageContext"         = 0
+  1189→        "BlockThirdPartyCookies"        = 1
+  1190→        "BackgroundModeEnabled"         = 0
+  1191→        "SyncDisabled"                  = 1
+  1192→        "AutofillCreditCardEnabled"     = 0
+  1193→        "HideRestoreDialogForSycProfiles" = 1
+  1194→    }
+  1195→
+  1196→    Write-Step "Applying Edge hardening policies..."
+  1197→    foreach ($prop in $edgePolicies.Keys) {
+  1198→        Set-Registry -Path $edgePath -Name $prop -Value $edgePolicies[$prop] -Type DWord
+  1199→    }
+  1200→
+  1201→    # Disable Edge prelaunch and tab preloading
+  1202→    Write-Step "Disabling Edge prelaunch and tab preloading..."
+  1203→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
+  1204→        -Name "AllowPrelaunch" -Value 0 -Type DWord
+  1205→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader" `
+  1206→        -Name "AllowTabPreloading" -Value 0 -Type DWord
+  1207→
+  1208→    # Disable first-run experience
+  1209→    Write-Step "Disabling Edge first-run..."
+  1210→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
+  1211→        -Name "DisallowFirstRun" -Value 1 -Type DWord
+  1212→
+  1213→    Write-Host ""
+  1214→    Write-Success "Edge hardening complete."
+  1215→}
+  1216→
+  1217→#endregion
+  1218→
+  1219→#region ============================================================
+  1220→# SECTION 12: ONEDRIVE MANAGEMENT
+  1221→# ============================================================
+  1222→
+  1223→function Invoke-OneDriveManagement {
+  1224→    Write-Host ""
+  1225→    Write-Host "--- ONEDRIVE MANAGEMENT ---" -ForegroundColor Magenta
+  1226→    Write-Host ""
+  1227→
+  1228→    # 1. Disable OneDrive via Group Policy
+  1229→    Write-Step "Disabling OneDrive..."
+  1230→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" `
+  1231→        -Name "DisableFileSyncNGSC" -Value 1 -Type DWord
+  1232→
+  1233→    # 2. Hide OneDrive from File Explorer navigation pane
+  1234→    Write-Step "Hiding OneDrive from File Explorer..."
+  1235→    foreach ($path in @(
+  1236→        "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}",
+  1237→        "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}")) {
+  1238→        Set-Registry -Path $path -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord
+  1239→    }
+  1240→
+  1241→    # 3. Remove OneDrive from startup (if present)
+  1242→    Write-Step "Removing OneDrive from startup..."
+  1243→    $odRun = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+  1244→    try {
+  1245→        $val = Get-ItemProperty -Path $odRun -Name "OneDrive" -ErrorAction SilentlyContinue
+  1246→        if ($val) {
+  1247→            Remove-ItemProperty -Path $odRun -Name "OneDrive" -Force -ErrorAction Stop
+  1248→            Write-Success "Removed OneDrive from startup registry."
+  1249→        }
+  1250→    } catch { Write-Warn "Could not remove OneDrive from startup: $_" }
+  1251→
+  1252→    Write-Host ""
+  1253→    Write-Success "OneDrive management complete."
+  1254→}
+  1255→
+  1256→#endregion
+  1257→
+  1258→#region ============================================================
+  1259→# SECTION 13: GAMING / XBOX / DVR DISABLE
+  1260→# ============================================================
+  1261→
+  1262→function Invoke-GamingDisable {
+  1263→    Write-Host ""
+  1264→    Write-Host "--- GAMING / XBOX / DVR DISABLE ---" -ForegroundColor Magenta
+  1265→    Write-Host ""
+  1266→
+  1267→    # 1. Disable GameDVR via policy
+  1268→    Write-Step "Disabling GameDVR..."
+  1269→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" `
+  1270→        -Name "AllowgameDVR" -Value 0 -Type DWord
+  1271→
+  1272→    # 2. Disable Game Bar capture
+  1273→    Write-Step "Disabling Game Bar capture..."
+  1274→    foreach ($prop in @("AppCaptureEnabled", "HistoricalCaptureEnabled")) {
+  1275→        Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" `
+  1276→            -Name $prop -Value 0 -Type DWord
+  1277→        Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" `
+  1278→            -Name $prop -Value 0 -Type DWord
+  1279→    }
+  1280→
+  1281→    # 3. Disable GameDVR_Enabled
+  1282→    Write-Step "Disabling GameDVR_Enabled..."
+  1283→    Set-Registry -Path "HKCU:\System\GameConfigStore" `
+  1284→        -Name "GameDVR_Enabled" -Value 0 -Type DWord
+  1285→    Set-Registry -Path "HKLM:\System\GameConfigStore" `
+  1286→        -Name "GameDVR_Enabled" -Value 0 -Type DWord
+  1287→
+  1288→    Write-Host ""
+  1289→    Write-Success "Gaming / Xbox / DVR disable complete."
+  1290→}
+  1291→
+  1292→#endregion
+  1293→
+  1294→#region ============================================================
+  1295→# SECTION 14: SCHEDULED TASKS CLEANUP
+  1296→# ============================================================
+  1297→
+  1298→function Invoke-ScheduledTasksCleanup {
+  1299→    Write-Host ""
+  1300→    Write-Host "--- SCHEDULED TASKS CLEANUP ---" -ForegroundColor Magenta
+  1301→    Write-Host ""
+  1302→
+  1303→    $tasksToDisable = @(
+  1304→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "AitAgent" },
+  1305→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "Microsoft Compatibility Appraiser" },
+  1306→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "ProgramDataUpdater" },
+  1307→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "StartupAppTask" },
+  1308→        @{ Path = "\Microsoft\Windows\Customer Experience Improvement Program\"; Name = "Consolidator" },
+  1309→        @{ Path = "\Microsoft\Windows\Customer Experience Improvement Program\"; Name = "KernelCeipTask" },
+  1310→        @{ Path = "\Microsoft\Windows\Customer Experience Improvement Program\"; Name = "UsbCeip" },
+  1311→        @{ Path = "\Microsoft\Windows\Device Information\";          Name = "Device" },
+  1312→        @{ Path = "\Microsoft\Windows\ErrorDetails\";                Name = "EnableErrorDetailsUpdate" },
+  1313→        @{ Path = "\Microsoft\Windows\Windows Error Reporting\";      Name = "QueueReporting" },
+  1314→        @{ Path = "\Microsoft\Windows\Feedback\";                     Name = "Siuf\DmClient" },
+  1315→        @{ Path = "\Microsoft\Windows\Feedback\";                     Name = "Siuf\DmClientOnScenarioDownload" },
+  1316→        @{ Path = "\Microsoft\Windows\Maps\";                         Name = "MapsUpdateTask" },
+  1317→        @{ Path = "\Microsoft\Windows\Maps\";                         Name = "MapsToastTask" },
+  1318→        @{ Path = "\Microsoft\Windows\Maintenance\";                  Name = "WinSAT" },
+  1319→        @{ Path = "\Microsoft\Windows\Shell\";                         Name = "FamilySafetyMonitor" },
+  1320→        @{ Path = "\Microsoft\Windows\Shell\";                         Name = "FamilySafetyRefresh" },
+  1321→        @{ Path = "\Microsoft\Windows\Shell\";                         Name = "FamilySafetyUpload" },
+  1322→        @{ Path = "\Microsoft\Windows\Power Efficiency Diagnostics\"; Name = "AnalyzeSystem" },
+  1323→        @{ Path = "\Microsoft\Windows\PI\";                           Name = "Sqm-Tasks" },
+  1324→        @{ Path = "\Microsoft\Windows\NetTrace\";                     Name = "GatherNetworkInfo" },
+  1325→        @{ Path = "\Microsoft\XblGameSave\";                         Name = "XblGameSaveTask" },
+  1326→        @{ Path = "\Microsoft\XblGameSave\";                         Name = "XblGameSaveTaskLogon" },
+  1327→        @{ Path = "\Microsoft\Windows\WindowsUpdate\";               Name = "Automatic App Update" },
+  1328→        @{ Path = "\Microsoft\Windows\DiskDiagnostic\";              Name = "Microsoft-Windows-DiskDiagnosticDataCollector" },
+  1329→        @{ Path = "\Microsoft\Windows\DiskFootprint\";               Name = "Diagnostics" },
+  1330→        @{ Path = "\Microsoft\Windows\License Manager\";            Name = "TempSignedLicenseExchange" },
+  1331→        @{ Path = "\Microsoft\Windows\Subscription\";                Name = "EnableLicenseAcquisition" },
+  1332→        @{ Path = "\Microsoft\Windows\Subscription\";                Name = "LicenseAcquisition" }
+  1333→    )
+  1334→
+  1335→    $disabled = 0; $notFound = 0
+  1336→    foreach ($task in $tasksToDisable) {
+  1337→        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name
+  1338→        $disabled++
+  1339→    }
+  1340→
+  1341→    # Disable Office telemetry tasks
+  1342→    $officeTasks = @(
+  1343→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentFallBack" },
+  1344→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentFallBack2016" },
+  1345→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentLogOn" },
+  1346→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentLogOn2016" },
+  1347→        @{ Path = "\Microsoft\Office\"; Name = "Office 15 Subscription Heartbeat" },
+  1348→        @{ Path = "\Microsoft\Office\"; Name = "Office 16 Subscription Heartbeat" }
+  1349→    )
+  1350→    foreach ($task in $officeTasks) {
+  1351→        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name
+  1352→        $disabled++
+  1353→    }
+  1354→
+  1355→    Write-Host ""
+  1356→    Write-Success "Scheduled tasks cleanup complete. Processed $($disabled + $notFound) tasks."
+  1357→}
+  1358→
+  1359→#endregion
+  1360→
+  1361→#region ============================================================
+  1362→# SECTION 15: BROWSER EXTENSIONS & PRIVACY
+  1363→# ============================================================
+  1364→
+  1365→function Invoke-BrowserHardening {
+  1366→    Write-Host ""
+  1367→    Write-Host "--- BROWSER EXTENSIONS & PRIVACY ---" -ForegroundColor Magenta
+  1368→    Write-Host ""
+  1369→
+  1370→    # ================================================================
+  1371→    # Extension IDs and install URLs
+  1372→    # ================================================================
+  1373→    # uBlock Origin
+  1374→    $ublockChromeID    = "cjpalhdlnbpafiamejdnhcphjbkeiagm"
+  1375→    $ublockFirefoxID   = "uBlock0@raymondhill.net"
+  1376→    $ublockAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/addon-607454-latest.xpi"
+  1377→    # Privacy Badger
+  1378→    $badgerChromeID    = "pkehgijcmpdhfbdbbnkijodmdjhbjlgp"
+  1379→    $badgerFirefoxID   = "jid1-MnnxcxisBPnSXQ@jetpack"
+  1380→    $badgerAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/privacy-badger17/addon-576858-latest.xpi"
+  1381→
+  1382→    # Chromium extension update URLs
+  1383→    $chromeWebStoreUrl = "https://clients2.google.com/service/update2/crx"
+  1384→    $edgeAddonsUrl    = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+  1385→
+  1386→    # ================================================================
+  1387→    # PART A: Force-install extensions via Group Policy
+  1388→    # ================================================================
+  1389→    Write-Host "  [Extensions]" -ForegroundColor Yellow
+  1390→    Write-Host ""
+  1391→
+  1392→    # --- Helper: Add extension to Chromium ExtensionInstallForcelist ---
+  1393→    function Add-ChromiumExtension {
+  1394→        param(
+  1395→            [string]$RegPath,
+  1396→            [string]$ExtID,
+  1397→            [string]$UpdateUrl,
+  1398→            [string]$BrowserName,
+  1399→            [string]$ExtName
+  1400→        )
+  1401→        try {
+  1402→            if (-not (Test-Path $RegPath)) {
+  1403→                New-Item -Path $RegPath -Force -ErrorAction Stop | Out-Null
+  1404→            }
+  1405→            $entry = "$ExtID;$UpdateUrl"
+  1406→            # Check if already present (registry values are named 1, 2, 3...)
+  1407→            $existing = (Get-ItemProperty -Path $RegPath -ErrorAction SilentlyContinue)
+  1408→            $found = $false
+  1409→            if ($existing) {
+  1410→                $existing.PSObject.Properties | ForEach-Object {
+  1411→                    if ($_.Value -like "$ExtID;*") { $found = $true }
+  1412→                }
+  1413→            }
+  1414→            if ($found) {
+  1415→                Write-Step "$BrowserName`: $ExtName already in forcelist."
+  1416→            } else {
+  1417→                # Find next available index
+  1418→                $idx = 1
+  1419→                while ($existing.PSObject.Properties.Name -contains $idx.ToString()) { $idx++ }
+  1420→                New-ItemProperty -Path $RegPath -Name $idx.ToString() -Value $entry -PropertyType String -Force -ErrorAction Stop | Out-Null
+  1421→                Write-Success "$BrowserName`: Force-installed $ExtName ($ExtID)"
+  1422→            }
+  1423→        } catch {
+  1424→            Write-Warn "$BrowserName`: Could not add $ExtName`: $_"
+  1425→        }
+  1426→    }
+  1427→
+  1428→    # --- Google Chrome ---
+  1429→    Write-Step "Configuring Google Chrome extensions..."
+  1430→    $chromeInstalled = Test-Path "HKLM:\SOFTWARE\Google\Chrome\MBL" -ErrorAction SilentlyContinue
+  1431→    $chromeInstalled2 = Test-Path "HKLM:\SOFTWARE\WOW6432Node\Google\Chrome\MBL" -ErrorAction SilentlyContinue
+  1432→    $chromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist"
+  1433→    if ($chromeInstalled -or $chromeInstalled2 -or (Test-Path "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe") -or (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe")) {
+  1434→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
+  1435→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+  1436→    } else {
+  1437→        Write-Step "Google Chrome not detected. Setting policies anyway (applies if installed later)."
+  1438→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
+  1439→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+  1440→    }
+  1441→
+  1442→    # --- Microsoft Edge ---
+  1443→    Write-Step "Configuring Microsoft Edge extensions..."
+  1444→    $edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+  1445→    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $ublockChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "uBlock Origin"
+  1446→    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $badgerChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "Privacy Badger"
+  1447→
+  1448→    # --- Brave ---
+  1449→    Write-Step "Configuring Brave extensions..."
+  1450→    $bravePolicyPath = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist"
+  1451→    $braveInstalled = (Test-Path "${env:LOCALAPPDATA}\BraveSoftware\Brave-Browser\Application\brave.exe") -or (Test-Path "${env:ProgramFiles}\BraveSoftware\Brave-Browser\Application\brave.exe")
+  1452→    if ($braveInstalled) {
+  1453→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
+  1454→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+  1455→    } else {
+  1456→        Write-Step "Brave not detected. Setting policies anyway (applies if installed later)."
+  1457→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
+  1458→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+  1459→    }
+  1460→
+  1461→    # --- Opera (uses Chrome Web Store, limited policy support) ---
+  1462→    Write-Step "Configuring Opera extensions..."
+  1463→    $operaPolicyPath = "HKLM:\SOFTWARE\Policies\Opera\ExtensionInstallForcelist"
+  1464→    $operaInstalled = (Test-Path "${env:ProgramFiles}\Opera\launcher.exe") -or (Test-Path "${env:LOCALAPPDATA}\Programs\Opera\launcher.exe")
+  1465→    if ($operaInstalled) {
+  1466→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
+  1467→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+  1468→    } else {
+  1469→        Write-Step "Opera not detected. Setting policies (may not apply - Opera has limited policy support)."
+  1470→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
+  1471→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+  1472→    }
+  1473→
+  1474→    # --- Firefox (uses policies.json - different mechanism) ---
+  1475→    Write-Step "Configuring Firefox extensions via policies..."
+  1476→    $firefoxPaths = @(
+  1477→        "${env:ProgramFiles}\Mozilla Firefox",
+  1478→        "${env:ProgramFiles(x86)}\Mozilla Firefox"
+  1479→    )
+  1480→    $firefoxRoot = $firefoxPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+  1481→
+  1482→    if ($firefoxRoot) {
+  1483→        $distDir = Join-Path $firefoxRoot "distribution"
+  1484→        if (-not (Test-Path $distDir)) { New-Item -Path $distDir -ItemType Directory -Force | Out-Null }
+  1485→        $policyFile = Join-Path $distDir "policies.json"
+  1486→
+  1487→        $firefoxPolicy = @{}
+  1488→        if (Test-Path $policyFile) {
+  1489→            try { $firefoxPolicy = Get-Content $policyFile -Raw | ConvertFrom-Json -AsHashtable } catch { $firefoxPolicy = @{} }
+  1490→        }
+  1491→
+  1492→        if (-not $firefoxPolicy.ContainsKey("policies")) { $firefoxPolicy["policies"] = @{} }
+  1493→        $p = $firefoxPolicy["policies"]
+  1494→
+  1495→        # ExtensionSettings for force-installing extensions
+  1496→        if (-not $p.ContainsKey("ExtensionSettings")) { $p["ExtensionSettings"] = @{} }
+  1497→        $extSettings = $p["ExtensionSettings"]
+  1498→
+  1499→        $extSettings[$ublockFirefoxID] = @{
+  1500→            "installation_mode" = "force_installed"
+  1501→            "install_url"       = $ublockAMOUrl
+  1502→        }
+  1503→        $extSettings[$badgerFirefoxID] = @{
+  1504→            "installation_mode" = "force_installed"
+  1505→            "install_url"       = $badgerAMOUrl
+  1506→        }
+  1507→
+  1508→        $firefoxPolicy["policies"] = $p
+  1509→        $jsonOutput = $firefoxPolicy | ConvertTo-Json -Depth 10 -Compress
+  1510→        Set-Content -Path $policyFile -Value $jsonOutput -Encoding UTF8 -Force
+  1511→        Write-Success "Firefox: Force-installed uBlock Origin + Privacy Badger via policies.json"
+  1512→    } else {
+  1513→        # Fallback: set via registry (Firefox also supports this)
+  1514→        Write-Step "Firefox not found in Program Files. Setting registry-based policies..."
+  1515→        $ffPolicyPath = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\ExtensionSettings"
+  1516→        try {
+  1517→            if (-not (Test-Path $ffPolicyPath)) { New-Item -Path $ffPolicyPath -Force -ErrorAction Stop | Out-Null }
+  1518→            $ublockJson = '{"installation_mode":"force_installed","install_url":"' + $ublockAMOUrl + '"}'
+  1519→            $badgerJson = '{"installation_mode":"force_installed","install_url":"' + $badgerAMOUrl + '"}'
+  1520→            Set-ItemProperty -Path $ffPolicyPath -Name $ublockFirefoxID -Value $ublockJson -Force -ErrorAction Stop
+  1521→            Set-ItemProperty -Path $ffPolicyPath -Name $badgerFirefoxID -Value $badgerJson -Force -ErrorAction Stop
+  1522→            Write-Success "Firefox: Extension policies set via registry (applies when Firefox is installed)."
+  1523→        } catch {
+  1524→            Write-Warn "Firefox: Could not set extension policies: $_"
+  1525→        }
+  1526→    }
+  1527→
+  1528→    # ================================================================
+  1529→    # PART B: Browser Privacy Settings
+  1530→    # ================================================================
+  1531→    Write-Host ""
+  1532→    Write-Host "  [Privacy Settings]" -ForegroundColor Yellow
+  1533→    Write-Host ""
+  1534→
+  1535→    # --- Google Chrome Privacy ---
+  1536→    Write-Step "Applying Chrome privacy policies..."
+  1537→    $chromePol = "HKLM:\SOFTWARE\Policies\Google\Chrome"
+  1538→    $chromePrivacySettings = @{
+  1539→        "BlockThirdPartyCookies"                = 1
+  1540→        "IncognitoModeAvailability"              = 1
+  1541→        "SyncDisabled"                           = 1
+  1542→        "BrowserSignin"                          = 0
+  1543→        "MetricsReportingEnabled"                = 0
+  1544→        "SendSiteInfoToImproveServices"          = 0
+  1545→        "SearchSuggestEnabled"                   = 0
+  1546→        "AlternateErrorPagesEnabled"             = 0
+  1547→        "UrlKeyedAnonymizedDataCollectionEnabled" = 0
+  1548→        "SafeBrowsingExtendedReportingEnabled"   = 0
+  1549→        "WebRtcLocalhostIpHandling"              = 1
+  1550→        "WebRtcUdpPortRange"                     = "0"
+  1551→        "RestoreOnStartup"                       = 4
+  1552→        "DefaultBrowserSettingEnabled"           = 0
+  1553→    }
+  1554→    foreach ($prop in $chromePrivacySettings.Keys) {
+  1555→        $val = $chromePrivacySettings[$prop]
+  1556→        $type = if ($val -is [int]) { "DWord" } else { "String" }
+  1557→        Set-Registry -Path $chromePol -Name $prop -Value $val -Type $type
+  1558→    }
+  1559→
+  1560→    # --- Brave Privacy (Brave has built-in shields, but we can set policies too) ---
+  1561→    Write-Step "Applying Brave privacy policies..."
+  1562→    $bravePol = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave"
+  1563→    $bravePrivacySettings = @{
+  1564→        "BlockThirdPartyCookies"                = 1
+  1565→        "SyncDisabled"                           = 1
+  1566→        "BrowserSignin"                          = 0
+  1567→        "MetricsReportingEnabled"                = 0
+  1568→        "SendSiteInfoToImproveServices"          = 0
+  1569→        "SearchSuggestEnabled"                   = 0
+  1570→        "AlternateErrorPagesEnabled"             = 0
+  1571→        "UrlKeyedAnonymizedDataCollectionEnabled" = 0
+  1572→        "WebRtcLocalhostIpHandling"              = 1
+  1573→        "RestoreOnStartup"                       = 4
+  1574→        "DefaultBrowserSettingEnabled"           = 0
+  1575→        "BraveSyncEnabled"                       = 0
+  1576→    }
+  1577→    foreach ($prop in $bravePrivacySettings.Keys) {
+  1578→        $val = $bravePrivacySettings[$prop]
+  1579→        $type = if ($val -is [int]) { "DWord" } else { "String" }
+  1580→        Set-Registry -Path $bravePol -Name $prop -Value $val -Type $type
+  1581→    }
+  1582→
+  1583→    # --- Opera Privacy ---
+  1584→    Write-Step "Applying Opera privacy policies..."
+  1585→    $operaPol = "HKLM:\SOFTWARE\Policies\Opera"
+  1586→    $operaPrivacySettings = @{
+  1587→        "BlockThirdPartyCookies"                = 1
+  1588→        "SyncDisabled"                           = 1
+  1589→        "MetricsReportingEnabled"                = 0
+  1590→        "SearchSuggestEnabled"                   = 0
+  1591→        "AlternateErrorPagesEnabled"             = 0
+  1592→        "UrlKeyedAnonymizedDataCollectionEnabled" = 0
+  1593→    }
+  1594→    foreach ($prop in $operaPrivacySettings.Keys) {
+  1595→        Set-Registry -Path $operaPol -Name $prop -Value $operaPrivacySettings[$prop] -Type DWord
+  1596→    }
+  1597→
+  1598→    # --- Firefox Privacy ---
+  1599→    Write-Step "Applying Firefox privacy policies..."
+  1600→    $ffPol = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox"
+  1601→    Set-Registry -Path $ffPol -Name "DisableTelemetry" -Value 1 -Type DWord
+  1602→    Set-Registry -Path $ffPol -Name "DisableFirefoxStudies" -Value 1 -Type DWord
+  1603→    Set-Registry -Path $ffPol -Name "DisablePocket" -Value 1 -Type DWord
+  1604→    Set-Registry -Path $ffPol -Name "DisableFormHistory" -Value 1 -Type DWord
+  1605→    Set-Registry -Path $ffPol -Name "OfferToSaveLogins" -Value 0 -Type DWord
+  1606→    Set-Registry -Path $ffPol -Name "PasswordManagerEnabled" -Value 0 -Type DWord
+  1607→    Set-Registry -Path $ffPol -Name "SanitizeOnShutdown" -Value 1 -Type DWord
+  1608→    Set-Registry -Path $ffPol -Name "DontCheckDefaultBrowser" -Value 1 -Type DWord
+  1609→
+  1610→    # Firefox tracking protection (strict mode) + DoH
+  1611→    Write-Step "Configuring Firefox strict tracking protection + DoH..."
+  1612→    $ffTpPath = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection"
+  1613→    Set-Registry -Path $ffTpPath -Name "Value" -Value 1 -Type DWord
+  1614→    Set-Registry -Path $ffTpPath -Name "Cryptomining" -Value 1 -Type DWord
+  1615→    Set-Registry -Path $ffTpPath -Name "Fingerprinting" -Value 1 -Type DWord
+  1616→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" -Name "Enabled" -Value 1 -Type DWord
+  1617→
+  1618→    # If Firefox policies.json exists, also update it with privacy settings
+  1619→    if ($firefoxRoot -and (Test-Path (Join-Path $firefoxRoot "distribution\policies.json"))) {
+  1620→        Write-Step "Updating Firefox policies.json with privacy settings..."
+  1621→        try {
+  1622→            $policyFile = Join-Path $firefoxRoot "distribution\policies.json"
+  1623→            $ffPolicy = Get-Content $policyFile -Raw | ConvertFrom-Json -AsHashtable
+  1624→            $fp = $ffPolicy["policies"]
+  1625→            $fp["DisableTelemetry"]      = $true
+  1626→            $fp["DisableFirefoxStudies"] = $true
+  1627→            $fp["DisablePocket"]        = $true
+  1628→            $fp["DisableFormHistory"]   = $true
+  1629→            $fp["SanitizeOnShutdown"]   = $true
+  1630→            $fp["DontCheckDefaultBrowser"] = $true
+  1631→            $fp["EnableTrackingProtection"] = @{ "Value" = $true; "Cryptomining" = $true; "Fingerprinting" = $true }
+  1632→            $fp["DNSOverHTTPS"] = @{ "Enabled" = $true }
+  1633→            $ffPolicy["policies"] = $fp
+  1634→            Set-Content -Path $policyFile -Value ($ffPolicy | ConvertTo-Json -Depth 10 -Compress) -Encoding UTF8 -Force
+  1635→            Write-Success "Firefox policies.json updated with all privacy settings."
+  1636→        } catch {
+  1637→            Write-Warn "Could not update Firefox policies.json: $_"
+  1638→        }
+  1639→    }
+  1640→
+  1641→    Write-Host ""
+  1642→    Write-Success "Browser extensions & privacy configuration complete."
+  1643→    Write-Host ""
+  1644→    Write-Host "  NOTE: Extensions install on next browser launch." -ForegroundColor DarkGray
+  1645→    Write-Host "  NOTE: Policies apply even to browsers installed AFTER running this." -ForegroundColor DarkGray
+  1646→    Write-Host ""
+  1647→}
+  1648→
+  1649→#endregion
+  1650→
+  1651→#region ============================================================
+  1652→# SECTION 16: FINAL TOUCHES
+  1653→# ============================================================
+  1654→
+  1655→function Invoke-FinalTouches {
+  1656→    Write-Host ""
+  1657→    Write-Host "--- FINAL TOUCHES ---" -ForegroundColor Magenta
+  1658→    Write-Host ""
+  1659→
+  1660→    # 1. Disable Edge first-run (additional key)
+  1661→    Write-Step "Disabling Edge first-run (additional)..."
+  1662→    Set-Registry -Path "HKCU:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
+  1663→        -Name "DisableFirstRunSettings" -Value 1 -Type DWord
+  1664→
+  1665→    # 2. Disable Windows Insider UI
+  1666→    Write-Step "Hiding Windows Insider page..."
+  1667→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WindowsSelfHost\UI\Visibility" `
+  1668→        -Name "HideInsiderPage" -Value 1 -Type DWord
+  1669→
+  1670→    # 3. Set sound scheme to "No Sounds"
+  1671→    Write-Step "Setting sound scheme to No Sounds..."
+  1672→    Set-Registry -Path "HKCU:\AppEvents\Schemes" `
+  1673→        -Name "(Default)" -Value ".None" -Type String
+  1674→
+  1675→    # 4. Set NumLock OFF at startup
+  1676→    Write-Step "Setting NumLock OFF at startup..."
+  1677→    Set-Registry -Path "HKU:\.DEFAULT\Control Panel\Keyboard" `
+  1678→        -Name "InitialKeyboardIndicators" -Value "0" -Type String
+  1679→
+  1680→    # 5. Disable mouse acceleration (enhance pointer precision)
+  1681→    Write-Step "Disabling mouse acceleration..."
+  1682→    Set-Registry -Path "HKCU:\Control Panel\Mouse" `
+  1683→        -Name "MouseSpeed" -Value 1 -Type String
+  1684→    Set-Registry -Path "HKCU:\Control Panel\Mouse" `
+  1685→        -Name "MouseThreshold1" -Value 0 -Type String
+  1686→    Set-Registry -Path "HKCU:\Control Panel\Mouse" `
+  1687→        -Name "MouseThreshold2" -Value 0 -Type String
+  1688→
+  1689→    # 6. Disable Sticky Keys
+  1690→    Write-Step "Disabling Sticky Keys..."
+  1691→    Set-Registry -Path "HKCU:\Control Panel\Accessibility\StickyKeys" `
+  1692→        -Name "Flags" -Value 506 -Type String
+  1693→
+  1694→    # 7. Restart File Explorer
+  1695→    Write-Step "Restarting File Explorer to apply changes..."
+  1696→    try {
+  1697→        Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+  1698→        Start-Sleep -Seconds 2
+  1699→        Start-Process explorer.exe -ErrorAction SilentlyContinue
+  1700→        Write-Success "File Explorer restarted."
+  1701→    } catch { Write-Warn "Could not restart Explorer: $_" }
+  1702→
+  1703→    Write-Host ""
+  1704→    Write-Success "Final touches complete."
+  1705→}
+  1706→
+  1707→#endregion
+  1708→
+  1709→#region ============================================================
+  1710→# INTERACTIVE MENU
+  1711→# ============================================================
+  1712→
+  1713→function Show-Menu {
+  1714→    $menuItems = @(
+  1715→        @{ ID = "1";  Key = "Privacy";             Name = "Privacy & Telemetry (Aggressive)";          Desc = "Telemetry, Cortana, Copilot, Recall, AI, Bing, tracking" },
+  1716→        @{ ID = "2";  Key = "Debloat";             Name = "Debloat: Remove Bloatware";                Desc = "Uninstall 60+ pre-installed junk apps" },
+  1717→        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer & UI Optimizations";              Desc = "File extensions, taskbar, CDM lockdown, context menu" },
+  1718→        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service & Startup Optimization";           Desc = "Disable 16 unnecessary services + startup delay" },
+  1719→        @{ ID = "5";  Key = "Performance";           Name = "Performance & Power Settings";             Desc = "Hibernation, fast startup, High Perf plan, Defender CPU" },
+  1720→        @{ ID = "6";  Key = "Security";             Name = "Security Hardening";                       Desc = "Defender, UAC, SMBv1, DNS-over-HTTPS, PSv2" },
+  1721→        @{ ID = "7";  Key = "Network";              Name = "Network Optimizations";                   Desc = "DNS, Nagle off, throttling off, Teredo off" },
+  1722→        @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update Configuration";           Desc = "Active hours, no auto-reboot, no delivery opt." },
+  1723→        @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup & Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
+  1724→        @{ ID = "10"; Key = "Winget";                Name = "Software Installation (Winget)";           Desc = "Chrome, Firefox, 7-Zip, VLC, Reader, Notepad++" },
+  1725→        @{ ID = "11"; Key = "EdgeHardening";         Name = "Edge Hardening (14 policies)";             Desc = "Shopping, Copilot, telemetry, preload, sync" },
+  1726→        @{ ID = "12"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
+  1727→        @{ ID = "13"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
+  1728→        @{ ID = "14"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
+  1729→        @{ ID = "15"; Key = "BrowserHardening";    Name = "Browser Extensions & Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
+  1730→        @{ ID = "16"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" }
+  1731→    )
+  1732→
+  1733→    Write-Host ""
+  1734→    Write-Host "  SELECT OPTIMIZATIONS TO RUN:" -ForegroundColor White
+  1735→    Write-Host "  " + ("-" * 64) -ForegroundColor DarkGray
+  1736→    foreach ($item in $menuItems) {
+  1737→        Write-Host "  $($item.ID.ToString().PadRight(3)) $($item.Name)" -ForegroundColor Cyan
+  1738→        Write-Host "       $($item.Desc)" -ForegroundColor DarkGray
+  1739→    }
+  1740→    Write-Host ""
+  1741→    Write-Host "  A    Run ALL sections (full optimization)" -ForegroundColor Green
+  1742→    Write-Host "  0    Exit without changes" -ForegroundColor Red
+  1743→    Write-Host ""
+  1744→}
+  1745→
+  1746→function Get-UserSelection {
+  1747→    Show-Menu
+  1748→    $input = Read-Host "  Enter section numbers (comma-separated, e.g. '1,3,5') or 'A' for all"
+  1749→
+  1750→    if ($input -eq '0') {
+  1751→        Write-Host "  Exiting without changes." -ForegroundColor Yellow
+  1752→        Stop-Transcript | Out-Null
+  1753→        exit 0
+  1754→    }
+  1755→
+  1756→    $selected = @()
+  1757→    if ($input.Trim().ToUpper() -eq 'A') {
+  1758→        $selected = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
+  1759→                      "Security","Network","WindowsUpdate","DiskCleanup","Winget",
+  1760→                      "EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
+  1761→    } else {
+  1762→        $numbers = $input -split ',' | ForEach-Object { $_.Trim() }
+  1763→        $allSections = @{
+  1764→            '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
+  1765→            '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
+  1766→            '9'='DiskCleanup';'10'='Winget';'11'='EdgeHardening';'12'='OneDrive'
+  1767→            '13'='Gaming';'14'='ScheduledTasks';'15'='BrowserHardening';'16'='FinalTouches'
+  1768→        }
+  1769→        foreach ($num in $numbers) {
+  1770→            if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
+  1771→            else { Write-Warn "Invalid selection: $num (skipped)" }
+  1772→        }
+  1773→    }
+  1774→    return $selected
+  1775→}
+  1776→
+  1777→#endregion
+  1778→
+  1779→#region ============================================================
+  1780→# MAIN EXECUTION
+  1781→# ============================================================
+  1782→
+  1783→Initialize-Script
+  1784→
+  1785→$selectedSections = @()
+  1786→if ($Sections -and $Sections.Count -gt 0) {
+  1787→    $selectedSections = $Sections
+  1788→} elseif ($Silent) {
+  1789→    $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
+  1790→                          "Security","Network","WindowsUpdate","DiskCleanup","Winget",
+  1791→                          "EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
+  1792→    Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
+  1793→} else {
+  1794→    $selectedSections = Get-UserSelection
+  1795→}
+  1796→
+  1797→Write-Host ""
+  1798→Write-Host "  SECTIONS SELECTED:" -ForegroundColor Cyan
+  1799→foreach ($s in $selectedSections) { Write-Host "    - $s" -ForegroundColor White }
+  1800→Write-Host ""
+  1801→
+  1802→$startTime = Get-Date
+  1803→
+  1804→foreach ($section in $selectedSections) {
+  1805→    switch ($section) {
+  1806→        "Privacy"           { Invoke-PrivacyTweaks }
+  1807→        "Debloat"           { Invoke-Debloat }
+  1808→        "ExplorerUI"        { Invoke-ExplorerUI }
+  1809→        "ServiceStartup"    { Invoke-ServiceStartupOptimization }
+  1810→        "Performance"       { Invoke-PerformanceOptimization }
+  1811→        "Security"          { Invoke-SecurityHardening }
+  1812→        "Network"           { Invoke-NetworkOptimizations }
+  1813→        "WindowsUpdate"     { Invoke-WindowsUpdateConfig }
+  1814→        "DiskCleanup"       { Invoke-DiskCleanup }
+  1815→        "Winget"            { Invoke-WingetInstall }
+  1816→        "EdgeHardening"     { Invoke-EdgeHardening }
+  1817→        "OneDrive"          { Invoke-OneDriveManagement }
+  1818→        "Gaming"            { Invoke-GamingDisable }
+  1819→        "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
+  1820→        "BrowserHardening"  { Invoke-BrowserHardening }
+  1821→        "FinalTouches"      { Invoke-FinalTouches }
+  1822→        default { Write-Warn "Unknown section: $section (skipped)" }
+  1823→    }
+  1824→}
+  1825→
+  1826→$endTime = Get-Date
+  1827→$duration = $endTime - $startTime
+  1828→
+  1829→Write-Host ""
+  1830→Write-Host "================================================================" -ForegroundColor Cyan
+  1831→Write-Host "  OPTIMIZATION COMPLETE" -ForegroundColor Green
+  1832→Write-Host "  Duration: $($duration.ToString('hh\:mm\:ss'))" -ForegroundColor White
+  1833→Write-Host "  Sections run: $($selectedSections.Count)" -ForegroundColor White
+  1834→Write-Host "  Log saved to: $LogFile" -ForegroundColor DarkGray
+  1835→Write-Host "================================================================" -ForegroundColor Cyan
+  1836→Write-Host ""
+  1837→
+  1838→if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening")) {
+  1839→    Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
+  1840→    Write-Host ""
+  1841→    if (-not $Silent) {
+  1842→        $restart = Read-Host "  Restart now? (y/N)"
+  1843→        if ($restart -eq 'y' -or $restart -eq 'Y') {
+  1844→            Write-Host "  Restarting in 10 seconds..." -ForegroundColor Yellow
+  1845→            Restart-Computer -Force -Delay 10
+  1846→        }
+  1847→    }
+  1848→}
+  1849→
+  1850→Stop-Transcript | Out-Null
+  1851→if (-not $Silent) { Read-Host "Press Enter to exit" }
+  1852→
+  1853→#endregion
+  1854→
