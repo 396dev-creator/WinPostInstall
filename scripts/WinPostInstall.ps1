@@ -54,6 +54,19 @@ param(
 $ScriptVersion = "3.3.0"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
+# Prevent window from closing on crash (keeps window open no matter what)
+$ErrorActionPreference = "Continue"
+
+# Auto-bypass execution policy for this session (handles 'downloaded from internet' block)
+if ((Get-ExecutionPolicy -Scope Process) -ne 'Bypass') {
+    try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop } catch { }
+}
+
+# Unblock the script file itself if Windows marked it as 'from internet'
+if ($PSCommandPath) {
+    try { Unblock-File -Path $PSCommandPath -ErrorAction SilentlyContinue } catch { }
+}
+
 #endregion
 
 #region ============================================================
@@ -145,14 +158,15 @@ function Initialize-Script {
     if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         Write-Host "[ERROR] This script must be run as Administrator." -ForegroundColor Red
         Write-Host "Right-click PowerShell and select 'Run as Administrator', then re-run this script." -ForegroundColor Yellow
-        if (-not $Silent) { Read-Host "Press Enter to exit" }
-        exit 1
+        throw "Not running as Administrator. Cannot continue."
     }
 
     $logDir = "$env:SYSTEMDRIVE\Temp"
     if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
 
-    Start-Transcript -Path $LogFile -Force | Out-Null
+    try { Start-Transcript -Path $LogFile -Force -ErrorAction Stop | Out-Null } catch {
+        Write-Warn "Could not start transcript to $LogFile : $_"
+    }
 
     # Set up Defender self-exclusion FIRST (before any optimization work)
     Set-DefenderExclusions
@@ -1956,75 +1970,93 @@ function Get-UserSelection {
 # MAIN EXECUTION
 # ============================================================
 
-Initialize-Script
+try {
+    Initialize-Script
 
-$selectedSections = @()
-if ($Sections -and $Sections.Count -gt 0) {
-    $selectedSections = $Sections
-} elseif ($Silent) {
-    $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
-                          "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                          "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
-    Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
-} else {
-    $selectedSections = Get-UserSelection
-}
-
-Write-Host ""
-Write-Host "  SECTIONS SELECTED:" -ForegroundColor Cyan
-foreach ($s in $selectedSections) { Write-Host "    - $s" -ForegroundColor White }
-Write-Host ""
-
-$startTime = Get-Date
-
-foreach ($section in $selectedSections) {
-    switch ($section) {
-        "Privacy"           { Invoke-PrivacyTweaks }
-        "Debloat"           { Invoke-Debloat }
-        "ExplorerUI"        { Invoke-ExplorerUI }
-        "ServiceStartup"    { Invoke-ServiceStartupOptimization }
-        "Performance"       { Invoke-PerformanceOptimization }
-        "Security"          { Invoke-SecurityHardening }
-        "Network"           { Invoke-NetworkOptimizations }
-        "WindowsUpdate"     { Invoke-WindowsUpdateConfig }
-        "DiskCleanup"       { Invoke-DiskCleanup }
-        "Winget"            { Invoke-WingetInstall }
-        "OfficeActivation"  { Invoke-OfficeActivation }
-        "EdgeHardening"     { Invoke-EdgeHardening }
-        "OneDrive"          { Invoke-OneDriveManagement }
-        "Gaming"            { Invoke-GamingDisable }
-        "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
-        "BrowserHardening"  { Invoke-BrowserHardening }
-        "FinalTouches"      { Invoke-FinalTouches }
-        default { Write-Warn "Unknown section: $section (skipped)" }
+    $selectedSections = @()
+    if ($Sections -and $Sections.Count -gt 0) {
+        $selectedSections = $Sections
+    } elseif ($Silent) {
+        $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
+                              "Security","Network","WindowsUpdate","DiskCleanup","Winget",
+                              "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
+        Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
+    } else {
+        $selectedSections = Get-UserSelection
     }
-}
 
-$endTime = Get-Date
-$duration = $endTime - $startTime
-
-Write-Host ""
-Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  OPTIMIZATION COMPLETE" -ForegroundColor Green
-Write-Host "  Duration: $($duration.ToString('hh\:mm\:ss'))" -ForegroundColor White
-Write-Host "  Sections run: $($selectedSections.Count)" -ForegroundColor White
-Write-Host "  Log saved to: $LogFile" -ForegroundColor DarkGray
-Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host ""
-
-if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation")) {
-    Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
     Write-Host ""
-    if (-not $Silent) {
-        $restart = Read-Host "  Restart now? (y/N)"
-        if ($restart -eq 'y' -or $restart -eq 'Y') {
-            Write-Host "  Restarting in 10 seconds..." -ForegroundColor Yellow
-            Restart-Computer -Force -Delay 10
+    Write-Host "  SECTIONS SELECTED:" -ForegroundColor Cyan
+    foreach ($s in $selectedSections) { Write-Host "    - $s" -ForegroundColor White }
+    Write-Host ""
+
+    $startTime = Get-Date
+
+    foreach ($section in $selectedSections) {
+        switch ($section) {
+            "Privacy"           { Invoke-PrivacyTweaks }
+            "Debloat"           { Invoke-Debloat }
+            "ExplorerUI"        { Invoke-ExplorerUI }
+            "ServiceStartup"    { Invoke-ServiceStartupOptimization }
+            "Performance"       { Invoke-PerformanceOptimization }
+            "Security"          { Invoke-SecurityHardening }
+            "Network"           { Invoke-NetworkOptimizations }
+            "WindowsUpdate"     { Invoke-WindowsUpdateConfig }
+            "DiskCleanup"       { Invoke-DiskCleanup }
+            "Winget"            { Invoke-WingetInstall }
+            "OfficeActivation"  { Invoke-OfficeActivation }
+            "EdgeHardening"     { Invoke-EdgeHardening }
+            "OneDrive"          { Invoke-OneDriveManagement }
+            "Gaming"            { Invoke-GamingDisable }
+            "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
+            "BrowserHardening"  { Invoke-BrowserHardening }
+            "FinalTouches"      { Invoke-FinalTouches }
+            default { Write-Warn "Unknown section: $section (skipped)" }
         }
     }
-}
 
-Stop-Transcript | Out-Null
-if (-not $Silent) { Read-Host "Press Enter to exit" }
+    $endTime = Get-Date
+    $duration = $endTime - $startTime
+
+    Write-Host ""
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host "  OPTIMIZATION COMPLETE" -ForegroundColor Green
+    Write-Host "  Duration: $($duration.ToString('hh\:mm\:ss'))" -ForegroundColor White
+    Write-Host "  Sections run: $($selectedSections.Count)" -ForegroundColor White
+    Write-Host "  Log saved to: $LogFile" -ForegroundColor DarkGray
+    Write-Host "================================================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation")) {
+        Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
+        Write-Host ""
+        if (-not $Silent) {
+            $restart = Read-Host "  Restart now? (y/N)"
+            if ($restart -eq 'y' -or $restart -eq 'Y') {
+                Write-Host "  Restarting in 10 seconds..." -ForegroundColor Yellow
+                Restart-Computer -Force -Delay 10
+            }
+        }
+    }
+
+} catch {
+    Write-Host ""
+    Write-Host "================================================================" -ForegroundColor Red
+    Write-Host "  UNEXPECTED ERROR" -ForegroundColor Red
+    Write-Host "================================================================" -ForegroundColor Red
+    Write-Host "  $($_.Exception.Message)" -ForegroundColor Yellow
+    Write-Host "  Line: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Yellow
+    Write-Host "  Command: $($_.InvocationInfo.Line.Trim())" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  Check the log file for details: $LogFile" -ForegroundColor DarkGray
+    Write-Host "================================================================" -ForegroundColor Red
+    Write-Host ""
+} finally {
+    try { Stop-Transcript | Out-Null } catch { }
+    if (-not $Silent) {
+        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+        Read-Host "  "
+    }
+}
 
 #endregion
