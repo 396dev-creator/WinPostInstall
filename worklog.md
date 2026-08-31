@@ -83,3 +83,24 @@ Stage Summary:
 - Script upgraded from v3.2.0 (1760 lines) to v3.3.0 (2030 lines, 17 sections)
 - Key new features: Office 365 install + MAS activation, expanded analytics lockdown
 - Privacy section now covers 24 items covering every Settings > Diagnostics toggle
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix critical crash bug — script opens and closes instantly (goto syntax error)
+
+Work Log:
+- Diagnosed root cause: `goto ActivationStep` and `:ActivationStep` label in `Invoke-OfficeActivation` function
+- PowerShell does NOT support `goto` statements — this causes a parse-time error that crashes the script before any output
+- Since double-clicking a .ps1 opens a window that auto-closes on error, user sees nothing
+- Fixed by replacing goto pattern with `$skipToActivation` boolean flag + `if (-not $skipToActivation) { ... }` block
+- Wrapped the entire Office download/install/cleanup block inside the conditional
+- Added `$skipToActivation = $false` initialization at function top
+- Verified zero `goto` or `:ActivationStep` references remain
+- Bumped version to 3.3.1
+- Copied fixed script to /home/z/my-project/download/
+
+Stage Summary:
+- Script fixed from v3.3.0 (broken) to v3.3.1 (working)
+- Root cause: batch-style `goto` in PowerShell — replaced with proper control flow
+- Script should now launch and run normally

@@ -21,7 +21,7 @@
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    3.1.0
+    3.3.1
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -1192,6 +1192,7 @@ function Invoke-OfficeActivation {
     $masUrl = "https://get.activate.win"
     $officeSetupPath = "$env:TEMP\OfficeSetup.exe"
     $masScriptPath = "$env:TEMP\MAS.ps1"
+    $skipToActivation = $false
 
     # --- Step 1: Download Office 365 ProPlus installer ---
     Write-Host "  [Step 1/3] Office 365 Installation" -ForegroundColor Yellow
@@ -1224,50 +1225,50 @@ function Invoke-OfficeActivation {
             $skip = Read-Host "  Office found. Skip to activation? (Y/n)"
             if ($skip -ne 'n' -and $skip -ne 'N') {
                 Write-Host ""
-                goto ActivationStep
+                $skipToActivation = $true
             }
         } else {
             Write-Host ""
-            goto ActivationStep
+            $skipToActivation = $true
         }
     }
 
-    # Download Office Setup
-    Write-Step "Downloading Office 365 ProPlus installer..."
-    try {
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($officeSetupUrl, $officeSetupPath)
-        if (Test-Path $officeSetupPath) {
-            Write-Success "Office installer downloaded: $officeSetupPath"
-        } else {
-            throw "Download completed but file not found."
+    if (-not $skipToActivation) {
+        # Download Office Setup
+        Write-Step "Downloading Office 365 ProPlus installer..."
+        try {
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($officeSetupUrl, $officeSetupPath)
+            if (Test-Path $officeSetupPath) {
+                Write-Success "Office installer downloaded: $officeSetupPath"
+            } else {
+                throw "Download completed but file not found."
+            }
+        } catch {
+            Write-Err "Failed to download Office installer: $_"
+            Write-Warn "Skipping Office installation. Check internet connection."
         }
-    } catch {
-        Write-Err "Failed to download Office installer: $_"
-        Write-Warn "Skipping Office installation. Check internet connection."
-        goto ActivationStep
-    }
 
-    # Run Office Setup (silent install)
-    Write-Step "Running Office 365 installation (this takes 10-20 minutes)..."
-    Write-Host "  Please wait... Office apps are being installed in the background." -ForegroundColor DarkGray
-    try {
-        $officeProcess = Start-Process -FilePath $officeSetupPath -ArgumentList "/quiet /norestart" `
-            -Wait -PassThru -ErrorAction Stop
-        if ($officeProcess.ExitCode -eq 0) {
-            Write-Success "Office 365 ProPlus installed successfully."
-        } else {
-            Write-Warn "Office setup exited with code $($officeProcess.ExitCode). It may still be installing."
+        # Run Office Setup (silent install)
+        Write-Step "Running Office 365 installation (this takes 10-20 minutes)..."
+        Write-Host "  Please wait... Office apps are being installed in the background." -ForegroundColor DarkGray
+        try {
+            $officeProcess = Start-Process -FilePath $officeSetupPath -ArgumentList "/quiet /norestart" `
+                -Wait -PassThru -ErrorAction Stop
+            if ($officeProcess.ExitCode -eq 0) {
+                Write-Success "Office 365 ProPlus installed successfully."
+            } else {
+                Write-Warn "Office setup exited with code $($officeProcess.ExitCode). It may still be installing."
+            }
+        } catch {
+            Write-Err "Office installation failed: $_"
         }
-    } catch {
-        Write-Err "Office installation failed: $_"
-    }
 
-    # Clean up installer
-    if (Test-Path $officeSetupPath) { Remove-Item $officeSetupPath -Force -ErrorAction SilentlyContinue }
+        # Clean up installer
+        if (Test-Path $officeSetupPath) { Remove-Item $officeSetupPath -Force -ErrorAction SilentlyContinue }
+    }
 
     # --- Step 2: Download & Launch Microsoft Activation Scripts ---
-    :ActivationStep
     Write-Host ""
     Write-Host "  [Step 2/3] Windows & Office Activation (MAS)" -ForegroundColor Yellow
     Write-Host ""
