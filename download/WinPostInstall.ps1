@@ -21,7 +21,7 @@
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    3.3.1
+    3.3.2
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -51,7 +51,7 @@ param(
     [string[]]$Sections
 )
 
-$ScriptVersion = "3.3.0"
+$ScriptVersion = "3.3.2"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Prevent window from closing on crash (keeps window open no matter what)
@@ -1936,21 +1936,21 @@ function Show-Menu {
 
 function Get-UserSelection {
     Show-Menu
-    $input = Read-Host "  Enter section numbers (comma-separated, e.g. '1,3,5') or 'A' for all"
+    $userInput = Read-Host "  Enter section numbers (comma-separated, e.g. '1,3,5') or 'A' for all"
 
-    if ($input -eq '0') {
+    if ($userInput -eq '0') {
         Write-Host "  Exiting without changes." -ForegroundColor Yellow
         Stop-Transcript | Out-Null
         exit 0
     }
 
     $selected = @()
-    if ($input.Trim().ToUpper() -eq 'A') {
+    if ($userInput.Trim().ToUpper() -eq 'A') {
         $selected = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                       "Security","Network","WindowsUpdate","DiskCleanup","Winget",
                       "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
     } else {
-        $numbers = $input -split ',' | ForEach-Object { $_.Trim() }
+        $numbers = $userInput -split ',' | ForEach-Object { $_.Trim() }
         $allSections = @{
             '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
             '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
