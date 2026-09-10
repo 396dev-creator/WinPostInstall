@@ -51,6 +51,20 @@ param(
     [string[]]$Sections
 )
 
+# ================================================================
+# CRITICAL BOOTSTRAP: Keep window open on ANY error (parse or runtime)
+# This MUST be the first executable code after param()
+# ================================================================
+trap {
+    Write-Host ""
+    Write-Host "  [FATAL ERROR] $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "  at line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+    Read-Host "  "
+    exit 1
+}
+
 $ScriptVersion = "3.3.2"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
@@ -65,6 +79,24 @@ if ((Get-ExecutionPolicy -Scope Process) -ne 'Bypass') {
 # Unblock the script file itself if Windows marked it as 'from internet'
 if ($PSCommandPath) {
     try { Unblock-File -Path $PSCommandPath -ErrorAction SilentlyContinue } catch { }
+}
+
+# Self-elevate: If not running as Administrator, re-launch in an elevated window
+# This allows the user to simply double-click the script
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "  Not running as Administrator. Requesting elevation..." -ForegroundColor Yellow
+    $scriptArgs = @()
+    if ($Silent) { $scriptArgs += "-Silent" }
+    if ($Sections) { $scriptArgs += "-Sections"; $scriptArgs += $Sections }
+    try {
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $scriptArgs" -Verb RunAs -ErrorAction Stop
+        Write-Host "  Elevated window opened. This window can be closed." -ForegroundColor Green
+    } catch {
+        Write-Host "  Could not self-elevate. Please right-click -> Run as Administrator." -ForegroundColor Red
+        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+        Read-Host "  "
+    }
+    exit 0
 }
 
 #endregion
@@ -156,9 +188,17 @@ function Set-DefenderExclusions {
 
 function Initialize-Script {
     if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-        Write-Host "[ERROR] This script must be run as Administrator." -ForegroundColor Red
-        Write-Host "Right-click PowerShell and select 'Run as Administrator', then re-run this script." -ForegroundColor Yellow
-        throw "Not running as Administrator. Cannot continue."
+        Write-Host ""
+        Write-Host "================================================================" -ForegroundColor Red
+        Write-Host "  [ERROR] This script must be run as Administrator." -ForegroundColor Red
+        Write-Host "================================================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "  Right-click PowerShell -> 'Run as Administrator'" -ForegroundColor Yellow
+        Write-Host "  Then re-run this script." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+        Read-Host "  "
+        exit 1
     }
 
     $logDir = "$env:SYSTEMDRIVE\Temp"
@@ -2054,10 +2094,8 @@ try {
     Write-Host ""
 } finally {
     try { Stop-Transcript | Out-Null } catch { }
-    if (-not $Silent) {
-        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
-        Read-Host "  "
-    }
+    Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+    Read-Host "  "
 }
 
 #endregion
