@@ -21,7 +21,7 @@
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    3.3.2
+    3.4.0
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -34,6 +34,8 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v3.4.0 - Added System Restore safety net: auto-enable restore + create pre-optimization restore point
+    v3.3.2 - Fixed crash bugs (goto, $input reserved var), added auto-elevation, error trapping
     v3.3.0 - Added Office 365 install + MAS activation, expanded privacy analytics lockdown
     v3.2.0 - Added Browser Extensions & Privacy section (uBlock Origin + Privacy Badger on 5 browsers)
     v3.1.0 - Added Defender self-exclusion, enhanced XML docs, AV-friendly metadata
@@ -65,7 +67,7 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "3.3.2"
+$ScriptVersion = "3.4.0"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Prevent window from closing on crash (keeps window open no matter what)
@@ -242,6 +244,218 @@ function Write-Warn([string]$Message) {
 
 function Write-Err([string]$Message) {
     Write-Host "  [ERROR] $Message" -ForegroundColor Red
+}
+
+function Enable-SystemRestore {
+    <#
+    .DESCRIPTION
+        Ensures System Restore is enabled and configured on the system drive.
+        Enables the service if disabled, allocates disk space, and verifies
+        the feature is operational before returning.
+    #>
+    Write-Host "" -ForegroundColor Cyan
+    Write-Host "  [SAFETY] System Restore Verification" -ForegroundColor Cyan
+    Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+    Write-Host ""
+
+    $systemDrive = $env:SYSTEMDRIVE
+    $restoreEnabled = $false
+
+    # Step 1: Check if System Restore is currently enabled on the system drive
+    Write-Step "Checking System Restore status on $systemDrive..."
+    try {
+        $srStatus = Get-ComputerInfo -Property "SystemRestoreStatus" -ErrorAction SilentlyContinue
+        # Also check via WMI which is more reliable
+        $srInfo = Get-CimInstance -Namespace "ROOT/DEFAULT" -ClassName "SystemRestore" -ErrorAction SilentlyContinue
+        if ($srInfo) {
+            foreach ($sr in $srInfo) {
+                if ($sr.RPSequence -gt 0) {
+                    $restoreEnabled = $true
+                    break
+                }
+            }
+        }
+    } catch {
+        # WMI query may fail if System Restore is completely disabled
+        $restoreEnabled = $false
+    }
+
+    # Alternative check: try to list existing restore points
+    if (-not $restoreEnabled) {
+        try {
+            $existingPoints = Get-CimInstance -Namespace "ROOT/DEFAULT" -ClassName "SystemRestore" -ErrorAction Stop
+            if ($existingPoints -and $existingPoints.Count -ge 0) {
+                $restoreEnabled = $true
+            }
+        } catch {
+            $restoreEnabled = $false
+        }
+    }
+
+    # Step 2: Enable System Restore if not currently enabled
+    if (-not $restoreEnabled) {
+        Write-Warn "System Restore is NOT enabled on $systemDrive."
+        Write-Step "Enabling System Restore on $systemDrive..."
+
+        try {
+            # Enable System Restore via registry (most reliable method)
+            $srPolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+            if (-not (Test-Path $srPolicyPath)) {
+                New-Item -Path $srPolicyPath -Force -ErrorAction SilentlyContinue | Out-Null
+            }
+            # DisableSR = 0 means System Restore is ENABLED
+            Set-ItemProperty -Path $srPolicyPath -Name "DisableSR" -Value 0 -Type DWord -Force -ErrorAction Stop
+
+            # Also enable via PowerShell cmdlet (Windows 10/11)
+            try {
+                Enable-ComputerRestore -Drive $systemDrive -ErrorAction Stop
+            } catch {
+                # Fallback: use vssadmin to enable shadow copies
+                $vssResult = vssadmin list shadows 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    # Try creating a shadow copy to force-enable VSS
+                    vssadmin create shadow /For=$systemDrive 2>&1 | Out-Null
+                }
+            }
+
+            # Start the System Restore service if not running
+            $srService = Get-Service -Name "sr" -ErrorAction SilentlyContinue
+            if ($srService -and $srService.Status -ne 'Running') {
+                try {
+                    Set-Service -Name "sr" -StartupType Manual -ErrorAction Stop
+                    Start-Service -Name "sr" -ErrorAction Stop
+                } catch {
+                    Write-Warn "Could not start System Restore service: $_"
+                }
+            }
+
+            # Also ensure VSS (Volume Shadow Copy) service is running (required for System Restore)
+            $vssService = Get-Service -Name "VSS" -ErrorAction SilentlyContinue
+            if ($vssService -and $vssService.Status -ne 'Running') {
+                try {
+                    Set-Service -Name "VSS" -StartupType Manual -ErrorAction Stop
+                    Start-Service -Name "VSS" -ErrorAction Stop
+                    Write-Success "VSS service started."
+                } catch {
+                    Write-Warn "Could not start VSS service: $_"
+                }
+            }
+
+            Start-Sleep -Seconds 2
+            Write-Success "System Restore has been ENABLED on $systemDrive."
+        } catch {
+            Write-Err "Failed to enable System Restore: $_"
+            Write-Warn "Continuing without restore point. Manual enable: System Properties > System Protection > Configure > Turn on"
+        }
+    } else {
+        Write-Success "System Restore is already enabled on $systemDrive."
+    }
+
+    # Step 3: Configure disk space allocation for restore points
+    Write-Step "Configuring System Restore disk space..."
+    try {
+        # Set maximum disk space usage to 5% (reasonable for most systems)
+        # This is done via registry: RPSessionInterval and DiskPercent
+        $srCfgPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore\Cfg"
+        if (-not (Test-Path $srCfgPath)) {
+            New-Item -Path $srCfgPath -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+        # DiskPercent = 5 means 5% of disk (0 = unlimited, we use 5% as safe default)
+        Set-ItemProperty -Path $srCfgPath -Name "DiskPercent" -Value 5 -Type DWord -Force -ErrorAction SilentlyContinue
+        # RPSessionInterval = 0 means create restore points at any interval
+        Set-ItemProperty -Path $srCfgPath -Name "RPSessionInterval" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+        Write-Success "Restore disk space set to 5% of drive."
+    } catch {
+        Write-Warn "Could not configure restore disk space: $_"
+    }
+
+    Write-Host ""
+}
+
+function New-SystemRestorePoint {
+    <#
+    .DESCRIPTION
+        Creates a System Restore point before any optimization changes are made.
+        This provides a safety net so the user can roll back all changes.
+    #>
+    Write-Host "" -ForegroundColor Cyan
+    Write-Host "  [SAFETY] Creating System Restore Point" -ForegroundColor Cyan
+    Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+    Write-Host ""
+
+    $restorePointCreated = $false
+    $description = "Pre-Optimization Restore Point - WinPostInstall v$ScriptVersion - $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+
+    # Method 1: Use Checkpoint-Computer (PowerShell cmdlet, Windows 8+)
+    Write-Step "Creating restore point: 'Pre-Optimization'..."
+    try {
+        Checkpoint-Computer -Description $description -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+        $restorePointCreated = $true
+        Write-Success "Restore point created successfully via Checkpoint-Computer."
+    } catch {
+        Write-Warn "Checkpoint-Computer failed: $_"
+    }
+
+    # Method 2: Fallback using WMI if Method 1 failed
+    if (-not $restorePointCreated) {
+        Write-Step "Trying WMI method to create restore point..."
+        try {
+            $wmiSR = [System.Windows.Forms.SystemRestore]
+            # WMI approach via Invoke-CimMethod
+            $result = Invoke-CimMethod -Namespace "ROOT/DEFAULT" -ClassName "SystemRestore" `
+                -MethodName "CreateRestorePoint" `
+                -Arguments @{
+                    Description         = $description
+                    RestorePointType    = 12  # MODIFY_SETTINGS
+                    EventType           = 100  # BEGIN_NESTED_SYSTEM_CHANGE
+                } -ErrorAction Stop
+            if ($result -and $result.ReturnValue -eq 0) {
+                $restorePointCreated = $true
+                Write-Success "Restore point created via WMI."
+            } else {
+                Write-Warn "WMI returned non-zero: $result"
+            }
+        } catch {
+            Write-Warn "WMI method failed: $_"
+        }
+    }
+
+    # Method 3: Final fallback via srclient.dll COM automation
+    if (-not $restorePointCreated) {
+        Write-Step "Trying COM automation (srclient.dll)..."
+        try {
+            $srClient = New-Object -ComObject "SRClient.RestorePoint" -ErrorAction Stop
+            # 7 = MODIFY_SETTINGS, 100 = BEGIN_NESTED_SYSTEM_CHANGE
+            $srClient.CreateRestorePoint($description, 7, 100)
+            $restorePointCreated = $true
+            Write-Success "Restore point created via COM automation."
+        } catch {
+            Write-Warn "COM method failed: $_"
+        }
+    }
+
+    if ($restorePointCreated) {
+        Write-Host ""
+        Write-Host "  ====================================================================" -ForegroundColor Green
+        Write-Host "  RESTORE POINT CREATED: 'Pre-Optimization'" -ForegroundColor Green
+        Write-Host "  You can roll back all changes via:" -ForegroundColor White
+        Write-Host "    System Properties > System Protection > System Restore" -ForegroundColor White
+        Write-Host "  ====================================================================" -ForegroundColor Green
+        Write-Host ""
+    } else {
+        Write-Host ""
+        Write-Warn "Could NOT create restore point automatically."
+        Write-Host "  Manual option: System Properties > System Protection > Create" -ForegroundColor Yellow
+        Write-Host "  Continuing without restore point backup." -ForegroundColor Yellow
+        Write-Host ""
+        if (-not $Silent) {
+            $continue = Read-Host "  Continue without restore point? (y/N)"
+            if ($continue -ne 'y' -and $continue -ne 'Y') {
+                Write-Host "  Aborted by user." -ForegroundColor Yellow
+                exit 0
+            }
+        }
+    }
 }
 
 function Set-Registry {
@@ -2013,6 +2227,11 @@ function Get-UserSelection {
 
 try {
     Initialize-Script
+
+    # SAFETY FIRST: Enable System Restore (if disabled) and create a restore point
+    # BEFORE any optimization changes are made
+    Enable-SystemRestore
+    New-SystemRestorePoint
 
     $selectedSections = @()
     if ($Sections -and $Sections.Count -gt 0) {
