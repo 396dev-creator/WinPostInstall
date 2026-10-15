@@ -810,7 +810,7 @@ function Remove-Registry {
     }
 }
 
-function Disable-ScheduledTask {
+function Disable-AppTask {
     [CmdletBinding()]
     param(
         [string]$TaskPath,
@@ -873,7 +873,7 @@ function Disable-ScheduledTask {
                 if ($deps) {
                     Write-Host "  [DEPENDENCY] Task $TaskName has dependents: $($deps.TaskName -join ', ')" -ForegroundColor DarkYellow
                 }
-                Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop | Out-Null
+                $task | Disable-ScheduledTask -ErrorAction Stop
                 Write-Success "Task disabled: $TaskPath$TaskName"
                 $script:TotalChanged++
                 $null = $script:UndoCommands.Add("Enable-ScheduledTask -TaskPath '$TaskPath' -TaskName '$TaskName' -ErrorAction SilentlyContinue")
@@ -894,7 +894,7 @@ function Disable-ScheduledTask {
 function Invoke-PrivacyTweaks {
     $script:CurrentSection = "Privacy"
     Write-Host ""
-    Write-Host "--- PRIVACY & TELEMETRY (Aggressive) ---" -ForegroundColor Magenta
+    Write-Host "--- PRIVACY and TELEMETRY (Aggressive) ---" -ForegroundColor Magenta
     Write-Host ""
 
     # 1. Disable Telemetry via Registry (multiple paths)
@@ -1037,7 +1037,7 @@ function Invoke-PrivacyTweaks {
     }
 
     # 13. Disable Clipboard
-    Write-Step "Disabling Clipboard cloud sync & history..."
+    Write-Step "Disabling Clipboard cloud sync and history..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
         -Name "AllowClipboardHistory" -Value 0 -Type DWord `
         -SafetyLevel "Safe" -Description "Disables clipboard history (Win+V)" -SettingID "Privacy_NoClipHistory"
@@ -1060,7 +1060,7 @@ function Invoke-PrivacyTweaks {
         -Name "NumberOfSIUFInPeriod" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables feedback notifications — stops Feedback Hub prompts" -SettingID "Privacy_NoFeedbackNotif"
 
     # 16. Disable targeted tips
-    Write-Step "Disabling targeted tips & suggestions..."
+    Write-Step "Disabling targeted tips and suggestions..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
         -Name "Start_TrackProgs" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables tracking of most-used programs in Start — stops usage telemetry" -SettingID "Privacy_NoTrackProgs"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
@@ -1100,7 +1100,7 @@ function Invoke-PrivacyTweaks {
         -Name "DisableSettingSyncUserOverride" -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Disables Setting Sync — stops cloud settings sync" -SettingID "Privacy_NoSettingSync"
 
     # 21. Full diagnostics/analytics lockdown (Settings > Privacy > Diagnostics & Feedback)
-    Write-Step "Locking down all diagnostics & analytics for developers..."
+    Write-Step "Locking down all diagnostics and analytics for developers..."
     # Diagnostic Data: Send required only (=1) or off (=0)
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
         -Name "AllowTelemetry" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Stops Windows from sending telemetry and diagnostic data to Microsoft" -SettingID "Privacy_AllowTelemetry3"
@@ -1167,7 +1167,7 @@ function Invoke-PrivacyTweaks {
         -Name "LetAppsAccessActivityHistory" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Denies apps access to activity history — stops app activity tracking" -SettingID "Privacy_NoAppActivityHist"
 
     # 23. Disable all Advertising and personalization data sharing
-    Write-Step "Disabling advertising & personalization data sharing..."
+    Write-Step "Disabling advertising and personalization data sharing..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" `
         -Name "DisabledByGroupPolicy" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Removes advertising ID via group policy — stops targeted advertising" -SettingID "Privacy_AdvIDPolicy2"
     # Disable Browse Web / Search suggestions personalization
@@ -1216,7 +1216,7 @@ function Invoke-PrivacyTweaks {
         -Name "NOC_GLOBAL_SETTING_TOASTS_ENABLED" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables lock screen toast notifications — stops lock screen notification display" -SettingID "Privacy_NoLockScreenNotif"
 
     Write-Host ""
-    Write-Success "Privacy & Telemetry section complete (26 items)."
+    Write-Success "Privacy and Telemetry section complete (26 items)."
 }
 
 #endregion
@@ -1239,7 +1239,7 @@ function Invoke-Debloat {
         # Microsoft bloat — Safe
         @{ App = "*Microsoft.3DBuilder*";               Safety = "Safe";    Reason = "Removes 3D Builder — pre-installed junk app" },
         @{ App = "*Microsoft.BingFinance*";             Safety = "Safe";    Reason = "Removes Bing Finance — pre-installed junk app" },
-        @{ App = "*Microsoft.BingFoodAndDrink*";        Safety = "Safe";    Reason = "Removes Bing Food & Drink — pre-installed junk app" },
+        @{ App = "*Microsoft.BingFoodAndDrink*";        Safety = "Safe";    Reason = "Removes Bing Food and Drink — pre-installed junk app" },
         @{ App = "*Microsoft.BingHealth*";              Safety = "Safe";    Reason = "Removes Bing Health — pre-installed junk app" },
         @{ App = "*Microsoft.BingMaps*";                Safety = "Safe";    Reason = "Removes Bing Maps — pre-installed junk app" },
         @{ App = "*Microsoft.BingNews*";                Safety = "Safe";    Reason = "Removes Bing News — pre-installed junk app" },
@@ -1280,7 +1280,7 @@ function Invoke-Debloat {
         @{ App = "*Microsoft.XboxIdentityProvider*";     Safety = "Moderate"; Reason = "Removes Xbox Identity Provider — WARNING: gamers need these" },
         @{ App = "*Microsoft.XboxSpeechToTextOverlay*";  Safety = "Moderate"; Reason = "Removes Xbox Speech-to-Text — WARNING: gamers need these" },
         @{ App = "*Microsoft.ZuneMusic*";               Safety = "Safe";    Reason = "Removes Groove Music — pre-installed junk app" },
-        @{ App = "*Microsoft.ZuneVideo*";               Safety = "Safe";    Reason = "Removes Movies & TV — pre-installed junk app" },
+        @{ App = "*Microsoft.ZuneVideo*";               Safety = "Safe";    Reason = "Removes Movies and TV — pre-installed junk app" },
         @{ App = "*MicrosoftTeamsFree*";                Safety = "Safe";    Reason = "Removes Teams (free) — pre-installed junk app" },
         @{ App = "*Microsoft.Copilot*";                 Safety = "Safe";    Reason = "Removes Copilot — pre-installed junk app" },
         @{ App = "*Microsoft.Todos*";                   Safety = "Safe";    Reason = "Removes To Do — pre-installed junk app" },
@@ -1418,7 +1418,7 @@ function Invoke-Debloat {
 function Invoke-ExplorerUI {
     $script:CurrentSection = "ExplorerUI"
     Write-Host ""
-    Write-Host "--- EXPLORER & UI OPTIMIZATIONS ---" -ForegroundColor Magenta
+    Write-Host "--- EXPLORER and UI OPTIMIZATIONS ---" -ForegroundColor Magenta
     Write-Host ""
 
     # 1. Show file extensions
@@ -1594,7 +1594,7 @@ function Invoke-ExplorerUI {
     } catch { Write-Warn "Could not remove library key: $_" }
 
     Write-Host ""
-    Write-Success "Explorer & UI optimizations complete."
+    Write-Success "Explorer and UI optimizations complete."
 }
 
 #endregion
@@ -1606,7 +1606,7 @@ function Invoke-ExplorerUI {
 function Invoke-ServiceStartupOptimization {
     $script:CurrentSection = "ServiceStartup"
     Write-Host ""
-    Write-Host "--- SERVICE & STARTUP OPTIMIZATION ---" -ForegroundColor Magenta
+    Write-Host "--- SERVICE and STARTUP OPTIMIZATION ---" -ForegroundColor Magenta
     Write-Host ""
 
     $disableServices = @(
@@ -1669,7 +1669,7 @@ function Invoke-ServiceStartupOptimization {
         -Name "StartupDelayInMSec" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables startup delay — speeds up boot by removing artificial delay" -SettingID "ServiceStartup_NoStartupDelay"
 
     Write-Host ""
-    Write-Success "Service & Startup optimization complete."
+    Write-Success "Service and Startup optimization complete."
 }
 
 #endregion
@@ -1681,7 +1681,7 @@ function Invoke-ServiceStartupOptimization {
 function Invoke-PerformanceOptimization {
     $script:CurrentSection = "Performance"
     Write-Host ""
-    Write-Host "--- PERFORMANCE & POWER SETTINGS ---" -ForegroundColor Magenta
+    Write-Host "--- PERFORMANCE and POWER SETTINGS ---" -ForegroundColor Magenta
     Write-Host ""
 
     # === HARDWARE-AWARE: SSD vs HDD ===
@@ -1804,7 +1804,7 @@ function Invoke-PerformanceOptimization {
         try {
             $defragTask = Get-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue
             if ($defragTask -and $defragTask.State -ne 'Disabled') {
-                Disable-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue -SafetyLevel "Safe" -Description "Disables scheduled defragmentation — SSD does not need defrag" -SettingID "Performance_NoScheduledDefrag"
+                Disable-AppTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue -SafetyLevel "Safe" -Description "Disables scheduled defragmentation — SSD does not need defrag" -SettingID "Performance_NoScheduledDefrag"
                 Write-Success "Scheduled defrag disabled (SSD)."
             }
         } catch { Write-Warn "Could not disable scheduled defrag: $_" }
@@ -1884,7 +1884,7 @@ function Invoke-PerformanceOptimization {
     }
 
     Write-Host ""
-    Write-Success "Performance & Power optimization complete."
+    Write-Success "Performance and Power optimization complete."
 }
 
 #endregion
@@ -2179,7 +2179,7 @@ function Invoke-DiskCleanup {
         -Name "AllowStorageSenseGlobal" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Storage Sense — prevents automatic file deletion" -SettingID "DiskCleanup_NoStorageSense"
 
     Write-Host ""
-    Write-Success "Disk cleanup & maintenance complete."
+    Write-Success "Disk cleanup and maintenance complete."
 }
 
 #endregion
@@ -2343,7 +2343,7 @@ function Invoke-OfficeActivation {
 
     # --- Step 2: Download & Launch Microsoft Activation Scripts ---
     Write-Host ""
-    Write-Host "  [Step 2/3] Windows & Office Activation (MAS)" -ForegroundColor Yellow
+    Write-Host "  [Step 2/3] Windows and Office Activation (MAS)" -ForegroundColor Yellow
     Write-Host ""
 
     Write-Step "Downloading Microsoft Activation Scripts..."
@@ -2594,7 +2594,7 @@ function Invoke-ScheduledTasksCleanup {
 
     $disabled = 0; $notFound = 0
     foreach ($task in $tasksToDisable) {
-        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task"
+        Disable-AppTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task"
         $disabled++
     }
 
@@ -2608,7 +2608,7 @@ function Invoke-ScheduledTasksCleanup {
         @{ Path = "\Microsoft\Office\"; Name = "Office 16 Subscription Heartbeat" }
     )
     foreach ($task in $officeTasks) {
-        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task_2"
+        Disable-AppTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task_2"
         $disabled++
     }
 
@@ -2912,7 +2912,7 @@ function Invoke-BrowserHardening {
     }
 
     Write-Host ""
-    Write-Success "Browser extensions & privacy configuration complete."
+    Write-Success "Browser extensions and privacy configuration complete."
     Write-Host ""
     Write-Host "  NOTE: Extensions install on next browser launch." -ForegroundColor DarkGray
     Write-Host "  NOTE: Policies apply even to browsers installed AFTER running this." -ForegroundColor DarkGray
@@ -3118,22 +3118,22 @@ $script:SectionSafetyInfo = @{
 
 function Show-SimpleMenu {
     $menuItems = @(
-        @{ ID = "1";  Key = "Privacy";             Name = "Privacy & Telemetry (Aggressive)";          Desc = "Telemetry, Cortana, Copilot, Recall, AI, Bing, tracking" },
+        @{ ID = "1";  Key = "Privacy";             Name = "Privacy and Telemetry (Aggressive)";          Desc = "Telemetry, Cortana, Copilot, Recall, AI, Bing, tracking" },
         @{ ID = "2";  Key = "Debloat";             Name = "Debloat: Remove Bloatware";                Desc = "Uninstall 60+ pre-installed junk apps" },
-        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer & UI Optimizations";              Desc = "File extensions, taskbar, CDM lockdown, context menu" },
-        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service & Startup Optimization";           Desc = "Disable 16 unnecessary services + startup delay" },
-        @{ ID = "5";  Key = "Performance";           Name = "Performance & Power Settings";             Desc = "Hibernation, fast startup, High Perf plan, Defender CPU" },
+        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer and UI Optimizations";              Desc = "File extensions, taskbar, CDM lockdown, context menu" },
+        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service and Startup Optimization";           Desc = "Disable 16 unnecessary services + startup delay" },
+        @{ ID = "5";  Key = "Performance";           Name = "Performance and Power Settings";             Desc = "Hibernation, fast startup, High Perf plan, Defender CPU" },
         @{ ID = "6";  Key = "Security";             Name = "Security Hardening";                       Desc = "Defender, UAC, SMBv1, DNS-over-HTTPS, PSv2" },
         @{ ID = "7";  Key = "Network";              Name = "Network Optimizations";                   Desc = "DNS, Nagle off, throttling off, Teredo off" },
         @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update Configuration";           Desc = "Active hours, no auto-reboot, no delivery opt." },
-        @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup & Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
+        @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup and Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
         @{ ID = "10"; Key = "Winget";                Name = "Software Installation (Winget)";           Desc = "Chrome, Firefox, 7-Zip, VLC, Reader, Notepad++" },
         @{ ID = "11"; Key = "OfficeActivation";      Name = "Office 365 Install + Activation";            Desc = "Download Office, MAS activation, Office telemetry off" },
         @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening (14 policies)";             Desc = "Shopping, Copilot, telemetry, preload, sync" },
         @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
         @{ ID = "14"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
         @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
-        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Extensions & Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
+        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Extensions and Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
         @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" },
         @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features Removal";                  Desc = "Remove IE, WMP, PSv2, Fax, Paint3D, XPS, Work Folders" }
     )
@@ -3184,11 +3184,11 @@ function Get-SimpleUserSelection {
 
 function Show-DetailedMenu {
     $menuItems = @(
-        @{ ID = "1";  Key = "Privacy";             Name = "Privacy & Telemetry" },
+        @{ ID = "1";  Key = "Privacy";             Name = "Privacy and Telemetry" },
         @{ ID = "2";  Key = "Debloat";             Name = "Debloat" },
-        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer & UI" },
-        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service & Startup" },
-        @{ ID = "5";  Key = "Performance";           Name = "Performance & Power" },
+        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer and UI" },
+        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service and Startup" },
+        @{ ID = "5";  Key = "Performance";           Name = "Performance and Power" },
         @{ ID = "6";  Key = "Security";             Name = "Security" },
         @{ ID = "7";  Key = "Network";              Name = "Network" },
         @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update" },
