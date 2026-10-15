@@ -21,7 +21,7 @@
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    3.4.0
+    3.5.0
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -34,8 +34,9 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v3.5.0 - Made script fully idempotent: skip already-applied registry settings, already-disabled tasks, already-installed apps, already-removed bloatware
     v3.4.0 - Added System Restore safety net: auto-enable restore + create pre-optimization restore point
-    v3.3.2 - Fixed crash bugs (goto, $input reserved var), added auto-elevation, error trapping
+    v3.3.2 - Fixed crash bugs (jump-label syntax, $input reserved var), added auto-elevation, error trapping
     v3.3.0 - Added Office 365 install + MAS activation, expanded privacy analytics lockdown
     v3.2.0 - Added Browser Extensions & Privacy section (uBlock Origin + Privacy Badger on 5 browsers)
     v3.1.0 - Added Defender self-exclusion, enhanced XML docs, AV-friendly metadata
@@ -67,7 +68,7 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "3.4.0"
+$ScriptVersion = "3.5.0"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Prevent window from closing on crash (keeps window open no matter what)
@@ -470,6 +471,32 @@ function Set-Registry {
         if (-not (Test-Path $Path)) {
             New-Item -Path $Path -Force -ErrorAction SilentlyContinue | Out-Null
         }
+        # Idempotency: Check if the value already matches what we want to set
+        $currentValue = $null
+        try {
+            $currentValue = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name
+        } catch {
+            # Property doesn't exist yet — need to create it
+        }
+
+        # Compare current vs desired value
+        $valueMatches = $false
+        if ($null -ne $currentValue) {
+            if ($Type -eq "DWord" -or $Type -eq "QWord") {
+                # Numeric comparison (handle both int and string inputs)
+                $valueMatches = ([int]$currentValue -eq [int]$Value)
+            } elseif ($Type -eq "String" -or $Type -eq "ExpandString") {
+                $valueMatches = ([string]$currentValue -eq [string]$Value)
+            } else {
+                $valueMatches = ($currentValue -eq $Value)
+            }
+        }
+
+        if ($valueMatches) {
+            Write-Step "Already set: $Path\$Name = $Value"
+            return
+        }
+
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
         Write-Success "Registry: $Path\$Name = $Value"
     }
@@ -486,8 +513,15 @@ function Remove-Registry {
     )
     try {
         if (Test-Path $Path) {
-            Remove-ItemProperty -Path $Path -Name $Name -Force -ErrorAction Stop 2>$null
-            Write-Success "Registry removed: $Path\$Name"
+            # Idempotency: Check if property exists before removing
+            $existing = $null
+            try { $existing = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name } catch { }
+            if ($null -ne $existing) {
+                Remove-ItemProperty -Path $Path -Name $Name -Force -ErrorAction Stop 2>$null
+                Write-Success "Registry removed: $Path\$Name"
+            } else {
+                Write-Step "Already removed: $Path\$Name"
+            }
         }
     }
     catch {
@@ -504,8 +538,12 @@ function Disable-ScheduledTask {
     try {
         $task = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
         if ($task) {
-            Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop | Out-Null
-            Write-Success "Task disabled: $TaskPath$TaskName"
+            if ($task.State -eq 'Disabled') {
+                Write-Step "Already disabled: $TaskPath$TaskName"
+            } else {
+                Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop | Out-Null
+                Write-Success "Task disabled: $TaskPath$TaskName"
+            }
         }
     }
     catch {
@@ -868,18 +906,20 @@ function Invoke-Debloat {
 
     # Remove provisioned packages (prevents reinstall for new users)
     Write-Step "Cleaning provisioned (stub) packages..."
+    $provRemoved = 0; $provNotFound = 0
     foreach ($app in $bloatwareList) {
         $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object DisplayName -like $app
         if ($prov) {
             try {
                 Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop
                 Write-Success "Removed provisioned: $($prov.DisplayName)"
+                $provRemoved++
             } catch { Write-Warn "Could not remove provisioned $($prov.DisplayName): $_" }
-        }
+        } else { $provNotFound++ }
     }
 
     Write-Host ""
-    Write-Success "Debloat complete. Removed $removed packages ($notFound not found)."
+    Write-Success "Debloat complete. Removed: $removed | Already removed: $notFound | Provisioned removed: $provRemoved | Provisioned clean: $provNotFound"
 }
 
 #endregion
@@ -1338,16 +1378,7 @@ function Invoke-DiskCleanup {
     Write-Host "--- DISK CLEANUP & SYSTEM MAINTENANCE ---" -ForegroundColor Magenta
     Write-Host ""
 
-    # 1. Create System Restore point
-    Write-Step "Creating System Restore point..."
-    try {
-        Enable-ComputerRestore -Drive "$env:SYSTEMDRIVE\" -ErrorAction SilentlyContinue
-        Checkpoint-Computer -Description "Post-Install Optimizer v3 - Pre-optimization snapshot" `
-            -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
-        Write-Success "System Restore point created."
-    } catch { Write-Warn "Could not create Restore Point: $_" }
-
-    # 2. Run Disk Cleanup
+    # 1. Run Disk Cleanup (Restore point already created at script startup)
     Write-Step "Configuring Disk Cleanup options..."
     foreach ($key in @("ActiveSetupTemp","OldFiles","ServicePackCleanup")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\$key" `
@@ -1416,8 +1447,23 @@ function Invoke-WingetInstall {
         if ($confirm -eq 'n' -or $confirm -eq 'N') { Write-Warn "Skipped."; return }
     }
 
-    $successCount = 0; $failCount = 0
+    $successCount = 0; $failCount = 0; $skippedCount = 0
     foreach ($app in $appList) {
+        # Idempotency: Check if the app is already installed via winget
+        $alreadyInstalled = $false
+        try {
+            $wingetList = winget list --id $app.ID --exact 2>$null
+            if ($wingetList -match [regex]::Escape($app.ID)) {
+                $alreadyInstalled = $true
+            }
+        } catch { }
+
+        if ($alreadyInstalled) {
+            Write-Step "Already installed: $($app.Name)"
+            $skippedCount++
+            continue
+        }
+
         Write-Step "Installing $($app.Name)..."
         try {
             winget install --id $app.ID --silent --accept-package-agreements --accept-source-agreements `
@@ -1428,7 +1474,7 @@ function Invoke-WingetInstall {
     }
 
     Write-Host ""
-    Write-Success "Software install complete. Success: $successCount | Issues: $failCount"
+    Write-Success "Software install complete. Installed: $successCount | Skipped: $skippedCount | Issues: $failCount"
 }
 
 #endregion
