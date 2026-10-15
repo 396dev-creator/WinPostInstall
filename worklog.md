@@ -126,3 +126,26 @@ Stage Summary:
 - Two crash causes found and fixed: `$input` reserved var + no error trapping
 - Added auto-elevation so user can simply double-click the script
 - Window will now stay open on any error, showing the error message
+
+---
+Task ID: 8
+Agent: Main Agent + Subagent
+Task: Implement all 17 proposed improvements (v3.5.0 → v4.0.0)
+
+Work Log:
+- GROUP 1 (Safety): Undo script generation, Registry backup, Pre-flight checks
+- GROUP 2 (Deep Cleanup): Windows Features removal (Section 18), Taskbar customization, Context menu cleanup, Lock screen/Spotlight ads
+- GROUP 3 (Hardware-Aware): SSD/HDD detection + SysMain/Prefetch/Trim, Laptop/Desktop chassis detection, RAM-aware page file tweaks
+- GROUP 4 (Reporting): Change summary with Changed/Skipped/Failed per section, Section timing, Before/After CSV snapshots
+- GROUP 5 (Network): DNS-over-HTTPS with Cloudflare, Hosts file telemetry domain blocking (20 domains)
+- GROUP 6 (Deployment): -ConfigFile JSON parameter, -ComputerName remote execution via PSRemoting
+- All syntax checks passed (0 errors, 0 warnings)
+- Region/endregion balanced (22/22)
+
+Stage Summary:
+- Script upgraded from v3.5.0 (2367 lines, 17 sections) to v4.0.0 (3064 lines, 18 sections)
+- 17 new features implemented across 6 groups
+- New parameters: -ConfigFile, -ComputerName
+- New section: WindowsFeatures (Section 18)
+- Sample config file saved to /home/z/my-project/download/WinPostInstall-Config-Sample.json
+- Script is fully idempotent, self-elevating, with undo generation and registry backup

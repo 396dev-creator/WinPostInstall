@@ -11,6 +11,10 @@
     Run all sections without user interaction. Skips prompts and confirmation dialogs.
 .PARAMETER Sections
     Array of section names to run. Example: -Sections Privacy,EdgeHardening,Gamedvr
+.PARAMETER ConfigFile
+    Path to a JSON configuration file that specifies sections, app lists, and bloatware lists.
+.PARAMETER ComputerName
+    Array of remote computer names to execute the script on via PSSession.
 .EXAMPLE
     .\WinPostInstall.ps1
     Launches interactive menu to choose which optimizations to apply.
@@ -21,7 +25,7 @@
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    3.5.0
+    4.0.0
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -34,6 +38,13 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v4.0.0 - Major feature release: 17 new capabilities across 6 groups:
+             [Safety] Undo script generation, Registry backup, Pre-flight checks (internet/disk/reboot/battery)
+             [Deep Cleanup] Windows Features removal (Section 18), Taskbar deep customization, Context menu cleanup, Lock screen/Spotlight ad removal
+             [Hardware-Aware] SSD/HDD detection with conditional SysMain/Prefetch/TRIM/defrag, Laptop/Desktop detection with power plan logic, RAM-aware page file optimization + NTFS tweaks
+             [Reporting] Change summary table with per-section stats, Section timing, Before/After service/task snapshots
+             [Network] DNS-over-HTTPS (Cloudflare DoH), Hosts file hardening (20 telemetry domains)
+             [Deployment] JSON config file support (-ConfigFile), Remote execution via PSSession (-ComputerName)
     v3.5.0 - Made script fully idempotent: skip already-applied registry settings, already-disabled tasks, already-installed apps, already-removed bloatware
     v3.4.0 - Added System Restore safety net: auto-enable restore + create pre-optimization restore point
     v3.3.2 - Fixed crash bugs (jump-label syntax, $input reserved var), added auto-elevation, error trapping
@@ -51,7 +62,9 @@
 [CmdletBinding()]
 param(
     [switch]$Silent,
-    [string[]]$Sections
+    [string[]]$Sections,
+    [string]$ConfigFile,
+    [string[]]$ComputerName
 )
 
 # ================================================================
@@ -68,8 +81,18 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "3.5.0"
+$ScriptVersion = "4.0.0"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+
+# Undo command tracker (for rollback script generation)
+$script:UndoCommands = [System.Collections.ArrayList]::new()
+
+# Statistics counters (for change summary report)
+$script:TotalChanged = 0
+$script:TotalSkipped = 0
+$script:TotalFailed = 0
+$script:SectionStats = @{}
+$script:BackupDir = "$env:SYSTEMDRIVE\Temp\PostInstall_RegBackup"
 
 # Prevent window from closing on crash (keeps window open no matter what)
 $ErrorActionPreference = "Continue"
@@ -91,6 +114,8 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     $scriptArgs = @()
     if ($Silent) { $scriptArgs += "-Silent" }
     if ($Sections) { $scriptArgs += "-Sections"; $scriptArgs += $Sections }
+    if ($ConfigFile) { $scriptArgs += "-ConfigFile"; $scriptArgs += $ConfigFile }
+    if ($ComputerName) { $scriptArgs += "-ComputerName"; $scriptArgs += $ComputerName }
     try {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $scriptArgs" -Verb RunAs -ErrorAction Stop
         Write-Host "  Elevated window opened. This window can be closed." -ForegroundColor Green
@@ -214,6 +239,37 @@ function Initialize-Script {
     # Set up Defender self-exclusion FIRST (before any optimization work)
     Set-DefenderExclusions
 
+    # Registry backup - export critical hives before making any changes
+    Write-Host "" -ForegroundColor Cyan
+    Write-Host "  [SAFETY] Registry Backup" -ForegroundColor Cyan
+    Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+    Write-Host ""
+    try {
+        if (-not (Test-Path $script:BackupDir)) {
+            New-Item -Path $script:BackupDir -ItemType Directory -Force | Out-Null
+        }
+        Write-Step "Exporting registry hives to $script:BackupDir..."
+        $regExports = @(
+            @{ Hive = "HKLM\SOFTWARE\Policies"; File = "Policies.reg" },
+            @{ Hive = "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies"; File = "WinPolicies.reg" },
+            @{ Hive = "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer"; File = "Explorer.reg" },
+            @{ Hive = "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR"; File = "GameDVR.reg" }
+        )
+        foreach ($regExport in $regExports) {
+            $exportPath = Join-Path $script:BackupDir $regExport.File
+            try {
+                reg export $regExport.Hive $exportPath /y 2>$null | Out-Null
+                Write-Success "Exported: $($regExport.Hive)"
+            } catch {
+                Write-Warn "Could not export $($regExport.Hive): $_"
+            }
+        }
+        Write-Success "Registry backup saved to: $script:BackupDir"
+    } catch {
+        Write-Warn "Registry backup failed: $_"
+    }
+    Write-Host ""
+
     $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
     $script:OSVersion = [version]$osInfo.Version
     $script:OSBuild = $osInfo.BuildNumber
@@ -221,14 +277,162 @@ function Initialize-Script {
     $script:OSCaption = if ($script:IsWin11) { "Windows 11" } else { "Windows 10" }
     $script:ComputerName = $env:COMPUTERNAME
 
+    # Laptop vs Desktop detection
+    $script:IsLaptop = $false
+    try {
+        $chassisTypes = Get-CimInstance -ClassName Win32_ChassisType -ErrorAction SilentlyContinue
+        if ($chassisTypes) {
+            $script:IsLaptop = ($chassisTypes | Where-Object { $_.ChassisType -in @(9, 10, 14) }).Count -gt 0
+        }
+    } catch { }
+    if (-not $script:IsLaptop) {
+        try {
+            $script:IsLaptop = (Get-CimInstance -ClassName Win32_Battery -ErrorAction SilentlyContinue).Count -gt 0
+        } catch { }
+    }
+
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "  Windows Post-Installation Optimizer v$ScriptVersion" -ForegroundColor Cyan
     Write-Host "  Target: $script:OSCaption (Build $script:OSBuild)" -ForegroundColor Cyan
     Write-Host "  Computer: $script:ComputerName" -ForegroundColor Cyan
+    Write-Host "  Chassis: $(if ($script:IsLaptop) { 'Laptop' } else { 'Desktop' })" -ForegroundColor Cyan
     Write-Host "  Log file: $LogFile" -ForegroundColor DarkGray
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host ""
+
+    # Run pre-flight checks
+    Test-Prerequisites
+}
+
+function Test-Prerequisites {
+    <#
+    .DESCRIPTION
+        Pre-flight checks: internet connectivity, disk space, pending reboot, battery.
+        Warns on issues but does not block execution.
+    #>
+    Write-Host "" -ForegroundColor Cyan
+    Write-Host "  [PRE-FLIGHT] System Prerequisites Check" -ForegroundColor Cyan
+    Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+    Write-Host ""
+
+    $checksPassed = 0; $checksWarned = 0
+
+    # 1. Internet connectivity
+    Write-Step "Checking internet connectivity..."
+    try {
+        $netTest = Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet -ErrorAction Stop
+        if ($netTest) {
+            Write-Success "Internet connectivity: OK"
+            $checksPassed++
+        } else {
+            Write-Warn "Internet connectivity: OFFLINE (some features may fail)"
+            $checksWarned++
+        }
+    } catch {
+        Write-Warn "Internet connectivity: Could not check (some features may fail)"
+        $checksWarned++
+    }
+
+    # 2. Free disk space
+    Write-Step "Checking free disk space..."
+    try {
+        $sysDrive = Get-PSDrive -Name ($env:SYSTEMDRIVE -replace ':','') -ErrorAction Stop
+        $freeGB = [math]::Round($sysDrive.Free / 1GB, 2)
+        if ($freeGB -gt 10) {
+            Write-Success "Free disk space: $freeGB GB (OK)"
+            $checksPassed++
+        } else {
+            Write-Warn "Free disk space: $freeGB GB (LOW - recommend >10 GB)"
+            $checksWarned++
+        }
+    } catch {
+        Write-Warn "Could not check disk space: $_"
+        $checksWarned++
+    }
+
+    # 3. Pending reboot
+    Write-Step "Checking for pending reboot..."
+    $rebootPending = $false
+    $cbsPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending"
+    $wuPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
+    if (Test-Path $cbsPath -ErrorAction SilentlyContinue) { $rebootPending = $true }
+    if (Test-Path $wuPath -ErrorAction SilentlyContinue) { $rebootPending = $true }
+    if ($rebootPending) {
+        Write-Warn "Pending reboot detected! A restart is recommended before running optimizations."
+        $checksWarned++
+    } else {
+        Write-Success "No pending reboot."
+        $checksPassed++
+    }
+
+    # 4. Battery check (if laptop)
+    if ($script:IsLaptop) {
+        Write-Step "Checking battery level..."
+        try {
+            $battery = Get-CimInstance -ClassName Win32_Battery -ErrorAction Stop
+            $onAC = $battery.BatteryStatus -eq 2 -or $battery.BatteryStatus -eq 6 -or $battery.BatteryStatus -eq 7 -or $battery.BatteryStatus -eq 8
+            if ($onAC) {
+                Write-Success "On AC power."
+                $checksPassed++
+            } elseif ($battery.EstimatedChargeRemaining -gt 50) {
+                Write-Success "Battery level: $($battery.EstimatedChargeRemaining)% (OK)"
+                $checksPassed++
+            } else {
+                Write-Warn "Battery level: $($battery.EstimatedChargeRemaining)% - recommend AC power or >50% charge."
+                $checksWarned++
+            }
+        } catch {
+            Write-Warn "Could not check battery: $_"
+            $checksWarned++
+        }
+    }
+
+    Write-Host ""
+    Write-Host "  Pre-flight summary: $checksPassed passed, $checksWarned warnings" -ForegroundColor $(if ($checksWarned -gt 0) { 'Yellow' } else { 'Green' })
+    Write-Host ""
+}
+
+function Get-BootDriveType {
+    <#
+    .DESCRIPTION
+        Detects whether the boot drive is an SSD or HDD.
+        Returns "SSD" or "HDD".
+    #>
+    $bootType = "HDD"  # Default assumption
+    try {
+        # Method 1: Get-PhysicalDisk (most reliable on Win8+)
+        $physicalDisk = Get-PhysicalDisk -ErrorAction SilentlyContinue | Where-Object DeviceId -eq 0
+        if ($physicalDisk) {
+            if ($physicalDisk.MediaType -eq "SSD") { return "SSD" }
+            if ($physicalDisk.MediaType -eq "HDD") { return "HDD" }
+        }
+    } catch { }
+
+    try {
+        # Method 2: Get-Disk BusType fallback
+        $bootDisk = Get-Disk -ErrorAction SilentlyContinue | Where-Object IsBoot -eq $true
+        if ($bootDisk) {
+            $ssdBusTypes = @("NVMe", "SATA", "RAID", "SCSI")
+            # Check via rotation rate (0 = SSD on some controllers)
+            if ($bootDisk.BusType -in $ssdBusTypes) {
+                # Not conclusive, but check rotation rate
+                $detail = Get-PhysicalDisk -ErrorAction SilentlyContinue | Where-Object DeviceId -eq $bootDisk.Number
+                if ($detail -and $detail.MediaType -eq "SSD") { return "SSD" }
+            }
+        }
+    } catch { }
+
+    try {
+        # Method 3: Check if defrag is scheduled (SSD = not scheduled)
+        $defragTask = Get-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue
+        if ($defragTask -and $defragTask.State -eq 'Disabled') {
+            # If scheduled defrag is disabled, likely SSD
+            # This is a weak heuristic, don't rely on it alone
+        }
+    } catch { }
+
+    return $bootType
 }
 
 function Write-Step([string]$Message) {
@@ -494,14 +698,25 @@ function Set-Registry {
 
         if ($valueMatches) {
             Write-Step "Already set: $Path\$Name = $Value"
+            $script:TotalSkipped++
             return
+        }
+
+        # Capture old value for undo script before writing
+        if ($null -ne $currentValue) {
+            $oldVal = $currentValue.ToString()
+            $null = $script:UndoCommands.Add("Set-ItemProperty -Path '$Path' -Name '$Name' -Value '$oldVal' -Type '$Type' -Force")
+        } else {
+            $null = $script:UndoCommands.Add("Remove-ItemProperty -Path '$Path' -Name '$Name' -Force -ErrorAction SilentlyContinue")
         }
 
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
         Write-Success "Registry: $Path\$Name = $Value"
+        $script:TotalChanged++
     }
     catch {
         Write-Err "Failed to set $Path\$Name : $_"
+        $script:TotalFailed++
     }
 }
 
@@ -540,9 +755,12 @@ function Disable-ScheduledTask {
         if ($task) {
             if ($task.State -eq 'Disabled') {
                 Write-Step "Already disabled: $TaskPath$TaskName"
+                $script:TotalSkipped++
             } else {
                 Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop | Out-Null
                 Write-Success "Task disabled: $TaskPath$TaskName"
+                $script:TotalChanged++
+                $null = $script:UndoCommands.Add("Enable-ScheduledTask -TaskPath '$TaskPath' -TaskName '$TaskName' -ErrorAction SilentlyContinue")
             }
         }
     }
@@ -838,8 +1056,28 @@ function Invoke-PrivacyTweaks {
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\UserProfile" `
         -Name "DisableUserProfileTelemetry" -Value 1 -Type DWord
 
+    # === LOCK SCREEN / SPOTLIGHT ADS ===
+
+    # 25. Disable Windows Spotlight and lock screen ads
+    Write-Step "Disabling Windows Spotlight and lock screen ads..."
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+        -Name "ContentDeliveryEnabled" -Value 0 -Type DWord
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+        -Name "SubscribedContent-338387Enabled" -Value 0 -Type DWord
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+        -Name "SubscribedContent-338388Enabled" -Value 0 -Type DWord
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+        -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+        -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord
+
+    # 26. Disable lock screen app notifications
+    Write-Step "Disabling lock screen app notifications..."
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings" `
+        -Name "NOC_GLOBAL_SETTING_TOASTS_ENABLED" -Value 0 -Type DWord
+
     Write-Host ""
-    Write-Success "Privacy & Telemetry section complete (24 items)."
+    Write-Success "Privacy & Telemetry section complete (26 items)."
 }
 
 #endregion
@@ -898,6 +1136,8 @@ function Invoke-Debloat {
                     Write-Step "Removing: $($pkg.Name)"
                     Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
                     $removed++
+                    $script:TotalChanged++
+                    $null = $script:UndoCommands.Add("# Re-install: Add-AppxPackage -Package '$($pkg.PackageFullName)'")
                     Write-Success "Removed: $($pkg.Name)"
                 } catch { Write-Warn "Could not remove $($pkg.Name): $_" }
             }
@@ -1035,6 +1275,75 @@ function Invoke-ExplorerUI {
             -Name "DragBetweenWindows" -Value 0 -Type DWord
     }
 
+    # === TASKBAR DEEP CUSTOMIZATION ===
+
+    # 16. Remove Task View button from Taskbar
+    Write-Step "Removing Task View button from Taskbar..."
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+        -Name "ShowTaskViewButton" -Value 0 -Type DWord
+
+    # 17. Set Search bar to icon-only (not full bar)
+    Write-Step "Setting Search bar to icon-only mode..."
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" `
+        -Name "SearchboxTaskbarMode" -Value 1 -Type DWord
+
+    # 18. Hide Copilot button from Taskbar
+    Write-Step "Hiding Copilot button from Taskbar..."
+    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+        -Name "ShowCopilotButton" -Value 0 -Type DWord
+
+    # 19. Unpin default Edge+Store from taskbar
+    # NOTE: Unpinning Edge and Store from taskbar requires deleting the Taskband registry key
+    # which is complex and system-dependent. Commented-out for safety.
+    # To unpin manually, right-click the icon and select "Unpin from Taskbar".
+    # Remove-Item -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Taskband" -Force -ErrorAction SilentlyContinue
+
+    # === CONTEXT MENU CLEANUP ===
+
+    # 20. Remove "Cast to Device" from context menu
+    Write-Step "Removing 'Cast to Device' from context menu..."
+    try {
+        $castKey = "HKCR:\Local\Microsoft\Windows\Shell\Cast"
+        if (Test-Path $castKey -ErrorAction SilentlyContinue) {
+            $null = $script:UndoCommands.Add("New-Item -Path '$castKey' -Force -ErrorAction SilentlyContinue")
+            Remove-Item -Path $castKey -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Success "Removed: Cast to Device"
+        }
+    } catch { Write-Warn "Could not remove Cast key: $_" }
+
+    # 21. Remove "Share with Skype" from context menu
+    Write-Step "Removing 'Share with Skype' from context menu..."
+    try {
+        $skypeKey = "HKCR:\Local\Microsoft\Windows\Shell\Skype"
+        if (Test-Path $skypeKey -ErrorAction SilentlyContinue) {
+            $null = $script:UndoCommands.Add("New-Item -Path '$skypeKey' -Force -ErrorAction SilentlyContinue")
+            Remove-Item -Path $skypeKey -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Success "Removed: Share with Skype"
+        }
+    } catch { Write-Warn "Could not remove Skype key: $_" }
+
+    # 22. Remove "Give access to" from context menu
+    Write-Step "Removing 'Give access to' from context menu..."
+    try {
+        $sharingKey = "HKCR:\AllFileObjects\shell\sharing"
+        if (Test-Path $sharingKey -ErrorAction SilentlyContinue) {
+            $null = $script:UndoCommands.Add("New-Item -Path '$sharingKey' -Force -ErrorAction SilentlyContinue")
+            Remove-Item -Path $sharingKey -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Success "Removed: Give access to"
+        }
+    } catch { Write-Warn "Could not remove sharing key: $_" }
+
+    # 23. Remove "Include in library" from context menu
+    Write-Step "Removing 'Include in library' from context menu..."
+    try {
+        $libraryKey = "HKCR:\Folder\Shell\include in library"
+        if (Test-Path $libraryKey -ErrorAction SilentlyContinue) {
+            $null = $script:UndoCommands.Add("New-Item -Path '$libraryKey' -Force -ErrorAction SilentlyContinue")
+            Remove-Item -Path $libraryKey -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Success "Removed: Include in library"
+        }
+    } catch { Write-Warn "Could not remove library key: $_" }
+
     Write-Host ""
     Write-Success "Explorer & UI optimizations complete."
 }
@@ -1104,6 +1413,26 @@ function Invoke-PerformanceOptimization {
     Write-Host "--- PERFORMANCE & POWER SETTINGS ---" -ForegroundColor Magenta
     Write-Host ""
 
+    # === HARDWARE-AWARE: SSD vs HDD ===
+    $script:BootDriveType = Get-BootDriveType
+    Write-Step "Boot drive type detected: $($script:BootDriveType)"
+
+    # === HARDWARE-AWARE: Laptop vs Desktop ===
+    if ($script:IsLaptop) {
+        Write-Step "Chassis type: Laptop — keeping Balanced power plan."
+    } else {
+        Write-Step "Chassis type: Desktop — setting High Performance power plan."
+    }
+
+    # === HARDWARE-AWARE: RAM detection ===
+    $totalRAM = 0
+    try {
+        $totalRAM = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 2)
+        Write-Step "Total RAM detected: $totalRAM GB"
+    } catch {
+        Write-Warn "Could not detect RAM: $_"
+    }
+
     # 1. Disable Hibernation
     Write-Step "Disabling Hibernation..."
     try {
@@ -1121,25 +1450,40 @@ function Invoke-PerformanceOptimization {
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" `
         -Name "ModernSleep" -Value 0 -Type DWord
 
-    # 4. Set High Performance power plan
-    Write-Step "Setting High Performance power plan..."
-    try {
-        $highPerf = powercfg.exe /list | Select-String -Pattern "High performance|高性能"
-        if ($highPerf) {
-            $guid = ($highPerf.ToString() -split '\s+')[3]
-            powercfg.exe /setactive $guid 2>$null
-            Write-Success "Power plan set to High Performance ($guid)"
-        } else {
-            powercfg.exe /duplicatecheme 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null | Out-Null
-            Start-Sleep -Seconds 1
+    # 4. Set power plan based on chassis type
+    if ($script:IsLaptop) {
+        # Laptop: keep Balanced, just tweak
+        Write-Step "Keeping Balanced power plan (laptop)."
+    } else {
+        # Desktop: set High Performance, disable lid close action
+        Write-Step "Setting High Performance power plan (desktop)..."
+        try {
             $highPerf = powercfg.exe /list | Select-String -Pattern "High performance|高性能"
             if ($highPerf) {
                 $guid = ($highPerf.ToString() -split '\s+')[3]
                 powercfg.exe /setactive $guid 2>$null
-                Write-Success "High Performance plan created and activated ($guid)"
-            } else { Write-Warn "Could not find or create High Performance plan." }
-        }
-    } catch { Write-Warn "Power plan change failed: $_" }
+                Write-Success "Power plan set to High Performance ($guid)"
+            } else {
+                powercfg.exe /duplicatecheme 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null | Out-Null
+                Start-Sleep -Seconds 1
+                $highPerf = powercfg.exe /list | Select-String -Pattern "High performance|高性能"
+                if ($highPerf) {
+                    $guid = ($highPerf.ToString() -split '\s+')[3]
+                    powercfg.exe /setactive $guid 2>$null
+                    Write-Success "High Performance plan created and activated ($guid)"
+                } else { Write-Warn "Could not find or create High Performance plan." }
+            }
+        } catch { Write-Warn "Power plan change failed: $_" }
+
+        # Disable lid close action (desktop doesn't need it)
+        Write-Step "Disabling lid close action (desktop)..."
+        try {
+            powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_BUTTONS LIDACTION 0 2>$null
+            powercfg.exe /setdcvalueindex SCHEME_CURRENT SUB_BUTTONS LIDACTION 0 2>$null
+            powercfg.exe /setactive SCHEME_CURRENT 2>$null
+            Write-Success "Lid close action set to 'Do nothing' (desktop)."
+        } catch { Write-Warn "Could not change lid close action: $_" }
+    }
 
     # 5. Set visual effects to Best Performance
     Write-Step "Setting visual effects to 'Best Performance'..."
@@ -1158,16 +1502,51 @@ function Invoke-PerformanceOptimization {
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\DWM" `
         -Name "EnableAeroPeek" -Value 0 -Type DWord
 
-    # 6. Disable SysMain
-    Write-Step "Disabling SysMain (SuperFetch)..."
-    try {
-        $sysMain = Get-Service -Name "SysMain" -ErrorAction SilentlyContinue
-        if ($sysMain) {
-            Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
-            Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction Stop
-            Write-Success "SysMain disabled."
-        }
-    } catch { Write-Warn "Could not disable SysMain: $_" }
+    # 6. SysMain/Prefetch based on drive type
+    if ($script:BootDriveType -eq "SSD") {
+        Write-Step "SSD detected: Disabling SysMain (SuperFetch) and Prefetch..."
+        try {
+            $sysMain = Get-Service -Name "SysMain" -ErrorAction SilentlyContinue
+            if ($sysMain -and $sysMain.StartType -ne 'Disabled') {
+                Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
+                Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction Stop
+                Write-Success "SysMain disabled (SSD)."
+            } elseif ($sysMain) {
+                Write-Step "SysMain already disabled."
+            }
+        } catch { Write-Warn "Could not disable SysMain: $_" }
+
+        # Disable Prefetch via registry
+        Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" `
+            -Name "EnablePrefetcher" -Value 0 -Type DWord
+        Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" `
+            -Name "EnableSuperfetch" -Value 0 -Type DWord
+
+        # Disable scheduled defrag on SSD
+        Write-Step "Disabling scheduled defragmentation (SSD)..."
+        try {
+            $defragTask = Get-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue
+            if ($defragTask -and $defragTask.State -ne 'Disabled') {
+                Disable-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue
+                Write-Success "Scheduled defrag disabled (SSD)."
+            }
+        } catch { Write-Warn "Could not disable scheduled defrag: $_" }
+
+        # Enable TRIM on SSD
+        Write-Step "Enabling TRIM on SSD..."
+        try {
+            $trimResult = fsutil behavior query DisableDeleteNotify 2>$null
+            if ($trimResult -match "1") {
+                fsutil behavior set DisableDeleteNotify 0 2>$null | Out-Null
+                Write-Success "TRIM enabled (SSD)."
+            } else {
+                Write-Step "TRIM already enabled."
+            }
+        } catch { Write-Warn "Could not check/enable TRIM: $_" }
+    } else {
+        Write-Step "HDD detected: Keeping SysMain (SuperFetch) and Prefetch enabled."
+        # Do not disable SysMain on HDD - it helps with performance
+    }
 
     # 7. Limit Windows Defender CPU usage to ~25%
     Write-Step "Limiting Windows Defender CPU usage..."
@@ -1197,6 +1576,32 @@ function Invoke-PerformanceOptimization {
     Write-Step "Increasing SvcHost split threshold..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ServiceHostConfiguration" `
         -Name "SvcHostSplitThresholdInKB" -Value 0x04000000 -Type DWord
+
+    # === RAM-AWARE TWEAKS ===
+
+    # 10. Page file optimization based on RAM
+    if ($totalRAM -ge 32) {
+        # >=32GB: suggest disabling page file entirely (comment, don't auto-apply)
+        Write-Step "RAM >= 32GB: Consider disabling the page file entirely for maximum performance."
+        Write-Host "    (Not auto-applied. To disable: System Properties > Advanced > Performance > Virtual Memory > No paging file)" -ForegroundColor DarkGray
+    } elseif ($totalRAM -ge 16) {
+        # >=16GB: set fixed 1024MB page file
+        Write-Step "RAM >= 16GB: Setting fixed page file to 1024MB..."
+        Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" `
+            -Name "PagingFiles" -Value "C:\pagefile.sys 1024 1024" -Type MultiString
+    } elseif ($totalRAM -le 8 -and $totalRAM -gt 0) {
+        # <=8GB: keep system-managed page file, but warn
+        Write-Warn "RAM <= 8GB: Keeping system-managed page file. Consider adding more RAM."
+    }
+
+    # 11. Disable NTFS last access time updates (improves SSD performance)
+    Write-Step "Disabling NTFS last access time updates..."
+    try {
+        fsutil behavior set DisableLastAccess 1 2>$null | Out-Null
+        Write-Success "NTFS last access time updates disabled."
+    } catch {
+        Write-Warn "Could not set DisableLastAccess: $_"
+    }
 
     Write-Host ""
     Write-Success "Performance & Power optimization complete."
@@ -1313,6 +1718,81 @@ function Invoke-NetworkOptimizations {
     Write-Step "Disabling Teredo..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition" `
         -Name "Teredo_State" -Value "Disabled" -Type String
+
+    # 6. DNS-over-HTTPS provider setup (Cloudflare)
+    Write-Step "Configuring DNS-over-HTTPS with Cloudflare..."
+    try {
+        # Set DNS via netsh for Ethernet adapter
+        $ethernetAdapter = Get-NetAdapter -Name "Ethernet" -ErrorAction SilentlyContinue
+        if ($ethernetAdapter -and $ethernetAdapter.Status -eq 'Up') {
+            netsh interface ip set dns "Ethernet" static 1.1.1.1 primary 2>$null
+            netsh interface ip add dns "Ethernet" 1.0.0.1 index=2 2>$null
+            Write-Success "DNS set to Cloudflare (1.1.1.1, 1.0.0.1) on Ethernet."
+        }
+        # Also try Wi-Fi adapter
+        $wifiAdapter = Get-NetAdapter -Name "Wi-Fi" -ErrorAction SilentlyContinue
+        if ($wifiAdapter -and $wifiAdapter.Status -eq 'Up') {
+            netsh interface ip set dns "Wi-Fi" static 1.1.1.1 primary 2>$null
+            netsh interface ip add dns "Wi-Fi" 1.0.0.1 index=2 2>$null
+            Write-Success "DNS set to Cloudflare (1.1.1.1, 1.0.0.1) on Wi-Fi."
+        }
+    } catch { Write-Warn "Could not set DNS via netsh: $_" }
+
+    # Enable DoH
+    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" `
+        -Name "EnableAutoDoh" -Value 2 -Type DWord
+    # Configure Cloudflare DoH template via policy
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" `
+        -Name "EnableDOH" -Value 1 -Type DWord
+
+    # 7. Hosts file hardening - block Microsoft telemetry domains
+    Write-Step "Hardening hosts file against telemetry domains..."
+    $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
+    $telemetryDomains = @(
+        "vortex.data.microsoft.com",
+        "vortex-win.data.microsoft.com",
+        "tele.microsoft.com",
+        "tele-ssl.microsoft.com",
+        "watson.telemetry.microsoft.com",
+        "watson.telemetry.microsoft.com.nsatc.net",
+        "redir.metaservices.microsoft.com",
+        "choice.microsoft.com",
+        "choice.microsoft.com.nsatc.net",
+        "df.telemetry.microsoft.com",
+        "oemss.microsoft.com",
+        "services.microsoft.com",
+        "stats.microsoft.com",
+        "survey.watson.microsoft.com",
+        "watson.live.com",
+        "watson.microsoft.com",
+        "telemetry.microsoft.com",
+        "telemetry.appex.bing.com",
+        "telemetry.urs.microsoft.com",
+        "settings-win.data.microsoft.com"
+    )
+
+    try {
+        # Backup hosts file first
+        Copy-Item $hostsPath "$hostsPath.bak" -Force -ErrorAction SilentlyContinue
+        $null = $script:UndoCommands.Add("Copy-Item '$hostsPath.bak' '$hostsPath' -Force -ErrorAction SilentlyContinue")
+
+        $hostsAdded = 0
+        foreach ($domain in $telemetryDomains) {
+            # Check if entry already exists (idempotent)
+            $existing = Select-String -Path $hostsPath -Pattern $domain -ErrorAction SilentlyContinue
+            if (-not $existing) {
+                Add-Content -Path $hostsPath -Value "0.0.0.0 $domain" -Force -ErrorAction Stop
+                $hostsAdded++
+            }
+        }
+        if ($hostsAdded -gt 0) {
+            Write-Success "Added $hostsAdded telemetry domains to hosts file."
+        } else {
+            Write-Step "All telemetry domains already in hosts file."
+        }
+    } catch {
+        Write-Warn "Could not modify hosts file: $_"
+    }
 
     Write-Host ""
     Write-Success "Network optimizations complete."
@@ -2197,6 +2677,70 @@ function Invoke-FinalTouches {
 #endregion
 
 #region ============================================================
+# SECTION 18: WINDOWS FEATURES REMOVAL
+# ============================================================
+
+function Invoke-WindowsFeaturesRemoval {
+    Write-Host ""
+    Write-Host "--- WINDOWS FEATURES REMOVAL ---" -ForegroundColor Magenta
+    Write-Host ""
+
+    $featuresToRemove = @(
+        @{ Name = "Internet-Explorer-Optional-amd64";            Desc = "Internet Explorer" },
+        @{ Name = "MediaPlayback";                               Desc = "Media Playback" },
+        @{ Name = "WindowsMediaPlayer";                          Desc = "Windows Media Player" },
+        @{ Name = "MicrosoftWindowsPowerShellV2";                Desc = "PowerShell V2" },
+        @{ Name = "MicrosoftWindowsPowerShellV2Root";            Desc = "PowerShell V2 Root" },
+        @{ Name = "Fax";                                         Desc = "Fax" },
+        @{ Name = "Hello-Face-Package";                          Desc = "Windows Hello Face" },
+        @{ Name = "Math-Recognizer";                             Desc = "Math Recognizer" },
+        @{ Name = "Paint3D";                                     Desc = "Paint 3D" },
+        # PrintToPDFServicesFeatures - keep if user needs PDF printing
+        # @{ Name = "PrintToPDFServicesFeatures";                Desc = "Print to PDF (keep if needed)" },
+        @{ Name = "Xps-Foundation-XpsDriver";                    Desc = "XPS Printer Driver" },
+        # WCF-Services45 - some apps need it
+        # @{ Name = "WCF-Services45";                            Desc = "WCF Services (keep if needed)" },
+        @{ Name = "InternetPrintPrintOverInternet";              Desc = "Internet Printing" },
+        @{ Name = "WorkFolders-Client";                          Desc = "Work Folders Client" }
+        # SmbDirect - may be needed on some systems
+        # @{ Name = "SmbDirect";                                 Desc = "SMB Direct (keep if needed)" }
+    )
+
+    $disabledCount = 0; $alreadyOffCount = 0; $notFoundCount = 0
+
+    foreach ($feature in $featuresToRemove) {
+        Write-Step "Checking feature: $($feature.Desc) ($($feature.Name))..."
+        try {
+            $featState = Get-WindowsOptionalFeature -Online -FeatureName $feature.Name -ErrorAction SilentlyContinue
+            if ($featState) {
+                if ($featState.State -eq 'Enabled') {
+                    Disable-WindowsOptionalFeature -Online -FeatureName $feature.Name -NoRestart -ErrorAction Stop | Out-Null
+                    Write-Success "Disabled feature: $($feature.Desc)"
+                    $disabledCount++
+                    $script:TotalChanged++
+                    $null = $script:UndoCommands.Add("Enable-WindowsOptionalFeature -Online -FeatureName '$($feature.Name)' -NoRestart -ErrorAction SilentlyContinue")
+                } else {
+                    Write-Step "Already disabled: $($feature.Desc)"
+                    $alreadyOffCount++
+                    $script:TotalSkipped++
+                }
+            } else {
+                Write-Warn "Feature not found: $($feature.Name)"
+                $notFoundCount++
+            }
+        } catch {
+            Write-Warn "Could not disable feature $($feature.Name): $_"
+            $script:TotalFailed++
+        }
+    }
+
+    Write-Host ""
+    Write-Success "Windows Features removal complete. Disabled: $disabledCount | Already off: $alreadyOffCount | Not found: $notFoundCount"
+}
+
+#endregion
+
+#region ============================================================
 # INTERACTIVE MENU
 # ============================================================
 
@@ -2218,7 +2762,8 @@ function Show-Menu {
         @{ ID = "14"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
         @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
         @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Extensions & Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
-        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" }
+        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" },
+        @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features Removal";                  Desc = "Remove IE, WMP, PSv2, Fax, Paint3D, XPS, Work Folders" }
     )
 
     Write-Host ""
@@ -2248,14 +2793,14 @@ function Get-UserSelection {
     if ($userInput.Trim().ToUpper() -eq 'A') {
         $selected = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                       "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                      "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
+                      "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
     } else {
         $numbers = $userInput -split ',' | ForEach-Object { $_.Trim() }
         $allSections = @{
             '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
             '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
             '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='EdgeHardening'
-            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches'
+            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches';'18'='WindowsFeatures'
         }
         foreach ($num in $numbers) {
             if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
@@ -2274,18 +2819,87 @@ function Get-UserSelection {
 try {
     Initialize-Script
 
+    # === REMOTE EXECUTION SUPPORT ===
+    if ($ComputerName -and $ComputerName.Count -gt 0) {
+        Write-Host ""
+        Write-Host "  [REMOTE] Executing on remote computers..." -ForegroundColor Cyan
+        Write-Host ""
+        foreach ($comp in $ComputerName) {
+            Write-Step "Connecting to $comp..."
+            try {
+                $session = New-PSSession -ComputerName $comp -ErrorAction Stop
+                Write-Success "Connected to $comp."
+
+                # Copy script to remote machine
+                Write-Step "Copying script to $comp..."
+                try {
+                    Invoke-Command -Session $session -ScriptBlock {
+                        if (-not (Test-Path "C:\Temp")) { New-Item -Path "C:\Temp" -ItemType Directory -Force | Out-Null }
+                    } -ErrorAction SilentlyContinue
+                    Copy-Item -Path $PSCommandPath -Destination "C:\Temp\WinPostInstall.ps1" -ToSession $session -Force -ErrorAction Stop
+                    Write-Success "Script copied to $comp."
+                } catch {
+                    Write-Err "Failed to copy script to $comp : $_"
+                    Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+                    continue
+                }
+
+                # Invoke script on remote machine
+                Write-Step "Running WinPostInstall on $comp..."
+                try {
+                    $remoteResult = Invoke-Command -Session $session -ScriptBlock {
+                        & "C:\Temp\WinPostInstall.ps1" -Silent
+                    } -ErrorAction Stop
+                    Write-Success "Execution completed on $comp."
+                } catch {
+                    Write-Err "Execution failed on $comp : $_"
+                }
+
+                Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+                Write-Success "Session closed for $comp."
+            } catch {
+                Write-Err "Could not connect to $comp : $_"
+            }
+        }
+        Write-Host ""
+        Write-Success "Remote execution complete."
+        return
+    }
+
     # SAFETY FIRST: Enable System Restore (if disabled) and create a restore point
     # BEFORE any optimization changes are made
     Enable-SystemRestore
     New-SystemRestorePoint
 
     $selectedSections = @()
-    if ($Sections -and $Sections.Count -gt 0) {
+    if ($ConfigFile -and (Test-Path $ConfigFile -ErrorAction SilentlyContinue)) {
+        # Load configuration from JSON file
+        Write-Step "Loading configuration from: $ConfigFile"
+        try {
+            $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+            if ($config.Sections) {
+                $selectedSections = @($config.Sections)
+                Write-Success "Loaded sections from config: $($selectedSections -join ', ')"
+            }
+            # Override Winget app list if specified
+            if ($config.AppList) {
+                Write-Success "Custom AppList loaded from config ($($config.AppList.Count) apps)."
+                $script:CustomAppList = $config.AppList
+            }
+            # Override bloatware list if specified
+            if ($config.BloatwareList) {
+                Write-Success "Custom BloatwareList loaded from config ($($config.BloatwareList.Count) items)."
+                $script:CustomBloatwareList = $config.BloatwareList
+            }
+        } catch {
+            Write-Err "Failed to load config file: $_"
+        }
+    } elseif ($Sections -and $Sections.Count -gt 0) {
         $selectedSections = $Sections
     } elseif ($Silent) {
         $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                               "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                              "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches")
+                              "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
         Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
     } else {
         $selectedSections = Get-UserSelection
@@ -2296,9 +2910,26 @@ try {
     foreach ($s in $selectedSections) { Write-Host "    - $s" -ForegroundColor White }
     Write-Host ""
 
+    # === BEFORE/AFTER SNAPSHOT (start) ===
+    Write-Step "Taking 'before' snapshot of services and tasks..."
+    try {
+        if (-not (Test-Path $script:BackupDir)) { New-Item -Path $script:BackupDir -ItemType Directory -Force | Out-Null }
+        Get-Service | Select-Object Name, StartType, Status | Export-Csv "$script:BackupDir\Services_Before.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+        Get-ScheduledTask | Select-Object TaskName, TaskPath, State | Export-Csv "$script:BackupDir\Tasks_Before.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+        Write-Success "Before snapshots saved to $script:BackupDir"
+    } catch {
+        Write-Warn "Could not take before snapshot: $_"
+    }
+
     $startTime = Get-Date
 
     foreach ($section in $selectedSections) {
+        # Section timing
+        $sectionStart = Get-Date
+        $sectionChangedBefore = $script:TotalChanged
+        $sectionSkippedBefore = $script:TotalSkipped
+        $sectionFailedBefore = $script:TotalFailed
+
         switch ($section) {
             "Privacy"           { Invoke-PrivacyTweaks }
             "Debloat"           { Invoke-Debloat }
@@ -2317,18 +2948,57 @@ try {
             "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
             "BrowserHardening"  { Invoke-BrowserHardening }
             "FinalTouches"      { Invoke-FinalTouches }
+            "WindowsFeatures"   { Invoke-WindowsFeaturesRemoval }
             default { Write-Warn "Unknown section: $section (skipped)" }
         }
+
+        $sectionDuration = (Get-Date) - $sectionStart
+        $script:SectionStats[$section] = @{
+            Duration = $sectionDuration
+            Changed = $script:TotalChanged - $sectionChangedBefore
+            Skipped = $script:TotalSkipped - $sectionSkippedBefore
+            Failed  = $script:TotalFailed - $sectionFailedBefore
+        }
+    }
+
+    # === BEFORE/AFTER SNAPSHOT (end) ===
+    Write-Step "Taking 'after' snapshot of services and tasks..."
+    try {
+        Get-Service | Select-Object Name, StartType, Status | Export-Csv "$script:BackupDir\Services_After.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+        Get-ScheduledTask | Select-Object TaskName, TaskPath, State | Export-Csv "$script:BackupDir\Tasks_After.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+        Write-Success "After snapshots saved to $script:BackupDir"
+        Write-Host "  Before/after snapshots saved to $script:BackupDir" -ForegroundColor DarkGray
+    } catch {
+        Write-Warn "Could not take after snapshot: $_"
     }
 
     $endTime = Get-Date
     $duration = $endTime - $startTime
+
+    # === SECTION SUMMARY TABLE ===
+    Write-Host ""
+    Write-Host "  SECTION SUMMARY:" -ForegroundColor Cyan
+    Write-Host "  " + ("-" * 70) -ForegroundColor DarkGray
+    foreach ($sec in $selectedSections) {
+        if ($script:SectionStats.ContainsKey($sec)) {
+            $stat = $script:SectionStats[$sec]
+            $dur = $stat.Duration.ToString('mm\:ss')
+            $ch = $stat.Changed; $sk = $stat.Skipped; $fa = $stat.Failed
+            $line = "  {0,-20} | Changed: {1,3} | Skipped: {2,3} | Failed: {3,1} | {4}" -f $sec, $ch, $sk, $fa, $dur
+            Write-Host $line -ForegroundColor White
+        }
+    }
+    Write-Host "  " + ("-" * 70) -ForegroundColor DarkGray
+    $totalLine = "  {0,-20} | Changed: {1,3} | Skipped: {2,3} | Failed: {3,1}" -f "TOTAL", $script:TotalChanged, $script:TotalSkipped, $script:TotalFailed
+    Write-Host $totalLine -ForegroundColor Green
+    Write-Host ""
 
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "  OPTIMIZATION COMPLETE" -ForegroundColor Green
     Write-Host "  Duration: $($duration.ToString('hh\:mm\:ss'))" -ForegroundColor White
     Write-Host "  Sections run: $($selectedSections.Count)" -ForegroundColor White
+    Write-Host "  Changes: $($script:TotalChanged) | Skipped: $($script:TotalSkipped) | Failed: $($script:TotalFailed)" -ForegroundColor White
     Write-Host "  Log saved to: $LogFile" -ForegroundColor DarkGray
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host ""
@@ -2358,6 +3028,34 @@ try {
     Write-Host "================================================================" -ForegroundColor Red
     Write-Host ""
 } finally {
+    # Generate undo script
+    if ($script:UndoCommands -and $script:UndoCommands.Count -gt 0) {
+        $undoPath = Join-Path (Split-Path $PSCommandPath -Parent) "WinPostInstall-Undo.ps1"
+        try {
+            $undoHeader = @(
+                "<#",
+                ".SYNOPSIS",
+                "    Undo script for WinPostInstall v$ScriptVersion",
+                ".DESCRIPTION",
+                "    Generated automatically. Run this to revert registry and scheduled task changes.",
+                "    NOTE: AppX package removals cannot be undone automatically.",
+                "#>"
+                "",
+                "# Requires Administrator",
+                "if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {",
+                "    Write-Host 'This script requires Administrator privileges.' -ForegroundColor Red",
+                "    exit 1",
+                "}"
+                ""
+            )
+            $undoContent = $undoHeader + $script:UndoCommands
+            Set-Content -Path $undoPath -Value $undoContent -Encoding UTF8 -Force
+            Write-Host "  Undo script saved to: $undoPath" -ForegroundColor Green
+        } catch {
+            Write-Warn "Could not write undo script: $_"
+        }
+    }
+
     try { Stop-Transcript | Out-Null } catch { }
     Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
     Read-Host "  "

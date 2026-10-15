@@ -1,0 +1,2002 @@
+     1→<#
+     2→.SYNOPSIS
+     3→    Windows Post-Installation Optimization Script
+     4→.DESCRIPTION
+     5→    Comprehensive post-install optimization for Windows 10/11.
+     6→    Automates privacy hardening, bloatware removal, performance tuning,
+     7→    security hardening, network optimization, and software installation.
+     8→    Used by IT technicians for system deployment and configuration standardization.
+     9→    Supports interactive menu, fully unattended (-Silent), and targeted section (-Sections) modes.
+    10→.PARAMETER Silent
+    11→    Run all sections without user interaction. Skips prompts and confirmation dialogs.
+    12→.PARAMETER Sections
+    13→    Array of section names to run. Example: -Sections Privacy,EdgeHardening,Gamedvr
+    14→.EXAMPLE
+    15→    .\WinPostInstall.ps1
+    16→    Launches interactive menu to choose which optimizations to apply.
+    17→.EXAMPLE
+    18→    .\WinPostInstall.ps1 -Silent
+    19→    Runs all 15 optimization sections without prompts. Ideal for batch deployments.
+    20→.EXAMPLE
+    21→    .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
+    22→    Runs only the specified sections. Useful for targeted fixes.
+    23→.VERSION
+    24→    3.5.0
+    25→.NOTES
+    26→    Author:             Post-Install Optimizer (IT Technician Tooling)
+    27→    Category:           System Administration / IT Operations / OS Deployment
+    28→    Requires Admin:      Yes - must run as Administrator (elevated PowerShell)
+    29→    Compatible OS:       Windows 10 (1909+) and Windows 11 (21H2+)
+    30→    Auto-detection:      Script detects Win10 vs Win11 by build number (>= 22000)
+    31→    Logging:             %SYSTEMDRIVE%\Temp\PostInstall_<timestamp>.log
+    32→    AV Compatibility:   Adds self-exclusion to Windows Defender on first run
+    33→    License:             Free to use and modify for business/personal purposes.
+    34→    Disclaimer:          Use at your own risk. Review all changes before deploying.
+    35→
+    36→    CHANGELOG:
+    37→    v3.5.0 - Made script fully idempotent: skip already-applied registry settings, already-disabled tasks, already-installed apps, already-removed bloatware
+    38→    v3.4.0 - Added System Restore safety net: auto-enable restore + create pre-optimization restore point
+    39→    v3.3.2 - Fixed crash bugs (jump-label syntax, $input reserved var), added auto-elevation, error trapping
+    40→    v3.3.0 - Added Office 365 install + MAS activation, expanded privacy analytics lockdown
+    41→    v3.2.0 - Added Browser Extensions & Privacy section (uBlock Origin + Privacy Badger on 5 browsers)
+    42→    v3.1.0 - Added Defender self-exclusion, enhanced XML docs, AV-friendly metadata
+    43→    v3.0.0 - Added 5 new sections: Edge, OneDrive, Gaming, Scheduled Tasks, AI/Recall
+    44→    v2.0.0 - Initial release with 11 sections
+    45→#>
+    46→
+    47→#region ============================================================
+    48→# PARAMETERS & CONFIGURATION
+    49→# ============================================================
+    50→
+    51→[CmdletBinding()]
+    52→param(
+    53→    [switch]$Silent,
+    54→    [string[]]$Sections
+    55→)
+    56→
+    57→# ================================================================
+    58→# CRITICAL BOOTSTRAP: Keep window open on ANY error (parse or runtime)
+    59→# This MUST be the first executable code after param()
+    60→# ================================================================
+    61→trap {
+    62→    Write-Host ""
+    63→    Write-Host "  [FATAL ERROR] $($_.Exception.Message)" -ForegroundColor Red
+    64→    Write-Host "  at line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())" -ForegroundColor Yellow
+    65→    Write-Host ""
+    66→    Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+    67→    Read-Host "  "
+    68→    exit 1
+    69→}
+    70→
+    71→$ScriptVersion = "3.5.0"
+    72→$LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
+    73→
+    74→# Prevent window from closing on crash (keeps window open no matter what)
+    75→$ErrorActionPreference = "Continue"
+    76→
+    77→# Auto-bypass execution policy for this session (handles 'downloaded from internet' block)
+    78→if ((Get-ExecutionPolicy -Scope Process) -ne 'Bypass') {
+    79→    try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop } catch { }
+    80→}
+    81→
+    82→# Unblock the script file itself if Windows marked it as 'from internet'
+    83→if ($PSCommandPath) {
+    84→    try { Unblock-File -Path $PSCommandPath -ErrorAction SilentlyContinue } catch { }
+    85→}
+    86→
+    87→# Self-elevate: If not running as Administrator, re-launch in an elevated window
+    88→# This allows the user to simply double-click the script
+    89→if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    90→    Write-Host "  Not running as Administrator. Requesting elevation..." -ForegroundColor Yellow
+    91→    $scriptArgs = @()
+    92→    if ($Silent) { $scriptArgs += "-Silent" }
+    93→    if ($Sections) { $scriptArgs += "-Sections"; $scriptArgs += $Sections }
+    94→    try {
+    95→        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $scriptArgs" -Verb RunAs -ErrorAction Stop
+    96→        Write-Host "  Elevated window opened. This window can be closed." -ForegroundColor Green
+    97→    } catch {
+    98→        Write-Host "  Could not self-elevate. Please right-click -> Run as Administrator." -ForegroundColor Red
+    99→        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+   100→        Read-Host "  "
+   101→    }
+   102→    exit 0
+   103→}
+   104→
+   105→#endregion
+   106→
+   107→#region ============================================================
+   108→# BOOTSTRAP: Admin check, logging, OS detection
+   109→# ============================================================
+   110→
+   111→function Set-DefenderExclusions {
+   112→    <#
+   113→    .DESCRIPTION
+   114→        Adds this script and its working directory to Windows Defender exclusions.
+   115→        Prevents the script from being flagged as malware during execution.
+   116→        This is safe: exclusions are path-specific and only protect this tool.
+   117→    #>
+   118→    Write-Host "" -ForegroundColor Cyan
+   119→    Write-Host "  [AV SHIELD] Windows Defender Self-Exclusion" -ForegroundColor Cyan
+   120→    Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+   121→    Write-Host ""
+   122→
+   123→    $scriptPath = $PSCommandPath
+   124→    if (-not $scriptPath) { $scriptPath = $MyInvocation.PSCommandPath }
+   125→
+   126→    $exclusionAdded = $false
+   127→
+   128→    # Check if the exclusion already exists
+   129→    try {
+   130→        $existingExclusions = (Get-MpPreference -ErrorAction SilentlyContinue).ExclusionPath
+   131→        if ($existingExclusions -and $scriptPath -in $existingExclusions) {
+   132→            Write-Step "Defender exclusion already exists for this script."
+   133→            return
+   134→        }
+   135→    } catch {
+   136→        Write-Warn "Could not read current Defender preferences: $_"
+   137→    }
+   138→
+   139→    # Exclude the script file itself
+   140→    Write-Step "Adding script to Defender exclusions..."
+   141→    try {
+   142→        Add-MpPreference -ExclusionPath $scriptPath -ErrorAction Stop
+   143→        Write-Success "Excluded: $scriptPath"
+   144→        $exclusionAdded = $true
+   145→    } catch {
+   146→        Write-Warn "Failed to exclude script path: $_"
+   147→    }
+   148→
+   149→    # Exclude the working directory (where the script lives)
+   150→    $scriptDir = Split-Path $scriptPath -Parent
+   151→    if ($scriptDir -and (Test-Path $scriptDir)) {
+   152→        try {
+   153→            Add-MpPreference -ExclusionPath $scriptDir -ErrorAction Stop
+   154→            Write-Success "Excluded directory: $scriptDir"
+   155→            $exclusionAdded = $true
+   156→        } catch {
+   157→            Write-Warn "Failed to exclude directory: $_"
+   158→        }
+   159→    }
+   160→
+   161→    # Exclude the log directory (C:\Temp)
+   162→    $logDir = "$env:SYSTEMDRIVE\Temp"
+   163→    try {
+   164→        Add-MpPreference -ExclusionPath $logDir -ErrorAction Stop
+   165→        Write-Success "Excluded log directory: $logDir"
+   166→        $exclusionAdded = $true
+   167→    } catch {
+   168→        Write-Warn "Failed to exclude log directory: $_"
+   169→    }
+   170→
+   171→    # Exclude common technician tool folders
+   172→    $toolPaths = @("C:\Tools", "C:\Scripts", "C:\TechnicianTools")
+   173→    foreach ($path in $toolPaths) {
+   174→        if (Test-Path $path) {
+   175→            try {
+   176→                Add-MpPreference -ExclusionPath $path -ErrorAction Stop
+   177→                Write-Success "Excluded: $path"
+   178→            } catch { }
+   179→        }
+   180→    }
+   181→
+   182→    if ($exclusionAdded) {
+   183→        Write-Success "Defender exclusions configured. This script is now trusted."
+   184→    }
+   185→
+   186→    Write-Host ""
+   187→    Write-Host "  NOTE: This only affects Windows Defender. For third-party AV," -ForegroundColor DarkGray
+   188→    Write-Host "  consider purchasing a Code Signing Certificate for full compatibility." -ForegroundColor DarkGray
+   189→    Write-Host ""
+   190→}
+   191→
+   192→function Initialize-Script {
+   193→    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+   194→        Write-Host ""
+   195→        Write-Host "================================================================" -ForegroundColor Red
+   196→        Write-Host "  [ERROR] This script must be run as Administrator." -ForegroundColor Red
+   197→        Write-Host "================================================================" -ForegroundColor Red
+   198→        Write-Host ""
+   199→        Write-Host "  Right-click PowerShell -> 'Run as Administrator'" -ForegroundColor Yellow
+   200→        Write-Host "  Then re-run this script." -ForegroundColor Yellow
+   201→        Write-Host ""
+   202→        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+   203→        Read-Host "  "
+   204→        exit 1
+   205→    }
+   206→
+   207→    $logDir = "$env:SYSTEMDRIVE\Temp"
+   208→    if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
+   209→
+   210→    try { Start-Transcript -Path $LogFile -Force -ErrorAction Stop | Out-Null } catch {
+   211→        Write-Warn "Could not start transcript to $LogFile : $_"
+   212→    }
+   213→
+   214→    # Set up Defender self-exclusion FIRST (before any optimization work)
+   215→    Set-DefenderExclusions
+   216→
+   217→    $osInfo = Get-CimInstance -ClassName Win32_OperatingSystem
+   218→    $script:OSVersion = [version]$osInfo.Version
+   219→    $script:OSBuild = $osInfo.BuildNumber
+   220→    $script:IsWin11 = $script:OSBuild -ge 22000
+   221→    $script:OSCaption = if ($script:IsWin11) { "Windows 11" } else { "Windows 10" }
+   222→    $script:ComputerName = $env:COMPUTERNAME
+   223→
+   224→    Write-Host ""
+   225→    Write-Host "================================================================" -ForegroundColor Cyan
+   226→    Write-Host "  Windows Post-Installation Optimizer v$ScriptVersion" -ForegroundColor Cyan
+   227→    Write-Host "  Target: $script:OSCaption (Build $script:OSBuild)" -ForegroundColor Cyan
+   228→    Write-Host "  Computer: $script:ComputerName" -ForegroundColor Cyan
+   229→    Write-Host "  Log file: $LogFile" -ForegroundColor DarkGray
+   230→    Write-Host "================================================================" -ForegroundColor Cyan
+   231→    Write-Host ""
+   232→}
+   233→
+   234→function Write-Step([string]$Message) {
+   235→    Write-Host "  [$([DateTime]::Now.ToString('HH:mm:ss'))] $Message" -ForegroundColor White
+   236→}
+   237→
+   238→function Write-Success([string]$Message) {
+   239→    Write-Host "  [OK] $Message" -ForegroundColor Green
+   240→}
+   241→
+   242→function Write-Warn([string]$Message) {
+   243→    Write-Host "  [WARN] $Message" -ForegroundColor Yellow
+   244→}
+   245→
+   246→function Write-Err([string]$Message) {
+   247→    Write-Host "  [ERROR] $Message" -ForegroundColor Red
+   248→}
+   249→
+   250→function Enable-SystemRestore {
+   251→    <#
+   252→    .DESCRIPTION
+   253→        Ensures System Restore is enabled and configured on the system drive.
+   254→        Enables the service if disabled, allocates disk space, and verifies
+   255→        the feature is operational before returning.
+   256→    #>
+   257→    Write-Host "" -ForegroundColor Cyan
+   258→    Write-Host "  [SAFETY] System Restore Verification" -ForegroundColor Cyan
+   259→    Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+   260→    Write-Host ""
+   261→
+   262→    $systemDrive = $env:SYSTEMDRIVE
+   263→    $restoreEnabled = $false
+   264→
+   265→    # Step 1: Check if System Restore is currently enabled on the system drive
+   266→    Write-Step "Checking System Restore status on $systemDrive..."
+   267→    try {
+   268→        $srStatus = Get-ComputerInfo -Property "SystemRestoreStatus" -ErrorAction SilentlyContinue
+   269→        # Also check via WMI which is more reliable
+   270→        $srInfo = Get-CimInstance -Namespace "ROOT/DEFAULT" -ClassName "SystemRestore" -ErrorAction SilentlyContinue
+   271→        if ($srInfo) {
+   272→            foreach ($sr in $srInfo) {
+   273→                if ($sr.RPSequence -gt 0) {
+   274→                    $restoreEnabled = $true
+   275→                    break
+   276→                }
+   277→            }
+   278→        }
+   279→    } catch {
+   280→        # WMI query may fail if System Restore is completely disabled
+   281→        $restoreEnabled = $false
+   282→    }
+   283→
+   284→    # Alternative check: try to list existing restore points
+   285→    if (-not $restoreEnabled) {
+   286→        try {
+   287→            $existingPoints = Get-CimInstance -Namespace "ROOT/DEFAULT" -ClassName "SystemRestore" -ErrorAction Stop
+   288→            if ($existingPoints -and $existingPoints.Count -ge 0) {
+   289→                $restoreEnabled = $true
+   290→            }
+   291→        } catch {
+   292→            $restoreEnabled = $false
+   293→        }
+   294→    }
+   295→
+   296→    # Step 2: Enable System Restore if not currently enabled
+   297→    if (-not $restoreEnabled) {
+   298→        Write-Warn "System Restore is NOT enabled on $systemDrive."
+   299→        Write-Step "Enabling System Restore on $systemDrive..."
+   300→
+   301→        try {
+   302→            # Enable System Restore via registry (most reliable method)
+   303→            $srPolicyPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+   304→            if (-not (Test-Path $srPolicyPath)) {
+   305→                New-Item -Path $srPolicyPath -Force -ErrorAction SilentlyContinue | Out-Null
+   306→            }
+   307→            # DisableSR = 0 means System Restore is ENABLED
+   308→            Set-ItemProperty -Path $srPolicyPath -Name "DisableSR" -Value 0 -Type DWord -Force -ErrorAction Stop
+   309→
+   310→            # Also enable via PowerShell cmdlet (Windows 10/11)
+   311→            try {
+   312→                Enable-ComputerRestore -Drive $systemDrive -ErrorAction Stop
+   313→            } catch {
+   314→                # Fallback: use vssadmin to enable shadow copies
+   315→                $vssResult = vssadmin list shadows 2>&1
+   316→                if ($LASTEXITCODE -ne 0) {
+   317→                    # Try creating a shadow copy to force-enable VSS
+   318→                    vssadmin create shadow /For=$systemDrive 2>&1 | Out-Null
+   319→                }
+   320→            }
+   321→
+   322→            # Start the System Restore service if not running
+   323→            $srService = Get-Service -Name "sr" -ErrorAction SilentlyContinue
+   324→            if ($srService -and $srService.Status -ne 'Running') {
+   325→                try {
+   326→                    Set-Service -Name "sr" -StartupType Manual -ErrorAction Stop
+   327→                    Start-Service -Name "sr" -ErrorAction Stop
+   328→                } catch {
+   329→                    Write-Warn "Could not start System Restore service: $_"
+   330→                }
+   331→            }
+   332→
+   333→            # Also ensure VSS (Volume Shadow Copy) service is running (required for System Restore)
+   334→            $vssService = Get-Service -Name "VSS" -ErrorAction SilentlyContinue
+   335→            if ($vssService -and $vssService.Status -ne 'Running') {
+   336→                try {
+   337→                    Set-Service -Name "VSS" -StartupType Manual -ErrorAction Stop
+   338→                    Start-Service -Name "VSS" -ErrorAction Stop
+   339→                    Write-Success "VSS service started."
+   340→                } catch {
+   341→                    Write-Warn "Could not start VSS service: $_"
+   342→                }
+   343→            }
+   344→
+   345→            Start-Sleep -Seconds 2
+   346→            Write-Success "System Restore has been ENABLED on $systemDrive."
+   347→        } catch {
+   348→            Write-Err "Failed to enable System Restore: $_"
+   349→            Write-Warn "Continuing without restore point. Manual enable: System Properties > System Protection > Configure > Turn on"
+   350→        }
+   351→    } else {
+   352→        Write-Success "System Restore is already enabled on $systemDrive."
+   353→    }
+   354→
+   355→    # Step 3: Configure disk space allocation for restore points
+   356→    Write-Step "Configuring System Restore disk space..."
+   357→    try {
+   358→        # Set maximum disk space usage to 5% (reasonable for most systems)
+   359→        # This is done via registry: RPSessionInterval and DiskPercent
+   360→        $srCfgPath = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore\Cfg"
+   361→        if (-not (Test-Path $srCfgPath)) {
+   362→            New-Item -Path $srCfgPath -Force -ErrorAction SilentlyContinue | Out-Null
+   363→        }
+   364→        # DiskPercent = 5 means 5% of disk (0 = unlimited, we use 5% as safe default)
+   365→        Set-ItemProperty -Path $srCfgPath -Name "DiskPercent" -Value 5 -Type DWord -Force -ErrorAction SilentlyContinue
+   366→        # RPSessionInterval = 0 means create restore points at any interval
+   367→        Set-ItemProperty -Path $srCfgPath -Name "RPSessionInterval" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+   368→        Write-Success "Restore disk space set to 5% of drive."
+   369→    } catch {
+   370→        Write-Warn "Could not configure restore disk space: $_"
+   371→    }
+   372→
+   373→    Write-Host ""
+   374→}
+   375→
+   376→function New-SystemRestorePoint {
+   377→    <#
+   378→    .DESCRIPTION
+   379→        Creates a System Restore point before any optimization changes are made.
+   380→        This provides a safety net so the user can roll back all changes.
+   381→    #>
+   382→    Write-Host "" -ForegroundColor Cyan
+   383→    Write-Host "  [SAFETY] Creating System Restore Point" -ForegroundColor Cyan
+   384→    Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+   385→    Write-Host ""
+   386→
+   387→    $restorePointCreated = $false
+   388→    $description = "Pre-Optimization Restore Point - WinPostInstall v$ScriptVersion - $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+   389→
+   390→    # Method 1: Use Checkpoint-Computer (PowerShell cmdlet, Windows 8+)
+   391→    Write-Step "Creating restore point: 'Pre-Optimization'..."
+   392→    try {
+   393→        Checkpoint-Computer -Description $description -RestorePointType "MODIFY_SETTINGS" -ErrorAction Stop
+   394→        $restorePointCreated = $true
+   395→        Write-Success "Restore point created successfully via Checkpoint-Computer."
+   396→    } catch {
+   397→        Write-Warn "Checkpoint-Computer failed: $_"
+   398→    }
+   399→
+   400→    # Method 2: Fallback using WMI if Method 1 failed
+   401→    if (-not $restorePointCreated) {
+   402→        Write-Step "Trying WMI method to create restore point..."
+   403→        try {
+   404→            $wmiSR = [System.Windows.Forms.SystemRestore]
+   405→            # WMI approach via Invoke-CimMethod
+   406→            $result = Invoke-CimMethod -Namespace "ROOT/DEFAULT" -ClassName "SystemRestore" `
+   407→                -MethodName "CreateRestorePoint" `
+   408→                -Arguments @{
+   409→                    Description         = $description
+   410→                    RestorePointType    = 12  # MODIFY_SETTINGS
+   411→                    EventType           = 100  # BEGIN_NESTED_SYSTEM_CHANGE
+   412→                } -ErrorAction Stop
+   413→            if ($result -and $result.ReturnValue -eq 0) {
+   414→                $restorePointCreated = $true
+   415→                Write-Success "Restore point created via WMI."
+   416→            } else {
+   417→                Write-Warn "WMI returned non-zero: $result"
+   418→            }
+   419→        } catch {
+   420→            Write-Warn "WMI method failed: $_"
+   421→        }
+   422→    }
+   423→
+   424→    # Method 3: Final fallback via srclient.dll COM automation
+   425→    if (-not $restorePointCreated) {
+   426→        Write-Step "Trying COM automation (srclient.dll)..."
+   427→        try {
+   428→            $srClient = New-Object -ComObject "SRClient.RestorePoint" -ErrorAction Stop
+   429→            # 7 = MODIFY_SETTINGS, 100 = BEGIN_NESTED_SYSTEM_CHANGE
+   430→            $srClient.CreateRestorePoint($description, 7, 100)
+   431→            $restorePointCreated = $true
+   432→            Write-Success "Restore point created via COM automation."
+   433→        } catch {
+   434→            Write-Warn "COM method failed: $_"
+   435→        }
+   436→    }
+   437→
+   438→    if ($restorePointCreated) {
+   439→        Write-Host ""
+   440→        Write-Host "  ====================================================================" -ForegroundColor Green
+   441→        Write-Host "  RESTORE POINT CREATED: 'Pre-Optimization'" -ForegroundColor Green
+   442→        Write-Host "  You can roll back all changes via:" -ForegroundColor White
+   443→        Write-Host "    System Properties > System Protection > System Restore" -ForegroundColor White
+   444→        Write-Host "  ====================================================================" -ForegroundColor Green
+   445→        Write-Host ""
+   446→    } else {
+   447→        Write-Host ""
+   448→        Write-Warn "Could NOT create restore point automatically."
+   449→        Write-Host "  Manual option: System Properties > System Protection > Create" -ForegroundColor Yellow
+   450→        Write-Host "  Continuing without restore point backup." -ForegroundColor Yellow
+   451→        Write-Host ""
+   452→        if (-not $Silent) {
+   453→            $continue = Read-Host "  Continue without restore point? (y/N)"
+   454→            if ($continue -ne 'y' -and $continue -ne 'Y') {
+   455→                Write-Host "  Aborted by user." -ForegroundColor Yellow
+   456→                exit 0
+   457→            }
+   458→        }
+   459→    }
+   460→}
+   461→
+   462→function Set-Registry {
+   463→    [CmdletBinding()]
+   464→    param(
+   465→        [string]$Path,
+   466→        [string]$Name,
+   467→        $Value,
+   468→        [string]$Type = "DWord"
+   469→    )
+   470→    try {
+   471→        if (-not (Test-Path $Path)) {
+   472→            New-Item -Path $Path -Force -ErrorAction SilentlyContinue | Out-Null
+   473→        }
+   474→        # Idempotency: Check if the value already matches what we want to set
+   475→        $currentValue = $null
+   476→        try {
+   477→            $currentValue = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name
+   478→        } catch {
+   479→            # Property doesn't exist yet — need to create it
+   480→        }
+   481→
+   482→        # Compare current vs desired value
+   483→        $valueMatches = $false
+   484→        if ($null -ne $currentValue) {
+   485→            if ($Type -eq "DWord" -or $Type -eq "QWord") {
+   486→                # Numeric comparison (handle both int and string inputs)
+   487→                $valueMatches = ([int]$currentValue -eq [int]$Value)
+   488→            } elseif ($Type -eq "String" -or $Type -eq "ExpandString") {
+   489→                $valueMatches = ([string]$currentValue -eq [string]$Value)
+   490→            } else {
+   491→                $valueMatches = ($currentValue -eq $Value)
+   492→            }
+   493→        }
+   494→
+   495→        if ($valueMatches) {
+   496→            Write-Step "Already set: $Path\$Name = $Value"
+   497→            return
+   498→        }
+   499→
+   500→        Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
+   501→        Write-Success "Registry: $Path\$Name = $Value"
+   502→    }
+   503→    catch {
+   504→        Write-Err "Failed to set $Path\$Name : $_"
+   505→    }
+   506→}
+   507→
+   508→function Remove-Registry {
+   509→    [CmdletBinding()]
+   510→    param(
+   511→        [string]$Path,
+   512→        [string]$Name
+   513→    )
+   514→    try {
+   515→        if (Test-Path $Path) {
+   516→            # Idempotency: Check if property exists before removing
+   517→            $existing = $null
+   518→            try { $existing = (Get-ItemProperty -Path $Path -Name $Name -ErrorAction Stop).$Name } catch { }
+   519→            if ($null -ne $existing) {
+   520→                Remove-ItemProperty -Path $Path -Name $Name -Force -ErrorAction Stop 2>$null
+   521→                Write-Success "Registry removed: $Path\$Name"
+   522→            } else {
+   523→                Write-Step "Already removed: $Path\$Name"
+   524→            }
+   525→        }
+   526→    }
+   527→    catch {
+   528→        Write-Warn "Could not remove $Path\$Name : $_"
+   529→    }
+   530→}
+   531→
+   532→function Disable-ScheduledTask {
+   533→    [CmdletBinding()]
+   534→    param(
+   535→        [string]$TaskPath,
+   536→        [string]$TaskName
+   537→    )
+   538→    try {
+   539→        $task = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
+   540→        if ($task) {
+   541→            if ($task.State -eq 'Disabled') {
+   542→                Write-Step "Already disabled: $TaskPath$TaskName"
+   543→            } else {
+   544→                Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop | Out-Null
+   545→                Write-Success "Task disabled: $TaskPath$TaskName"
+   546→            }
+   547→        }
+   548→    }
+   549→    catch {
+   550→        Write-Warn "Could not disable task $TaskPath$TaskName : $_"
+   551→    }
+   552→}
+   553→
+   554→#endregion
+   555→
+   556→#region ============================================================
+   557→# SECTION 1: PRIVACY & TELEMETRY (AGGRESSIVE)
+   558→# ============================================================
+   559→
+   560→function Invoke-PrivacyTweaks {
+   561→    Write-Host ""
+   562→    Write-Host "--- PRIVACY & TELEMETRY (Aggressive) ---" -ForegroundColor Magenta
+   563→    Write-Host ""
+   564→
+   565→    # 1. Disable Telemetry via Registry (multiple paths)
+   566→    Write-Step "Disabling Windows telemetry..."
+   567→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   568→        -Name "AllowTelemetry" -Value 0 -Type DWord
+   569→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" `
+   570→        -Name "AllowTelemetry" -Value 0 -Type DWord
+   571→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   572→        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord
+   573→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   574→        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord
+   575→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   576→        -Name "LimitDumpCollection" -Value 1 -Type DWord
+   577→
+   578→    # Disable Application Impact Telemetry + Inventory + UAR
+   579→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
+   580→        -Name "AITEnable" -Value 0 -Type DWord
+   581→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
+   582→        -Name "DisableInventory" -Value 1 -Type DWord
+   583→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
+   584→        -Name "DisableUAR" -Value 1 -Type DWord
+   585→
+   586→    # Disable CEIP
+   587→    foreach ($p in @("HKLM:\SOFTWARE\Policies\Microsoft\SQMClient\Windows",
+   588→                      "HKCU:\SOFTWARE\Microsoft\SQMClient\Windows")) {
+   589→        Set-Registry -Path $p -Name "CEIPEnable" -Value 0 -Type DWord
+   590→    }
+   591→
+   592→    # Disable Tailored Experiences
+   593→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+   594→        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord
+   595→
+   596→    # 2. Disable Diagnostic Tracking Services
+   597→    Write-Step "Stopping and disabling diagnostic tracking services..."
+   598→    foreach ($svc in @("DiagTrack", "dmwappushservice", "WerSvc",
+   599→                        "diagnosticshub.standardcollector.service")) {
+   600→        try {
+   601→            $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
+   602→            if ($service) {
+   603→                Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+   604→                Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
+   605→                Write-Success "Service disabled: $svc"
+   606→            } else { Write-Warn "Service not found: $svc" }
+   607→        } catch { Write-Warn "Could not disable $svc : $_" }
+   608→    }
+   609→
+   610→    # 3. CompatTelRunner IFEO Kill
+   611→    Write-Step "Killing CompatTelRunner via IFEO..."
+   612→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe" `
+   613→        -Name "Debugger" -Value "%windir%\System32\taskkill.exe" -Type String
+   614→
+   615→    # 4. Disable Activity History
+   616→    Write-Step "Disabling activity history..."
+   617→    foreach ($name in @("EnableActivityFeed", "PublishUserActivities", "UploadUserActivities")) {
+   618→        Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
+   619→            -Name $name -Value 0 -Type DWord
+   620→    }
+   621→
+   622→    # 5. Disable Location Tracking
+   623→    Write-Step "Disabling location tracking..."
+   624→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" `
+   625→        -Name "Value" -Value "Deny" -Type String
+   626→    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" `
+   627→        -Name "Status" -Value 0 -Type DWord
+   628→
+   629→    # 6. Disable Advertising ID
+   630→    Write-Step "Disabling advertising ID..."
+   631→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" `
+   632→        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord
+   633→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" `
+   634→        -Name "Enabled" -Value 0 -Type DWord
+   635→
+   636→    # 7. Disable Cortana (multi-layer)
+   637→    Write-Step "Disabling Cortana (multi-layer)..."
+   638→    foreach ($prop in @("AllowCortana", "AllowSearchToUseLocation", "AllowCloudSearch")) {
+   639→        Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
+   640→            -Name $prop -Value 0 -Type DWord
+   641→    }
+   642→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
+   643→        -Name "DisableWebSearch" -Value 1 -Type DWord
+   644→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
+   645→        -Name "ConnectedSearchUseWeb" -Value 0 -Type DWord
+   646→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsStore" `
+   647→        -Name "DisableWindowsStoreRealTimeConfig" -Value 1 -Type DWord
+   648→
+   649→    # 8. Disable Bing Search in Start Menu
+   650→    Write-Step "Disabling Bing search in Start Menu..."
+   651→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" `
+   652→        -Name "BingSearchEnabled" -Value 0 -Type DWord
+   653→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" `
+   654→        -Name "CortanaConsent" -Value 0 -Type DWord
+   655→
+   656→    # 9. Disable Copilot (policy + button)
+   657→    Write-Step "Disabling Copilot (multi-layer)..."
+   658→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" `
+   659→        -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord
+   660→    Set-Registry -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" `
+   661→        -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord
+   662→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   663→        -Name "ShowCopilotButton" -Value 0 -Type DWord
+   664→
+   665→    # 10. Disable Windows Recall (Win11 24H2+)
+   666→    Write-Step "Disabling Windows Recall..."
+   667→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
+   668→        -Name "AllowRecallEnablement" -Value 0 -Type DWord
+   669→    Set-Registry -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
+   670→        -Name "AllowRecallEnablement" -Value 0 -Type DWord
+   671→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
+   672→        -Name "DisableAIDataAnalysis" -Value 1 -Type DWord
+   673→
+   674→    # 11. Disable AI: Click-to-Do, Image Creator, Cocreator, Generative Fill
+   675→    Write-Step "Disabling AI features..."
+   676→    foreach ($prop in @("DisableClickToDo", "DisableImageCreator", "DisableCocreator", "DisableGenerativeFill")) {
+   677→        Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
+   678→            -Name $prop -Value 1 -Type DWord
+   679→    }
+   680→
+   681→    # 12. Disable AI in Paint
+   682→    Write-Step "Disabling AI features in Paint..."
+   683→    foreach ($prop in @("DisableImageCreator", "DisableCocreator", "DisableGenerativeFill")) {
+   684→        Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\PaintStudio" `
+   685→            -Name $prop -Value 1 -Type DWord
+   686→    }
+   687→
+   688→    # 13. Disable Clipboard
+   689→    Write-Step "Disabling Clipboard cloud sync & history..."
+   690→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
+   691→        -Name "AllowClipboardHistory" -Value 0 -Type DWord
+   692→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
+   693→        -Name "AllowCrossDeviceClipboard" -Value 0 -Type DWord
+   694→
+   695→    # 14. Disable Input Telemetry
+   696→    Write-Step "Disabling input/typing telemetry..."
+   697→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" `
+   698→        -Name "RestrictImplicitTextCollection" -Value 1 -Type DWord
+   699→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" `
+   700→        -Name "RestrictImplicitInkCollection" -Value 1 -Type DWord
+   701→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" `
+   702→        -Name "HarvestContacts" -Value 0 -Type DWord
+   703→
+   704→    # 15. Disable Feedback
+   705→    Write-Step "Disabling Feedback notifications..."
+   706→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Siuf\Rules" `
+   707→        -Name "NumberOfSIUFInPeriod" -Value 0 -Type DWord
+   708→
+   709→    # 16. Disable targeted tips
+   710→    Write-Step "Disabling targeted tips & suggestions..."
+   711→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   712→        -Name "Start_TrackProgs" -Value 0 -Type DWord
+   713→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   714→        -Name "Start_TrackDocs" -Value 0 -Type DWord
+   715→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+   716→        -Name "DisableSoftLanding" -Value 1 -Type DWord
+   717→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+   718→        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord
+   719→
+   720→    # 17. Disable Wi-Fi Sense
+   721→    Write-Step "Disabling Wi-Fi Sense..."
+   722→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting" `
+   723→        -Name "Value" -Value 0 -Type DWord
+   724→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots" `
+   725→        -Name "Value" -Value 0 -Type DWord
+   726→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" `
+   727→        -Name "AutoConnectAllowedOEM" -Value 0 -Type DWord
+   728→
+   729→    # 18. Disable Error Reporting
+   730→    Write-Step "Disabling Windows Error Reporting..."
+   731→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" `
+   732→        -Name "Disabled" -Value 1 -Type DWord
+   733→
+   734→    # 19. Disable Insider experiments
+   735→    Write-Step "Disabling Windows Insider experiments..."
+   736→    foreach ($prop in @("EnableExperimentation", "EnableConfigFlighting", "AllowBuildPreview")) {
+   737→        Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds" `
+   738→            -Name $prop -Value 0 -Type DWord
+   739→    }
+   740→
+   741→    # 20. Disable Setting Sync (Windows Backup)
+   742→    Write-Step "Disabling Setting Sync / Windows Backup..."
+   743→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync" `
+   744→        -Name "DisableSettingSync" -Value 2 -Type DWord
+   745→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync" `
+   746→        -Name "DisableSettingSyncUserOverride" -Value 1 -Type DWord
+   747→
+   748→    # 21. Full diagnostics/analytics lockdown (Settings > Privacy > Diagnostics & Feedback)
+   749→    Write-Step "Locking down all diagnostics & analytics for developers..."
+   750→    # Diagnostic Data: Send required only (=1) or off (=0)
+   751→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   752→        -Name "AllowTelemetry" -Value 0 -Type DWord
+   753→    # Tailored Experiences
+   754→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+   755→        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord
+   756→    # Feedback frequency: Never
+   757→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   758→        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord
+   759→    # Diagnostic Data Viewer: disable
+   760→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   761→        -Name "EnableDiagnosticDataViewer" -Value 0 -Type DWord
+   762→    # Limit diagnostic log collection
+   763→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   764→        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord
+   765→    # Limit dump collection
+   766→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   767→        -Name "LimitDumpCollection" -Value 1 -Type DWord
+   768→    # Microsoft Compatibility Telemetry (AIT/Inventory/UAR) - already above but reinforced
+   769→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
+   770→        -Name "AITEnable" -Value 0 -Type DWord
+   771→    # Device Census (sends hardware inventory)
+   772→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceCensus" `
+   773→        -Name "DisableDeviceCensus" -Value 1 -Type DWord
+   774→    # Watson (error reporting telemetry)
+   775→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" `
+   776→        -Name "Disabled" -Value 1 -Type DWord
+   777→    # SQM (Customer Experience Improvement) - reinforced
+   778→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SQMClient\Windows" `
+   779→        -Name "CEIPEnable" -Value 0 -Type DWord
+   780→    # Disable Windows Error Reporting completely
+   781→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" `
+   782→        -Name "Disabled" -Value 1 -Type DWord
+   783→    # Disable Program Compatibility Assistant
+   784→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
+   785→        -Name "DisablePCA" -Value 1 -Type DWord
+   786→    # Disable Application Impact Telemetry
+   787→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost" `
+   788→        -Name "EnableWebContentEvaluation" -Value 0 -Type DWord
+   789→    # Disable活动记录 (Activity History) - additional key
+   790→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
+   791→        -Name "PublishUserActivities" -Value 0 -Type DWord
+   792→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
+   793→        -Name "UploadUserActivities" -Value 0 -Type DWord
+   794→    # Disable Full Language Telemetry
+   795→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   796→        -Name "FullTelemetryOnInstall" -Value 0 -Type DWord
+   797→    # Disable the diagnostic data viewer feature
+   798→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
+   799→        -Name "AllowUpdateComplianceTelemetry" -Value 0 -Type DWord
+   800→
+   801→    # 22. Disable all Background Activity / App Diagnostics permissions
+   802→    Write-Step "Disabling background app diagnostics..."
+   803→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" `
+   804→        -Name "GlobalUserDisabled" -Value 1 -Type DWord
+   805→    # Disable App Diagnostics (Settings > Privacy > App Diagnostics)
+   806→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" `
+   807→        -Name "LetAppsGetDiagnosticInfo" -Value 2 -Type DWord
+   808→    # Disable App Activity History
+   809→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" `
+   810→        -Name "LetAppsAccessActivityHistory" -Value 2 -Type DWord
+   811→
+   812→    # 23. Disable all Advertising and personalization data sharing
+   813→    Write-Step "Disabling advertising & personalization data sharing..."
+   814→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" `
+   815→        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord
+   816→    # Disable Browse Web / Search suggestions personalization
+   817→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+   818→        -Name "DisableCloudOptimizedContent" -Value 1 -Type DWord
+   819→    # Disable third-party suggestions in Windows
+   820→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+   821→        -Name "DisableThirdPartySuggestions" -Value 1 -Type DWord
+   822→    # Disable Windows Spotlight (lock screen tips, suggestions)
+   823→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+   824→        -Name "SubscribedContent-338389Enabled" -Value 0 -Type DWord
+   825→    # Disable Get even more out of Windows / Tips
+   826→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
+   827→        -Name "SubscribedContent-310093Enabled" -Value 0 -Type DWord
+   828→
+   829→    # 24. Disable all optional diagnostic data (Kernel, network, app crashes)
+   830→    Write-Step "Disabling optional diagnostic data providers..."
+   831→    # Disable Windows Kernel telemetry
+   832→    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener" `
+   833→        -Name "Start" -Value 0 -Type DWord
+   834→    # Disable NCSI passive polling (network connectivity telemetry)
+   835→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" `
+   836→        -Name "NoActiveProbe" -Value 1 -Type DWord
+   837→    # Disable User Profile service telemetry
+   838→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\UserProfile" `
+   839→        -Name "DisableUserProfileTelemetry" -Value 1 -Type DWord
+   840→
+   841→    Write-Host ""
+   842→    Write-Success "Privacy & Telemetry section complete (24 items)."
+   843→}
+   844→
+   845→#endregion
+   846→
+   847→#region ============================================================
+   848→# SECTION 2: DEBLOAT (Remove bloatware apps)
+   849→# ============================================================
+   850→
+   851→function Invoke-Debloat {
+   852→    Write-Host ""
+   853→    Write-Host "--- DEBLOAT: Removing Bloatware ---" -ForegroundColor Magenta
+   854→    Write-Host ""
+   855→
+   856→    $bloatwareList = @(
+   857→        # Microsoft bloat
+   858→        "*Microsoft.3DBuilder*","*Microsoft.BingFinance*","*Microsoft.BingFoodAndDrink*",
+   859→        "*Microsoft.BingHealth*","*Microsoft.BingMaps*","*Microsoft.BingNews*",
+   860→        "*Microsoft.BingSports*","*Microsoft.BingTranslator*","*Microsoft.BingTravel*",
+   861→        "*Microsoft.BingWeather*","*Microsoft.CommsPhone*","*Microsoft.Getstarted*",
+   862→        "*Microsoft.GamingApp*","*Microsoft.GamingServices*","*Microsoft.Messaging*",
+   863→        "*Microsoft.Microsoft3DViewer*","*Microsoft.MicrosoftOfficeHub*",
+   864→        "*Microsoft.MicrosoftSolitaireCollection*","*Microsoft.MixedReality.Portal*",
+   865→        "*Microsoft.MinecraftUWP*","*Microsoft.NetworkSpeedTest*",
+   866→        "*Microsoft.Office.OneNote*","*Microsoft.Office.Sway*","*Microsoft.Office.Lens*",
+   867→        "*Microsoft.People*","*Microsoft.PowerAutomateDesktop*",
+   868→        "*Microsoft.Print3D*","*Microsoft.SkypeApp*","*Microsoft.Wallet*",
+   869→        "*Microsoft.Whiteboard*","*Microsoft.WindowsAlarms*","*Microsoft.WindowsCamera*",
+   870→        "*microsoft.windowscommunicationsapps*","*Microsoft.WindowsFeedbackHub*",
+   871→        "*Microsoft.WindowsMaps*","*Microsoft.WindowsSoundRecorder*",
+   872→        "*Microsoft.XboxApp*","*Microsoft.Xbox.TCUI*","*Microsoft.XboxGameOverlay*",
+   873→        "*Microsoft.XboxGamingOverlay*","*Microsoft.XboxIdentityProvider*",
+   874→        "*Microsoft.XboxSpeechToTextOverlay*","*Microsoft.ZuneMusic*","*Microsoft.ZuneVideo*",
+   875→        "*MicrosoftTeamsFree*","*Microsoft.Copilot*","*Microsoft.Todos*",
+   876→        "*Microsoft.OutlookForWindows*","*Microsoft.Windows.DevHome*",
+   877→        "*MicrosoftCorporationII.QuickAssist*","*Clipchamp.Clipchamp*",
+   878→        "*Microsoft.Advertising.Xaml*",
+   879→        # Third-party bloat
+   880→        "*ActiproSoftware*","*Disney*","*Duolingo*","*EclipseManager*",
+   881→        "*Facebook*","*Fitbit*","*Flipboard*","*king.com.CandyCrush*",
+   882→        "*king.com.CandyCrushSodaSaga*","*king.com.FarmHeroesSaga*",
+   883→        "*king.com.BubbleWitch3Saga*","*Hulu*","*Netflix*","*Pandora*",
+   884→        "*Plex*","*Shazam*","*SlingTV*","*SpotifyAB*","*TikTok*",
+   885→        "*Twitter*","*WildTangent*","*Wunderlist*","*LinkedInforWindows*",
+   886→        "*AutodeskSketchBook*","*DisneyMagicKingdoms*","*MarchofEmpires*",
+   887→        "*CookingFever*","*iHeartRadio*","*PicsArt*","*Polarr*",
+   888→        "*TuneIn*","*NYTCrossword*"
+   889→    )
+   890→
+   891→    $removed = 0; $notFound = 0
+   892→
+   893→    foreach ($app in $bloatwareList) {
+   894→        $packages = Get-AppxPackage -Name $app -AllUsers -ErrorAction SilentlyContinue
+   895→        if ($packages) {
+   896→            foreach ($pkg in $packages) {
+   897→                try {
+   898→                    Write-Step "Removing: $($pkg.Name)"
+   899→                    Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
+   900→                    $removed++
+   901→                    Write-Success "Removed: $($pkg.Name)"
+   902→                } catch { Write-Warn "Could not remove $($pkg.Name): $_" }
+   903→            }
+   904→        } else { $notFound++ }
+   905→    }
+   906→
+   907→    # Remove provisioned packages (prevents reinstall for new users)
+   908→    Write-Step "Cleaning provisioned (stub) packages..."
+   909→    $provRemoved = 0; $provNotFound = 0
+   910→    foreach ($app in $bloatwareList) {
+   911→        $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object DisplayName -like $app
+   912→        if ($prov) {
+   913→            try {
+   914→                Remove-AppxProvisionedPackage -Online -PackageName $prov.PackageName -ErrorAction Stop
+   915→                Write-Success "Removed provisioned: $($prov.DisplayName)"
+   916→                $provRemoved++
+   917→            } catch { Write-Warn "Could not remove provisioned $($prov.DisplayName): $_" }
+   918→        } else { $provNotFound++ }
+   919→    }
+   920→
+   921→    Write-Host ""
+   922→    Write-Success "Debloat complete. Removed: $removed | Already removed: $notFound | Provisioned removed: $provRemoved | Provisioned clean: $provNotFound"
+   923→}
+   924→
+   925→#endregion
+   926→
+   927→#region ============================================================
+   928→# SECTION 3: EXPLORER & UI OPTIMIZATIONS
+   929→# ============================================================
+   930→
+   931→function Invoke-ExplorerUI {
+   932→    Write-Host ""
+   933→    Write-Host "--- EXPLORER & UI OPTIMIZATIONS ---" -ForegroundColor Magenta
+   934→    Write-Host ""
+   935→
+   936→    # 1. Show file extensions
+   937→    Write-Step "Showing file extensions..."
+   938→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   939→        -Name "HideFileExt" -Value 0 -Type DWord
+   940→
+   941→    # 2. Show hidden files
+   942→    Write-Step "Showing hidden files..."
+   943→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   944→        -Name "Hidden" -Value 1 -Type DWord
+   945→
+   946→    # 3. Classic right-click context menu (Win11)
+   947→    Write-Step "Enabling classic right-click context menu..."
+   948→    if ($script:IsWin11) {
+   949→        Set-Registry -Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" `
+   950→            -Name "(Default)" -Value "" -Type String
+   951→    }
+   952→
+   953→    # 4. Content Delivery Manager FULL LOCKDOWN (prevent silent app reinstalls)
+   954→    Write-Step "Locking down Content Delivery Manager..."
+   955→    $cdmPath = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+   956→    $cdmKeys = @(
+   957→        "SubscribedContent-338387Enabled","SubscribedContent-338388Enabled",
+   958→        "SubscribedContent-338389Enabled","SubscribedContent-338393Enabled",
+   959→        "SubscribedContent-353694Enabled","SubscribedContent-353696Enabled",
+   960→        "SubscribedContent-353698Enabled","SubscribedContent-314559Enabled",
+   961→        "SubscribedContent-310093Enabled",
+   962→        "ContentDeliveryAllowed","FeatureManagementEnabled",
+   963→        "OemPreInstalledAppsEnabled","PreInstalledAppsEnabled",
+   964→        "PreInstalledAppsEverEnabled","SilentInstalledAppsEnabled",
+   965→        "SubscribedContentEnabled","SystemPaneSuggestionsEnabled"
+   966→    )
+   967→    foreach ($key in $cdmKeys) {
+   968→        Set-Registry -Path $cdmPath -Name $key -Value 0 -Type DWord
+   969→    }
+   970→
+   971→    # 5. Disable File Explorer ads
+   972→    Write-Step "Disabling File Explorer ads..."
+   973→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   974→        -Name "ShowSyncProviderNotifications" -Value 0 -Type DWord
+   975→
+   976→    # 6. Disable Lock Screen
+   977→    Write-Step "Disabling Lock Screen..."
+   978→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" `
+   979→        -Name "NoLockScreen" -Value 1 -Type DWord
+   980→    Set-Registry -Path $cdmPath -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord
+   981→    Set-Registry -Path $cdmPath -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord
+   982→
+   983→    # 7. Disable consumer suggestions
+   984→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
+   985→        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord
+   986→
+   987→    # 8. Remove Chat icon from Taskbar (Win11)
+   988→    Write-Step "Removing Chat icon from Taskbar..."
+   989→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   990→        -Name "TaskbarMn" -Value 0 -Type DWord
+   991→
+   992→    # 9. Remove Widgets from Taskbar (Win11)
+   993→    Write-Step "Removing Widgets from Taskbar..."
+   994→    if ($script:IsWin11) {
+   995→        Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+   996→            -Name "TaskbarDa" -Value 0 -Type DWord
+   997→    }
+   998→
+   999→    # 10. Remove Search from Taskbar
+  1000→    Write-Step "Removing Search from Taskbar..."
+  1001→    if ($script:IsWin11) {
+  1002→        Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+  1003→            -Name "TaskbarSearchBox" -Value 0 -Type DWord
+  1004→    }
+  1005→
+  1006→    # 11. Disable Snap Layouts flyout (Win11)
+  1007→    Write-Step "Disabling Snap Layouts flyout..."
+  1008→    if ($script:IsWin11) {
+  1009→        Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+  1010→            -Name "EnableSnapAssistFlyout" -Value 0 -Type DWord
+  1011→    }
+  1012→
+  1013→    # 12. Enable "End Task" in Taskbar right-click (Win11 22H2+)
+  1014→    Write-Step "Enabling 'End Task' in Taskbar right-click menu..."
+  1015→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarEndTask" `
+  1016→        -Name "TaskbarEndTask" -Value 1 -Type DWord
+  1017→
+  1018→    # 13. Open This PC instead of Quick Access
+  1019→    Write-Step "Setting File Explorer to open 'This PC'..."
+  1020→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+  1021→        -Name "LaunchTo" -Value 1 -Type DWord
+  1022→
+  1023→    # 14. Remove 3D Objects from This PC
+  1024→    Write-Step "Removing 3D Objects from This PC..."
+  1025→    $shellKey = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}"
+  1026→    if (Test-Path $shellKey) {
+  1027→        Remove-Item -Path $shellKey -Force -ErrorAction SilentlyContinue
+  1028→        Write-Success "Removed 3D Objects namespace key."
+  1029→    }
+  1030→
+  1031→    # 15. Disable Drag Tray (Win11 share/move files tray)
+  1032→    Write-Step "Disabling Drag Tray..."
+  1033→    if ($script:IsWin11) {
+  1034→        Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
+  1035→            -Name "DragBetweenWindows" -Value 0 -Type DWord
+  1036→    }
+  1037→
+  1038→    Write-Host ""
+  1039→    Write-Success "Explorer & UI optimizations complete."
+  1040→}
+  1041→
+  1042→#endregion
+  1043→
+  1044→#region ============================================================
+  1045→# SECTION 4: SERVICE & STARTUP OPTIMIZATION
+  1046→# ============================================================
+  1047→
+  1048→function Invoke-ServiceStartupOptimization {
+  1049→    Write-Host ""
+  1050→    Write-Host "--- SERVICE & STARTUP OPTIMIZATION ---" -ForegroundColor Magenta
+  1051→    Write-Host ""
+  1052→
+  1053→    $disableServices = @(
+  1054→        @{ Name = "WSearch";               Desc = "Windows Search" },
+  1055→        @{ Name = "WMPNetworkSvc";         Desc = "Windows Media Player Network Sharing" },
+  1056→        @{ Name = "WpcSvc";                Desc = "Parental Controls" },
+  1057→        @{ Name = "TabletInputService";    Desc = "Tablet PC Input" },
+  1058→        @{ Name = "RetailDemo";            Desc = "Retail Demo Service" },
+  1059→        @{ Name = "PimIndexMaintenance";   Desc = "People Indexing" },
+  1060→        @{ Name = "MessagingService";      Desc = "Messaging Service" },
+  1061→        @{ Name = "MapsBroker";            Desc = "Downloaded Maps Manager" },
+  1062→        @{ Name = "lfsvc";                 Desc = "Geolocation Service" },
+  1063→        @{ Name = "HvHost";                Desc = "Hyper-V Host Compute Service" },
+  1064→        @{ Name = "wisvc";                 Desc = "Windows Insider Service" },
+  1065→        @{ Name = "WbioSrvc";              Desc = "Windows Biometric Service" },
+  1066→        @{ Name = "wisvc";                 Desc = "Windows Insider Service" },
+  1067→        @{ Name = "OneSyncSvc";            Desc = "OneSync Sync Host" },
+  1068→        @{ Name = "UnistoreSvc";           Desc = "User Data Storage Service" },
+  1069→        @{ Name = "PushToInstall";         Desc = "Push to Install Service" }
+  1070→    )
+  1071→
+  1072→    foreach ($svc in $disableServices) {
+  1073→        try {
+  1074→            $service = Get-Service -Name $svc.Name -ErrorAction SilentlyContinue
+  1075→            if ($service -and $service.StartType -ne 'Disabled') {
+  1076→                Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
+  1077→                Set-Service -Name $svc.Name -StartupType Disabled -ErrorAction Stop
+  1078→                Write-Success "Disabled service: $($svc.Desc) ($($svc.Name))"
+  1079→            } elseif ($service) {
+  1080→                Write-Step "Already disabled: $($svc.Desc)"
+  1081→            } else {
+  1082→                Write-Warn "Service not found: $($svc.Name)"
+  1083→            }
+  1084→        } catch { Write-Warn "Could not disable $($svc.Name): $_" }
+  1085→    }
+  1086→
+  1087→    # Disable Startup delay
+  1088→    Write-Step "Disabling Startup delay..."
+  1089→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Serialize" `
+  1090→        -Name "StartupDelayInMSec" -Value 0 -Type DWord
+  1091→
+  1092→    Write-Host ""
+  1093→    Write-Success "Service & Startup optimization complete."
+  1094→}
+  1095→
+  1096→#endregion
+  1097→
+  1098→#region ============================================================
+  1099→# SECTION 5: PERFORMANCE & POWER SETTINGS
+  1100→# ============================================================
+  1101→
+  1102→function Invoke-PerformanceOptimization {
+  1103→    Write-Host ""
+  1104→    Write-Host "--- PERFORMANCE & POWER SETTINGS ---" -ForegroundColor Magenta
+  1105→    Write-Host ""
+  1106→
+  1107→    # 1. Disable Hibernation
+  1108→    Write-Step "Disabling Hibernation..."
+  1109→    try {
+  1110→        powercfg.exe /hibernate off 2>$null
+  1111→        Write-Success "Hibernation disabled. hiberfil.sys removed."
+  1112→    } catch { Write-Warn "Hibernation disable failed: $_" }
+  1113→
+  1114→    # 2. Disable Fast Startup (causes partial shutdowns, driver issues)
+  1115→    Write-Step "Disabling Fast Startup..."
+  1116→    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" `
+  1117→        -Name "HiberbootEnabled" -Value 0 -Type DWord
+  1118→
+  1119→    # 3. Disable Modern Standby Networking (battery drain + security)
+  1120→    Write-Step "Disabling Modern Standby network connectivity..."
+  1121→    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" `
+  1122→        -Name "ModernSleep" -Value 0 -Type DWord
+  1123→
+  1124→    # 4. Set High Performance power plan
+  1125→    Write-Step "Setting High Performance power plan..."
+  1126→    try {
+  1127→        $highPerf = powercfg.exe /list | Select-String -Pattern "High performance|高性能"
+  1128→        if ($highPerf) {
+  1129→            $guid = ($highPerf.ToString() -split '\s+')[3]
+  1130→            powercfg.exe /setactive $guid 2>$null
+  1131→            Write-Success "Power plan set to High Performance ($guid)"
+  1132→        } else {
+  1133→            powercfg.exe /duplicatecheme 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c 2>$null | Out-Null
+  1134→            Start-Sleep -Seconds 1
+  1135→            $highPerf = powercfg.exe /list | Select-String -Pattern "High performance|高性能"
+  1136→            if ($highPerf) {
+  1137→                $guid = ($highPerf.ToString() -split '\s+')[3]
+  1138→                powercfg.exe /setactive $guid 2>$null
+  1139→                Write-Success "High Performance plan created and activated ($guid)"
+  1140→            } else { Write-Warn "Could not find or create High Performance plan." }
+  1141→        }
+  1142→    } catch { Write-Warn "Power plan change failed: $_" }
+  1143→
+  1144→    # 5. Set visual effects to Best Performance
+  1145→    Write-Step "Setting visual effects to 'Best Performance'..."
+  1146→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" `
+  1147→        -Name "VisualFXSetting" -Value 2 -Type DWord
+  1148→
+  1149→    $visualFx = @{
+  1150→        "AnimateMinMaxMenus"=0; "ComboBoxAnimation"=0; "CursorShadow"=0;
+  1151→        "DragFullWindows"=0; "ListBoxSmoothScrolling"=0; "ListviewAlphaSelect"=0;
+  1152→        "ListviewShadow"=0; "MenuAnimation"=0; "SelectionFade"=0;
+  1153→        "TaskbarAnimations"=0; "TooltipAnimation"=0
+  1154→    }
+  1155→    foreach ($key in $visualFx.Keys) {
+  1156→        Set-Registry -Path "HKCU:\Control Panel\Desktop" -Name $key -Value $visualFx[$key] -Type DWord
+  1157→    }
+  1158→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\DWM" `
+  1159→        -Name "EnableAeroPeek" -Value 0 -Type DWord
+  1160→
+  1161→    # 6. Disable SysMain
+  1162→    Write-Step "Disabling SysMain (SuperFetch)..."
+  1163→    try {
+  1164→        $sysMain = Get-Service -Name "SysMain" -ErrorAction SilentlyContinue
+  1165→        if ($sysMain) {
+  1166→            Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
+  1167→            Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction Stop
+  1168→            Write-Success "SysMain disabled."
+  1169→        }
+  1170→    } catch { Write-Warn "Could not disable SysMain: $_" }
+  1171→
+  1172→    # 7. Limit Windows Defender CPU usage to ~25%
+  1173→    Write-Step "Limiting Windows Defender CPU usage..."
+  1174→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Advanced" `
+  1175→        -Name "ExcludedProcesses" -Value "" -Type String
+  1176→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Scan" `
+  1177→        -Name "AvgCPULoadFactor" -Value 25 -Type DWord
+  1178→
+  1179→    # 8. Disable OEM telemetry services
+  1180→    Write-Step "Disabling OEM telemetry services..."
+  1181→    $oemServices = @("HPAppHelperShell","HPDiags","HPHealth","HPSysInfo",
+  1182→        "HpTouchpointAnalyticsService","HpTouchpointMgr","hpsvcsss",
+  1183→        "DellClientWMI","DellCommandUpdate","DellDataWarden",
+  1184→        "Lenovo.SysInterceptor","LENOVO.TVTGard")
+  1185→    foreach ($svc in $oemServices) {
+  1186→        try {
+  1187→            $s = Get-Service -Name $svc -ErrorAction SilentlyContinue
+  1188→            if ($s) {
+  1189→                Stop-Service -Name $svc -Force -ErrorAction SilentlyContinue
+  1190→                Set-Service -Name $svc -StartupType Disabled -ErrorAction SilentlyContinue
+  1191→                Write-Success "Disabled OEM service: $svc"
+  1192→            }
+  1193→        } catch { }
+  1194→    }
+  1195→
+  1196→    # 9. Increase SvcHost splitting threshold (reduce svchost.exe proliferation)
+  1197→    Write-Step "Increasing SvcHost split threshold..."
+  1198→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ServiceHostConfiguration" `
+  1199→        -Name "SvcHostSplitThresholdInKB" -Value 0x04000000 -Type DWord
+  1200→
+  1201→    Write-Host ""
+  1202→    Write-Success "Performance & Power optimization complete."
+  1203→}
+  1204→
+  1205→#endregion
+  1206→
+  1207→#region ============================================================
+  1208→# SECTION 6: SECURITY HARDENING
+  1209→# ============================================================
+  1210→
+  1211→function Invoke-SecurityHardening {
+  1212→    Write-Host ""
+  1213→    Write-Host "--- SECURITY HARDENING ---" -ForegroundColor Magenta
+  1214→    Write-Host ""
+  1215→
+  1216→    # 1. Ensure Windows Defender real-time protection ON
+  1217→    Write-Step "Ensuring Windows Defender real-time protection is on..."
+  1218→    foreach ($prop in @("DisableRealtimeMonitoring","DisableBehaviorMonitoring",
+  1219→                        "DisableOnAccessProtection","DisableScanOnRealtimeEnable")) {
+  1220→        Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection" `
+  1221→            -Name $prop -Value 0 -Type DWord
+  1222→    }
+  1223→
+  1224→    # 2. Enable DNS over HTTPS
+  1225→    Write-Step "Configuring DNS-over-HTTPS..."
+  1226→    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" `
+  1227→        -Name "EnableAutoDoh" -Value 2 -Type DWord
+  1228→
+  1229→    # 3. Disable USB auto-run
+  1230→    Write-Step "Disabling USB auto-run..."
+  1231→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" `
+  1232→        -Name "NoDriveTypeAutoRun" -Value 255 -Type DWord
+  1233→
+  1234→    # 4. Disable Remote Desktop
+  1235→    Write-Step "Disabling Remote Desktop..."
+  1236→    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" `
+  1237→        -Name "fDenyTSConnections" -Value 1 -Type DWord
+  1238→
+  1239→    # 5. Disable SMBv1
+  1240→    Write-Step "Disabling SMBv1..."
+  1241→    Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" `
+  1242→        -Name "SMB1" -Value 0 -Type DWord
+  1243→    Disable-WindowsOptionalFeature -Online -FeatureName "SMB1Protocol" -NoRestart -ErrorAction SilentlyContinue | Out-Null
+  1244→
+  1245→    # 6. Disable PowerShell v2
+  1246→    Write-Step "Disabling PowerShell v2..."
+  1247→    Disable-WindowsOptionalFeature -Online -FeatureName "MicrosoftWindowsPowerShellV2" `
+  1248→        -NoRestart -ErrorAction SilentlyContinue | Out-Null
+  1249→
+  1250→    # 7. Ensure UAC enabled
+  1251→    Write-Step "Ensuring UAC is enabled..."
+  1252→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
+  1253→        -Name "EnableLUA" -Value 1 -Type DWord
+  1254→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
+  1255→        -Name "ConsentPromptBehaviorAdmin" -Value 5 -Type DWord
+  1256→
+  1257→    # 8. Disable password reveal
+  1258→    Write-Step "Disabling password reveal in credential UI..."
+  1259→    Set-Registry -Path "HKLM:\Software\Policies\Microsoft\Windows\CredUI" `
+  1260→        -Name "DisablePasswordReveal" -Value 1 -Type DWord
+  1261→
+  1262→    Write-Host ""
+  1263→    Write-Success "Security hardening complete."
+  1264→}
+  1265→
+  1266→#endregion
+  1267→
+  1268→#region ============================================================
+  1269→# SECTION 7: NETWORK OPTIMIZATIONS
+  1270→# ============================================================
+  1271→
+  1272→function Invoke-NetworkOptimizations {
+  1273→    Write-Host ""
+  1274→    Write-Host "--- NETWORK OPTIMIZATIONS ---" -ForegroundColor Magenta
+  1275→    Write-Host ""
+  1276→
+  1277→    # 1. Set DNS to Cloudflare + Google
+  1278→    Write-Step "Setting DNS servers to Cloudflare (1.1.1.1) and Google (8.8.8.8)..."
+  1279→    try {
+  1280→        $adapters = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and $_.InterfaceType -ne 'Loopback' }
+  1281→        if ($adapters) {
+  1282→            foreach ($adapter in $adapters) {
+  1283→                Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex `
+  1284→                    -ServerAddresses ("1.1.1.1", "8.8.8.8") -ErrorAction Stop
+  1285→                Write-Success "DNS set on adapter: $($adapter.Name)"
+  1286→            }
+  1287→        } else { Write-Warn "No active network adapters found." }
+  1288→    } catch { Write-Warn "Failed to set DNS: $_" }
+  1289→
+  1290→    # 2. Disable Network Throttling
+  1291→    Write-Step "Disabling network throttling..."
+  1292→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" `
+  1293→        -Name "NetworkThrottlingIndex" -Value 0xffffffff -Type DWord
+  1294→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" `
+  1295→        -Name "NoLazyMode" -Value 1 -Type DWord
+  1296→
+  1297→    # 3. Disable Nagle Algorithm
+  1298→    Write-Step "Disabling Nagle Algorithm (reduces latency)..."
+  1299→    foreach ($param in @("TcpAckFrequency", "TCPNoDelay")) {
+  1300→        $path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
+  1301→        $interfaces = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
+  1302→        foreach ($iface in $interfaces) {
+  1303→            Set-Registry -Path $iface.PSPath -Name $param -Value 1 -Type DWord
+  1304→        }
+  1305→    }
+  1306→
+  1307→    # 4. Disable NCSI Active Probing
+  1308→    Write-Step "Disabling NCSI active probing..."
+  1309→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" `
+  1310→        -Name "NoActiveProbe" -Value 1 -Type DWord
+  1311→
+  1312→    # 5. Disable Teredo (IPv6 transition)
+  1313→    Write-Step "Disabling Teredo..."
+  1314→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition" `
+  1315→        -Name "Teredo_State" -Value "Disabled" -Type String
+  1316→
+  1317→    Write-Host ""
+  1318→    Write-Success "Network optimizations complete."
+  1319→}
+  1320→
+  1321→#endregion
+  1322→
+  1323→#region ============================================================
+  1324→# SECTION 8: WINDOWS UPDATE CONFIGURATION
+  1325→# ============================================================
+  1326→
+  1327→function Invoke-WindowsUpdateConfig {
+  1328→    Write-Host ""
+  1329→    Write-Host "--- WINDOWS UPDATE CONFIGURATION ---" -ForegroundColor Magenta
+  1330→    Write-Host ""
+  1331→
+  1332→    # 1. Auto-download and notify (not auto-install)
+  1333→    Write-Step "Configuring Windows Update behavior..."
+  1334→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" `
+  1335→        -Name "AUOptions" -Value 4 -Type DWord
+  1336→
+  1337→    # 2. Prevent auto-reboot
+  1338→    Write-Step "Disabling automatic reboot after updates..."
+  1339→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" `
+  1340→        -Name "NoAutoRebootWithLoggedOnUsers" -Value 1 -Type DWord
+  1341→
+  1342→    # 3. Disable Delivery Optimization
+  1343→    Write-Step "Disabling Delivery Optimization..."
+  1344→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" `
+  1345→        -Name "DODownloadMode" -Value 0 -Type DWord
+  1346→
+  1347→    # 4. Exclude drivers from quality updates
+  1348→    Write-Step "Excluding drivers from quality updates..."
+  1349→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" `
+  1350→        -Name "ExcludeWUDriversInQualityUpdate" -Value 1 -Type DWord
+  1351→
+  1352→    # 5. Set Active Hours
+  1353→    Write-Step "Setting active hours to 09:00 - 21:00..."
+  1354→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UFH" `
+  1355→        -Name "ActiveHoursStart" -Value 9 -Type DWord
+  1356→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UFH" `
+  1357→        -Name "ActiveHoursEnd" -Value 21 -Type DWord
+  1358→
+  1359→    # 6. Prevent device companion app auto-install
+  1360→    Write-Step "Preventing device companion app auto-install..."
+  1361→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" `
+  1362→        -Name "DoNotConnectToWindowsUpdateInternetLocations" -Value 0 -Type DWord
+  1363→    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" `
+  1364→        -Name "SearchOrderConfig" -Value 0 -Type DWord
+  1365→
+  1366→    Write-Host ""
+  1367→    Write-Success "Windows Update configuration complete."
+  1368→}
+  1369→
+  1370→#endregion
+  1371→
+  1372→#region ============================================================
+  1373→# SECTION 9: DISK CLEANUP & SYSTEM MAINTENANCE
+  1374→# ============================================================
+  1375→
+  1376→function Invoke-DiskCleanup {
+  1377→    Write-Host ""
+  1378→    Write-Host "--- DISK CLEANUP & SYSTEM MAINTENANCE ---" -ForegroundColor Magenta
+  1379→    Write-Host ""
+  1380→
+  1381→    # 1. Run Disk Cleanup (Restore point already created at script startup)
+  1382→    Write-Step "Configuring Disk Cleanup options..."
+  1383→    foreach ($key in @("ActiveSetupTemp","OldFiles","ServicePackCleanup")) {
+  1384→        Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\$key" `
+  1385→            -Name "StateFlags0001" -Value 2 -Type DWord
+  1386→    }
+  1387→    Write-Step "Running Disk Cleanup..."
+  1388→    Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:1" -NoNewWindow -Wait -ErrorAction SilentlyContinue
+  1389→    Write-Success "Disk Cleanup completed."
+  1390→
+  1391→    # 3. Clean temp folders
+  1392→    Write-Step "Cleaning temp folders..."
+  1393→    @($env:TEMP, "$env:LOCALAPPDATA\Temp", "$env:SYSTEMDRIVE\Temp",
+  1394→      "$env:SystemRoot\Temp",
+  1395→      "$env:SystemRoot\ServiceProfiles\LocalService\AppData\Local\Temp") | ForEach-Object {
+  1396→        if (Test-Path $_) {
+  1397→            Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+  1398→        }
+  1399→    }
+  1400→
+  1401→    # 4. Disable Storage Sense
+  1402→    Write-Step "Disabling Storage Sense..."
+  1403→    Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense" `
+  1404→        -Name "AllowStorageSenseGlobal" -Value 0 -Type DWord
+  1405→
+  1406→    Write-Host ""
+  1407→    Write-Success "Disk cleanup & maintenance complete."
+  1408→}
+  1409→
+  1410→#endregion
+  1411→
+  1412→#region ============================================================
+  1413→# SECTION 10: SOFTWARE INSTALLATION (Winget)
+  1414→# ============================================================
+  1415→
+  1416→function Invoke-WingetInstall {
+  1417→    Write-Host ""
+  1418→    Write-Host "--- SOFTWARE INSTALLATION (Winget) ---" -ForegroundColor Magenta
+  1419→    Write-Host ""
+  1420→
+  1421→    $appList = @(
+  1422→        @{ ID = "Google.Chrome";           Name = "Google Chrome" },
+  1423→        @{ ID = "Mozilla.Firefox";         Name = "Mozilla Firefox" },
+  1424→        @{ ID = "7zip.7zip";              Name = "7-Zip" },
+  1425→        @{ ID = "VideoLAN.VLC";           Name = "VLC Media Player" },
+  1426→        @{ ID = "Adobe.Acrobat.Reader.64-bit"; Name = "Adobe Acrobat Reader" },
+  1427→        @{ ID = "Notepad++.Notepad++";    Name = "Notepad++" },
+  1428→        @{ ID = "voidtools.Everything";   Name = "Everything Search" },
+  1429→        @{ ID = "RARLab.WinRAR";         Name = "WinRAR" }
+  1430→    )
+  1431→
+  1432→    try { $null = Get-Command winget -ErrorAction Stop; Write-Success "Winget found." }
+  1433→    catch {
+  1434→        Write-Err "Winget is not installed. Install 'App Installer' from the Microsoft Store."
+  1435→        return
+  1436→    }
+  1437→
+  1438→    Write-Host ""
+  1439→    Write-Host "  Apps to install:" -ForegroundColor Cyan
+  1440→    for ($i = 0; $i -lt $appList.Count; $i++) {
+  1441→        Write-Host "    $($i + 1). $($appList[$i].Name) ($($appList[$i].ID))" -ForegroundColor White
+  1442→    }
+  1443→    Write-Host ""
+  1444→
+  1445→    if (-not $Silent) {
+  1446→        $confirm = Read-Host "  Install all listed apps? (Y/n)"
+  1447→        if ($confirm -eq 'n' -or $confirm -eq 'N') { Write-Warn "Skipped."; return }
+  1448→    }
+  1449→
+  1450→    $successCount = 0; $failCount = 0; $skippedCount = 0
+  1451→    foreach ($app in $appList) {
+  1452→        # Idempotency: Check if the app is already installed via winget
+  1453→        $alreadyInstalled = $false
+  1454→        try {
+  1455→            $wingetList = winget list --id $app.ID --exact 2>$null
+  1456→            if ($wingetList -match [regex]::Escape($app.ID)) {
+  1457→                $alreadyInstalled = $true
+  1458→            }
+  1459→        } catch { }
+  1460→
+  1461→        if ($alreadyInstalled) {
+  1462→            Write-Step "Already installed: $($app.Name)"
+  1463→            $skippedCount++
+  1464→            continue
+  1465→        }
+  1466→
+  1467→        Write-Step "Installing $($app.Name)..."
+  1468→        try {
+  1469→            winget install --id $app.ID --silent --accept-package-agreements --accept-source-agreements `
+  1470→                --ignore-security-hash --disable-interactivity 2>$null | Out-Null
+  1471→            if ($LASTEXITCODE -eq 0) { Write-Success "Installed: $($app.Name)"; $successCount++ }
+  1472→            else { Write-Warn "Exit code $LASTEXITCODE for $($app.Name)"; $failCount++ }
+  1473→        } catch { Write-Warn "Failed: $($app.Name): $_"; $failCount++ }
+  1474→    }
+  1475→
+  1476→    Write-Host ""
+  1477→    Write-Success "Software install complete. Installed: $successCount | Skipped: $skippedCount | Issues: $failCount"
+  1478→}
+  1479→
+  1480→#endregion
+  1481→
+  1482→#region ============================================================
+  1483→# SECTION 11: OFFICE 365 INSTALLATION & ACTIVATION
+  1484→# ============================================================
+  1485→
+  1486→function Invoke-OfficeActivation {
+  1487→    Write-Host ""
+  1488→    Write-Host "--- OFFICE 365 INSTALLATION & ACTIVATION ---" -ForegroundColor Magenta
+  1489→    Write-Host ""
+  1490→
+  1491→    $officeSetupUrl = "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=O365ProPlusRetail&platform=x64&language=en-us&version=O16GA"
+  1492→    $masUrl = "https://get.activate.win"
+  1493→    $officeSetupPath = "$env:TEMP\OfficeSetup.exe"
+  1494→    $masScriptPath = "$env:TEMP\MAS.ps1"
+  1495→    $skipToActivation = $false
+  1496→
+  1497→    # --- Step 1: Download Office 365 ProPlus installer ---
+  1498→    Write-Host "  [Step 1/3] Office 365 Installation" -ForegroundColor Yellow
+  1499→    Write-Host ""
+  1500→
+  1501→    if (-not $Silent) {
+  1502→        Write-Host "  This will:" -ForegroundColor White
+  1503→        Write-Host "    1. Download Office 365 ProPlus (x64, English) installer (~4MB)" -ForegroundColor White
+  1504→        Write-Host "    2. Run the Office deployment (downloads apps, may take 10-20 min)" -ForegroundColor White
+  1505→        Write-Host "    3. Download and launch Microsoft Activation Scripts (MAS)" -ForegroundColor White
+  1506→        Write-Host "    4. You manually choose: [1] HWID for Windows, [2] Ohook for Office" -ForegroundColor White
+  1507→        Write-Host ""
+  1508→        $confirm = Read-Host "  Proceed with Office install + activation? (Y/n)"
+  1509→        if ($confirm -eq 'n' -or $confirm -eq 'N') { Write-Warn "Skipped."; return }
+  1510→    }
+  1511→
+  1512→    # Check if Office is already installed
+  1513→    $officeInstalled = $false
+  1514→    $officeRegPaths = @(
+  1515→        "HKLM:\SOFTWARE\Microsoft\Office\16.0",
+  1516→        "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\16.0"
+  1517→    )
+  1518→    foreach ($path in $officeRegPaths) {
+  1519→        if (Test-Path $path) { $officeInstalled = $true; break }
+  1520→    }
+  1521→
+  1522→    if ($officeInstalled) {
+  1523→        Write-Step "Office 365/2019+ detected. Skipping download."
+  1524→        if (-not $Silent) {
+  1525→            $skip = Read-Host "  Office found. Skip to activation? (Y/n)"
+  1526→            if ($skip -ne 'n' -and $skip -ne 'N') {
+  1527→                Write-Host ""
+  1528→                $skipToActivation = $true
+  1529→            }
+  1530→        } else {
+  1531→            Write-Host ""
+  1532→            $skipToActivation = $true
+  1533→        }
+  1534→    }
+  1535→
+  1536→    if (-not $skipToActivation) {
+  1537→        # Download Office Setup
+  1538→        Write-Step "Downloading Office 365 ProPlus installer..."
+  1539→        try {
+  1540→            $webClient = New-Object System.Net.WebClient
+  1541→            $webClient.DownloadFile($officeSetupUrl, $officeSetupPath)
+  1542→            if (Test-Path $officeSetupPath) {
+  1543→                Write-Success "Office installer downloaded: $officeSetupPath"
+  1544→            } else {
+  1545→                throw "Download completed but file not found."
+  1546→            }
+  1547→        } catch {
+  1548→            Write-Err "Failed to download Office installer: $_"
+  1549→            Write-Warn "Skipping Office installation. Check internet connection."
+  1550→        }
+  1551→
+  1552→        # Run Office Setup (silent install)
+  1553→        Write-Step "Running Office 365 installation (this takes 10-20 minutes)..."
+  1554→        Write-Host "  Please wait... Office apps are being installed in the background." -ForegroundColor DarkGray
+  1555→        try {
+  1556→            $officeProcess = Start-Process -FilePath $officeSetupPath -ArgumentList "/quiet /norestart" `
+  1557→                -Wait -PassThru -ErrorAction Stop
+  1558→            if ($officeProcess.ExitCode -eq 0) {
+  1559→                Write-Success "Office 365 ProPlus installed successfully."
+  1560→            } else {
+  1561→                Write-Warn "Office setup exited with code $($officeProcess.ExitCode). It may still be installing."
+  1562→            }
+  1563→        } catch {
+  1564→            Write-Err "Office installation failed: $_"
+  1565→        }
+  1566→
+  1567→        # Clean up installer
+  1568→        if (Test-Path $officeSetupPath) { Remove-Item $officeSetupPath -Force -ErrorAction SilentlyContinue }
+  1569→    }
+  1570→
+  1571→    # --- Step 2: Download & Launch Microsoft Activation Scripts ---
+  1572→    Write-Host ""
+  1573→    Write-Host "  [Step 2/3] Windows & Office Activation (MAS)" -ForegroundColor Yellow
+  1574→    Write-Host ""
+  1575→
+  1576→    Write-Step "Downloading Microsoft Activation Scripts..."
+  1577→    try {
+  1578→        $webClient = New-Object System.Net.WebClient
+  1579→        $webClient.DownloadFile($masUrl, $masScriptPath)
+  1580→        if (Test-Path $masScriptPath) {
+  1581→            Write-Success "MAS downloaded: $masScriptPath"
+  1582→        } else {
+  1583→            throw "Download completed but file not found."
+  1584→        }
+  1585→    } catch {
+  1586→        Write-Err "Failed to download MAS: $_"
+  1587→        Write-Host ""
+  1588→        Write-Host "  You can run manually: irm https://get.activate.win | iex" -ForegroundColor Yellow
+  1589→        Write-Host ""
+  1590→        return
+  1591→    }
+  1592→
+  1593→    # --- Step 3: Launch MAS interactively ---
+  1594→    Write-Host ""
+  1595→    Write-Host "  [Step 3/3] Launching MAS activation menu..." -ForegroundColor Yellow
+  1596→    Write-Host ""
+  1597→    Write-Host "  ================================================" -ForegroundColor Cyan
+  1598→    Write-Host "  MAS is opening in a NEW window." -ForegroundColor Cyan
+  1599→    Write-Host "  In the MAS window:" -ForegroundColor White
+  1600→    Write-Host "    [1] HWID     - Activate Windows" -ForegroundColor Green
+  1601→    Write-Host "    [2] Ohook    - Activate Office" -ForegroundColor Green
+  1602→    Write-Host "    [0] Exit     - Close MAS when done" -ForegroundColor Gray
+  1603→    Write-Host "  ================================================" -ForegroundColor Cyan
+  1604→    Write-Host ""
+  1605→
+  1606→    try {
+  1607→        # Launch MAS in a new elevated PowerShell window
+  1608→        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
+  1609→            -Verb RunAs -ErrorAction Stop
+  1610→        Write-Success "MAS launched in a new Administrator window."
+  1611→    } catch {
+  1612→        # Fallback: launch in current window if UAC elevation fails
+  1613→        Write-Warn "Could not open new window. Running MAS in current session..."
+  1614→        try {
+  1615→            & $masScriptPath
+  1616→        } catch {
+  1617→            Write-Err "MAS execution failed: $_"
+  1618→        }
+  1619→    }
+  1620→
+  1621→    # Disable Office telemetry while we're here
+  1622→    Write-Host ""
+  1623→    Write-Host "  [Bonus] Disabling Office telemetry..." -ForegroundColor Yellow
+  1624→    Write-Host ""
+  1625→    $officeTelemetry = @(
+  1626→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common"; Name = "sendcustomerdata"; Value = 0 },
+  1627→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common"; Name = "Uploaddocs"; Value = 0 },
+  1628→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Feedback"; Name = "Enabled"; Value = 0 },
+  1629→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Feedback"; Name = "IncludeScreenshot"; Value = 0 },
+  1630→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\ptws"; Name = "ptws"; Value = 0 },
+  1631→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Internet"; Name = "UseOnlineContent"; Value = 0 },
+  1632→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\SignIn"; Name = "SignInOptions"; Value = 3 },
+  1633→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "ContentServicesEnabled"; Value = 0 },
+  1634→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "DownloadContent"; Value = 0 },
+  1635→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "EnableInsights"; Value = 0 },
+  1636→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "EnableUserInputTelemetry"; Value = 0 },
+  1637→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy"; Name = "EnablePersonalization"; Value = 0 },
+  1638→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Excel\Options"; Name = "Voice"; Value = 0 },
+  1639→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\FirstRun"; Name = "BootedRTM"; Value = 1 },
+  1640→        @{ Path = "HKCU:\SOFTWARE\Microsoft\Office\16.0\Outlook\Options\Calendar"; Name = "EnableOnlineCalendar"; Value = 0 },
+  1641→        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common"; Name = "sendcustomerdata"; Value = 0 },
+  1642→        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common"; Name = "Uploaddocs"; Value = 0 },
+  1643→        @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy"; Name = "ContentServicesEnabled"; Value = 0 }
+  1644→    )
+  1645→    foreach ($item in $officeTelemetry) {
+  1646→        Set-Registry -Path $item.Path -Name $item.Name -Value $item.Value -Type DWord
+  1647→    }
+  1648→    Write-Success "Office telemetry disabled (18 keys)."
+  1649→
+  1650→    Write-Host ""
+  1651→    Write-Success "Office section complete. Complete activation in the MAS window."
+  1652→    Write-Host ""
+  1653→}
+  1654→
+  1655→#endregion
+  1656→
+  1657→#region ============================================================
+  1658→# SECTION 12: EDGE HARDENING
+  1659→# ============================================================
+  1660→
+  1661→function Invoke-EdgeHardening {
+  1662→    Write-Host ""
+  1663→    Write-Host "--- EDGE HARDENING ---" -ForegroundColor Magenta
+  1664→    Write-Host ""
+  1665→
+  1666→    $edgePath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
+  1667→    $edgePolicies = @{
+  1668→        "MetricsReportingEnabled"       = 0
+  1669→        "SendSiteInfoToImproveServices" = 0
+  1670→        "PersonalizationReportingEnabled" = 0
+  1671→        "DiagnosticData"                = 0
+  1672→        "UserFeedbackAllowed"           = 0
+  1673→        "EdgeShoppingAssistantEnabled"  = 0
+  1674→        "ShowRecommendationsEnabled"    = 0
+  1675→        "SearchSuggestEnabled"          = 0
+  1676→        "HubsSidebarEnabled"            = 0
+  1677→        "CopilotPageContext"            = 0
+  1678→        "CopilotCDPPageContext"         = 0
+  1679→        "BlockThirdPartyCookies"        = 1
+  1680→        "BackgroundModeEnabled"         = 0
+  1681→        "SyncDisabled"                  = 1
+  1682→        "AutofillCreditCardEnabled"     = 0
+  1683→        "HideRestoreDialogForSycProfiles" = 1
+  1684→    }
+  1685→
+  1686→    Write-Step "Applying Edge hardening policies..."
+  1687→    foreach ($prop in $edgePolicies.Keys) {
+  1688→        Set-Registry -Path $edgePath -Name $prop -Value $edgePolicies[$prop] -Type DWord
+  1689→    }
+  1690→
+  1691→    # Disable Edge prelaunch and tab preloading
+  1692→    Write-Step "Disabling Edge prelaunch and tab preloading..."
+  1693→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
+  1694→        -Name "AllowPrelaunch" -Value 0 -Type DWord
+  1695→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader" `
+  1696→        -Name "AllowTabPreloading" -Value 0 -Type DWord
+  1697→
+  1698→    # Disable first-run experience
+  1699→    Write-Step "Disabling Edge first-run..."
+  1700→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
+  1701→        -Name "DisallowFirstRun" -Value 1 -Type DWord
+  1702→
+  1703→    Write-Host ""
+  1704→    Write-Success "Edge hardening complete."
+  1705→}
+  1706→
+  1707→#endregion
+  1708→
+  1709→#region ============================================================
+  1710→# SECTION 13: ONEDRIVE MANAGEMENT
+  1711→# ============================================================
+  1712→
+  1713→function Invoke-OneDriveManagement {
+  1714→    Write-Host ""
+  1715→    Write-Host "--- ONEDRIVE MANAGEMENT ---" -ForegroundColor Magenta
+  1716→    Write-Host ""
+  1717→
+  1718→    # 1. Disable OneDrive via Group Policy
+  1719→    Write-Step "Disabling OneDrive..."
+  1720→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" `
+  1721→        -Name "DisableFileSyncNGSC" -Value 1 -Type DWord
+  1722→
+  1723→    # 2. Hide OneDrive from File Explorer navigation pane
+  1724→    Write-Step "Hiding OneDrive from File Explorer..."
+  1725→    foreach ($path in @(
+  1726→        "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}",
+  1727→        "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}")) {
+  1728→        Set-Registry -Path $path -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord
+  1729→    }
+  1730→
+  1731→    # 3. Remove OneDrive from startup (if present)
+  1732→    Write-Step "Removing OneDrive from startup..."
+  1733→    $odRun = "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run"
+  1734→    try {
+  1735→        $val = Get-ItemProperty -Path $odRun -Name "OneDrive" -ErrorAction SilentlyContinue
+  1736→        if ($val) {
+  1737→            Remove-ItemProperty -Path $odRun -Name "OneDrive" -Force -ErrorAction Stop
+  1738→            Write-Success "Removed OneDrive from startup registry."
+  1739→        }
+  1740→    } catch { Write-Warn "Could not remove OneDrive from startup: $_" }
+  1741→
+  1742→    Write-Host ""
+  1743→    Write-Success "OneDrive management complete."
+  1744→}
+  1745→
+  1746→#endregion
+  1747→
+  1748→#region ============================================================
+  1749→# SECTION 14: GAMING / XBOX / DVR DISABLE
+  1750→# ============================================================
+  1751→
+  1752→function Invoke-GamingDisable {
+  1753→    Write-Host ""
+  1754→    Write-Host "--- GAMING / XBOX / DVR DISABLE ---" -ForegroundColor Magenta
+  1755→    Write-Host ""
+  1756→
+  1757→    # 1. Disable GameDVR via policy
+  1758→    Write-Step "Disabling GameDVR..."
+  1759→    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" `
+  1760→        -Name "AllowgameDVR" -Value 0 -Type DWord
+  1761→
+  1762→    # 2. Disable Game Bar capture
+  1763→    Write-Step "Disabling Game Bar capture..."
+  1764→    foreach ($prop in @("AppCaptureEnabled", "HistoricalCaptureEnabled")) {
+  1765→        Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" `
+  1766→            -Name $prop -Value 0 -Type DWord
+  1767→        Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" `
+  1768→            -Name $prop -Value 0 -Type DWord
+  1769→    }
+  1770→
+  1771→    # 3. Disable GameDVR_Enabled
+  1772→    Write-Step "Disabling GameDVR_Enabled..."
+  1773→    Set-Registry -Path "HKCU:\System\GameConfigStore" `
+  1774→        -Name "GameDVR_Enabled" -Value 0 -Type DWord
+  1775→    Set-Registry -Path "HKLM:\System\GameConfigStore" `
+  1776→        -Name "GameDVR_Enabled" -Value 0 -Type DWord
+  1777→
+  1778→    Write-Host ""
+  1779→    Write-Success "Gaming / Xbox / DVR disable complete."
+  1780→}
+  1781→
+  1782→#endregion
+  1783→
+  1784→#region ============================================================
+  1785→# SECTION 15: SCHEDULED TASKS CLEANUP
+  1786→# ============================================================
+  1787→
+  1788→function Invoke-ScheduledTasksCleanup {
+  1789→    Write-Host ""
+  1790→    Write-Host "--- SCHEDULED TASKS CLEANUP ---" -ForegroundColor Magenta
+  1791→    Write-Host ""
+  1792→
+  1793→    $tasksToDisable = @(
+  1794→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "AitAgent" },
+  1795→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "Microsoft Compatibility Appraiser" },
+  1796→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "ProgramDataUpdater" },
+  1797→        @{ Path = "\Microsoft\Windows\Application Experience\";       Name = "StartupAppTask" },
+  1798→        @{ Path = "\Microsoft\Windows\Customer Experience Improvement Program\"; Name = "Consolidator" },
+  1799→        @{ Path = "\Microsoft\Windows\Customer Experience Improvement Program\"; Name = "KernelCeipTask" },
+  1800→        @{ Path = "\Microsoft\Windows\Customer Experience Improvement Program\"; Name = "UsbCeip" },
+  1801→        @{ Path = "\Microsoft\Windows\Device Information\";          Name = "Device" },
+  1802→        @{ Path = "\Microsoft\Windows\ErrorDetails\";                Name = "EnableErrorDetailsUpdate" },
+  1803→        @{ Path = "\Microsoft\Windows\Windows Error Reporting\";      Name = "QueueReporting" },
+  1804→        @{ Path = "\Microsoft\Windows\Feedback\";                     Name = "Siuf\DmClient" },
+  1805→        @{ Path = "\Microsoft\Windows\Feedback\";                     Name = "Siuf\DmClientOnScenarioDownload" },
+  1806→        @{ Path = "\Microsoft\Windows\Maps\";                         Name = "MapsUpdateTask" },
+  1807→        @{ Path = "\Microsoft\Windows\Maps\";                         Name = "MapsToastTask" },
+  1808→        @{ Path = "\Microsoft\Windows\Maintenance\";                  Name = "WinSAT" },
+  1809→        @{ Path = "\Microsoft\Windows\Shell\";                         Name = "FamilySafetyMonitor" },
+  1810→        @{ Path = "\Microsoft\Windows\Shell\";                         Name = "FamilySafetyRefresh" },
+  1811→        @{ Path = "\Microsoft\Windows\Shell\";                         Name = "FamilySafetyUpload" },
+  1812→        @{ Path = "\Microsoft\Windows\Power Efficiency Diagnostics\"; Name = "AnalyzeSystem" },
+  1813→        @{ Path = "\Microsoft\Windows\PI\";                           Name = "Sqm-Tasks" },
+  1814→        @{ Path = "\Microsoft\Windows\NetTrace\";                     Name = "GatherNetworkInfo" },
+  1815→        @{ Path = "\Microsoft\XblGameSave\";                         Name = "XblGameSaveTask" },
+  1816→        @{ Path = "\Microsoft\XblGameSave\";                         Name = "XblGameSaveTaskLogon" },
+  1817→        @{ Path = "\Microsoft\Windows\WindowsUpdate\";               Name = "Automatic App Update" },
+  1818→        @{ Path = "\Microsoft\Windows\DiskDiagnostic\";              Name = "Microsoft-Windows-DiskDiagnosticDataCollector" },
+  1819→        @{ Path = "\Microsoft\Windows\DiskFootprint\";               Name = "Diagnostics" },
+  1820→        @{ Path = "\Microsoft\Windows\License Manager\";            Name = "TempSignedLicenseExchange" },
+  1821→        @{ Path = "\Microsoft\Windows\Subscription\";                Name = "EnableLicenseAcquisition" },
+  1822→        @{ Path = "\Microsoft\Windows\Subscription\";                Name = "LicenseAcquisition" }
+  1823→    )
+  1824→
+  1825→    $disabled = 0; $notFound = 0
+  1826→    foreach ($task in $tasksToDisable) {
+  1827→        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name
+  1828→        $disabled++
+  1829→    }
+  1830→
+  1831→    # Disable Office telemetry tasks
+  1832→    $officeTasks = @(
+  1833→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentFallBack" },
+  1834→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentFallBack2016" },
+  1835→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentLogOn" },
+  1836→        @{ Path = "\Microsoft\Office\"; Name = "OfficeTelemetryAgentLogOn2016" },
+  1837→        @{ Path = "\Microsoft\Office\"; Name = "Office 15 Subscription Heartbeat" },
+  1838→        @{ Path = "\Microsoft\Office\"; Name = "Office 16 Subscription Heartbeat" }
+  1839→    )
+  1840→    foreach ($task in $officeTasks) {
+  1841→        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name
+  1842→        $disabled++
+  1843→    }
+  1844→
+  1845→    Write-Host ""
+  1846→    Write-Success "Scheduled tasks cleanup complete. Processed $($disabled + $notFound) tasks."
+  1847→}
+  1848→
+  1849→#endregion
+  1850→
+  1851→#region ============================================================
+  1852→# SECTION 16: BROWSER EXTENSIONS & PRIVACY
+  1853→# ============================================================
+  1854→
+  1855→function Invoke-BrowserHardening {
+  1856→    Write-Host ""
+  1857→    Write-Host "--- BROWSER EXTENSIONS & PRIVACY ---" -ForegroundColor Magenta
+  1858→    Write-Host ""
+  1859→
+  1860→    # ================================================================
+  1861→    # Extension IDs and install URLs
+  1862→    # ================================================================
+  1863→    # uBlock Origin
+  1864→    $ublockChromeID    = "cjpalhdlnbpafiamejdnhcphjbkeiagm"
+  1865→    $ublockFirefoxID   = "uBlock0@raymondhill.net"
+  1866→    $ublockAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/addon-607454-latest.xpi"
+  1867→    # Privacy Badger
+  1868→    $badgerChromeID    = "pkehgijcmpdhfbdbbnkijodmdjhbjlgp"
+  1869→    $badgerFirefoxID   = "jid1-MnnxcxisBPnSXQ@jetpack"
+  1870→    $badgerAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/privacy-badger17/addon-576858-latest.xpi"
+  1871→
+  1872→    # Chromium extension update URLs
+  1873→    $chromeWebStoreUrl = "https://clients2.google.com/service/update2/crx"
+  1874→    $edgeAddonsUrl    = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+  1875→
+  1876→    # ================================================================
+  1877→    # PART A: Force-install extensions via Group Policy
+  1878→    # ================================================================
+  1879→    Write-Host "  [Extensions]" -ForegroundColor Yellow
+  1880→    Write-Host ""
+  1881→
+  1882→    # --- Helper: Add extension to Chromium ExtensionInstallForcelist ---
+  1883→    function Add-ChromiumExtension {
+  1884→        param(
+  1885→            [string]$RegPath,
+  1886→            [string]$ExtID,
+  1887→            [string]$UpdateUrl,
+  1888→            [string]$BrowserName,
+  1889→            [string]$ExtName
+  1890→        )
+  1891→        try {
+  1892→            if (-not (Test-Path $RegPath)) {
+  1893→                New-Item -Path $RegPath -Force -ErrorAction Stop | Out-Null
+  1894→            }
+  1895→            $entry = "$ExtID;$UpdateUrl"
+  1896→            # Check if already present (registry values are named 1, 2, 3...)
+  1897→            $existing = (Get-ItemProperty -Path $RegPath -ErrorAction SilentlyContinue)
+  1898→            $found = $false
+  1899→            if ($existing) {
+  1900→                $existing.PSObject.Properties | ForEach-Object {
+  1901→                    if ($_.Value -like "$ExtID;*") { $found = $true }
+  1902→                }
+  1903→            }
+  1904→            if ($found) {
+  1905→                Write-Step "$BrowserName`: $ExtName already in forcelist."
+  1906→            } else {
+  1907→                # Find next available index
+  1908→                $idx = 1
+  1909→                while ($existing.PSObject.Properties.Name -contains $idx.ToString()) { $idx++ }
+  1910→                New-ItemProperty -Path $RegPath -Name $idx.ToString() -Value $entry -PropertyType String -Force -ErrorAction Stop | Out-Null
+  1911→                Write-Success "$BrowserName`: Force-installed $ExtName ($ExtID)"
+  1912→            }
+  1913→        } catch {
+  1914→            Write-Warn "$BrowserName`: Could not add $ExtName`: $_"
+  1915→        }
+  1916→    }
+  1917→
+  1918→    # --- Google Chrome ---
+  1919→    Write-Step "Configuring Google Chrome extensions..."
+  1920→    $chromeInstalled = Test-Path "HKLM:\SOFTWARE\Google\Chrome\MBL" -ErrorAction SilentlyContinue
+  1921→    $chromeInstalled2 = Test-Path "HKLM:\SOFTWARE\WOW6432Node\Google\Chrome\MBL" -ErrorAction SilentlyContinue
+  1922→    $chromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist"
+  1923→    if ($chromeInstalled -or $chromeInstalled2 -or (Test-Path "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe") -or (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe")) {
+  1924→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
+  1925→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+  1926→    } else {
+  1927→        Write-Step "Google Chrome not detected. Setting policies anyway (applies if installed later)."
+  1928→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
+  1929→        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+  1930→    }
+  1931→
+  1932→    # --- Microsoft Edge ---
+  1933→    Write-Step "Configuring Microsoft Edge extensions..."
+  1934→    $edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist"
+  1935→    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $ublockChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "uBlock Origin"
+  1936→    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $badgerChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "Privacy Badger"
+  1937→
+  1938→    # --- Brave ---
+  1939→    Write-Step "Configuring Brave extensions..."
+  1940→    $bravePolicyPath = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist"
+  1941→    $braveInstalled = (Test-Path "${env:LOCALAPPDATA}\BraveSoftware\Brave-Browser\Application\brave.exe") -or (Test-Path "${env:ProgramFiles}\BraveSoftware\Brave-Browser\Application\brave.exe")
+  1942→    if ($braveInstalled) {
+  1943→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
+  1944→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+  1945→    } else {
+  1946→        Write-Step "Brave not detected. Setting policies anyway (applies if installed later)."
+  1947→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
+  1948→        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+  1949→    }
+  1950→
+  1951→    # --- Opera (uses Chrome Web Store, limited policy support) ---
+  1952→    Write-Step "Configuring Opera extensions..."
+  1953→    $operaPolicyPath = "HKLM:\SOFTWARE\Policies\Opera\ExtensionInstallForcelist"
+  1954→    $operaInstalled = (Test-Path "${env:ProgramFiles}\Opera\launcher.exe") -or (Test-Path "${env:LOCALAPPDATA}\Programs\Opera\launcher.exe")
+  1955→    if ($operaInstalled) {
+  1956→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
+  1957→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+  1958→    } else {
+  1959→        Write-Step "Opera not detected. Setting policies (may not apply - Opera has limited policy support)."
+  1960→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
+  1961→        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+  1962→    }
+  1963→
+  1964→    # --- Firefox (uses policies.json - different mechanism) ---
+  1965→    Write-Step "Configuring Firefox extensions via policies..."
+  1966→    $firefoxPaths = @(
+  1967→        "${env:ProgramFiles}\Mozilla Firefox",
+  1968→        "${env:ProgramFiles(x86)}\Mozilla Firefox"
+  1969→    )
+  1970→    $firefoxRoot = $firefoxPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+  1971→
+  1972→    if ($firefoxRoot) {
+  1973→        $distDir = Join-Path $firefoxRoot "distribution"
+  1974→        if (-not (Test-Path $distDir)) { New-Item -Path $distDir -ItemType Directory -Force | Out-Null }
+  1975→        $policyFile = Join-Path $distDir "policies.json"
+  1976→
+  1977→        $firefoxPolicy = @{}
+  1978→        if (Test-Path $policyFile) {
+  1979→            try { $firefoxPolicy = Get-Content $policyFile -Raw | ConvertFrom-Json -AsHashtable } catch { $firefoxPolicy = @{} }
+  1980→        }
+  1981→
+  1982→        if (-not $firefoxPolicy.ContainsKey("policies")) { $firefoxPolicy["policies"] = @{} }
+  1983→        $p = $firefoxPolicy["policies"]
+  1984→
+  1985→        # ExtensionSettings for force-installing extensions
+  1986→        if (-not $p.ContainsKey("ExtensionSettings")) { $p["ExtensionSettings"] = @{} }
+  1987→        $extSettings = $p["ExtensionSettings"]
+  1988→
+  1989→        $extSettings[$ublockFirefoxID] = @{
+  1990→            "installation_mode" = "force_installed"
+  1991→            "install_url"       = $ublockAMOUrl
+  1992→        }
+  1993→        $extSettings[$badgerFirefoxID] = @{
+  1994→            "installation_mode" = "force_installed"
+  1995→            "install_url"       = $badgerAMOUrl
+  1996→        }
+  1997→
+  1998→        $firefoxPolicy["policies"] = $p
+  1999→        $jsonOutput = $firefoxPolicy | ConvertTo-Json -Depth 10 -Compress
+  2000→        Set-Content -Path $policyFile -Value $jsonOutput -Encoding UTF8 -Force
+
+[showing lines 1-2000 of 2367; use offset=2001 with limit to continue reading]
