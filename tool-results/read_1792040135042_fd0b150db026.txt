@@ -1,0 +1,577 @@
+  3027→            $script:TotalFailed++
+  3028→        }
+  3029→    }
+  3030→
+  3031→    # Process risky features (only if -AllowRisky)
+  3032→    foreach ($feature in $riskyFeatures) {
+  3033→        if ($feature.Safety -eq "Risky" -and -not $script:AllowRisky) {
+  3034→            $featState = Get-WindowsOptionalFeature -Online -FeatureName $feature.Name -ErrorAction SilentlyContinue
+  3035→            if ($featState -and $featState.State -eq 'Enabled') {
+  3036→                Write-Host "  SKIPPED (risky): $($feature.Reason) — use -AllowRisky or enable in menu" -ForegroundColor Yellow
+  3037→            }
+  3038→            continue
+  3039→        }
+  3040→        if ($feature.Safety -eq "Moderate") {
+  3041→            Write-Host "  [MODERATE] $($feature.Reason)" -ForegroundColor DarkYellow
+  3042→        }
+  3043→
+  3044→        Write-Step "Checking feature: $($feature.Desc) ($($feature.Name))..."
+  3045→        try {
+  3046→            $featState = Get-WindowsOptionalFeature -Online -FeatureName $feature.Name -ErrorAction SilentlyContinue
+  3047→            if ($featState) {
+  3048→                if ($featState.State -eq 'Enabled') {
+  3049→                    Disable-WindowsOptionalFeature -Online -FeatureName $feature.Name -NoRestart -ErrorAction Stop | Out-Null
+  3050→                    Write-Success "Disabled feature: $($feature.Desc)"
+  3051→                    $disabledCount++
+  3052→                    $script:TotalChanged++
+  3053→                    $null = $script:UndoCommands.Add("Enable-WindowsOptionalFeature -Online -FeatureName '$($feature.Name)' -NoRestart -ErrorAction SilentlyContinue")
+  3054→                } else {
+  3055→                    Write-Step "Already disabled: $($feature.Desc)"
+  3056→                    $alreadyOffCount++
+  3057→                    $script:TotalSkipped++
+  3058→                }
+  3059→            } else {
+  3060→                Write-Warn "Feature not found: $($feature.Name)"
+  3061→                $notFoundCount++
+  3062→            }
+  3063→        } catch {
+  3064→            Write-Warn "Could not disable feature $($feature.Name): $_"
+  3065→            $script:TotalFailed++
+  3066→        }
+  3067→    }
+  3068→
+  3069→    Write-Host ""
+  3070→    Write-Success "Windows Features removal complete. Disabled: $disabledCount | Already off: $alreadyOffCount | Not found: $notFoundCount"
+  3071→}
+  3072→
+  3073→#endregion
+  3074→
+  3075→#region ============================================================
+  3076→# INTERACTIVE MENU
+  3077→# ============================================================
+  3078→
+  3079→# Safety info for each section
+  3080→$script:SectionSafetyInfo = @{
+  3081→    "Privacy"         = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 2; ItemCount = 26 }
+  3082→    "Debloat"         = @{ Safety = "Mixed";  RiskyCount = 2; ModerateCount = 7; ItemCount = 60 }
+  3083→    "ExplorerUI"      = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 23 }
+  3084→    "ServiceStartup"  = @{ Safety = "Mixed";  RiskyCount = 2; ModerateCount = 3; ItemCount = 16 }
+  3085→    "Performance"     = @{ Safety = "Mixed";  RiskyCount = 0; ModerateCount = 2; ItemCount = 11 }
+  3086→    "Security"        = @{ Safety = "Mixed";  RiskyCount = 0; ModerateCount = 1; ItemCount = 8 }
+  3087→    "Network"         = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 7 }
+  3088→    "WindowsUpdate"   = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 6 }
+  3089→    "DiskCleanup"     = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 4 }
+  3090→    "Winget"          = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 8 }
+  3091→    "OfficeActivation"= @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
+  3092→    "EdgeHardening"   = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 14 }
+  3093→    "OneDrive"        = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
+  3094→    "Gaming"          = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
+  3095→    "ScheduledTasks"  = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 33 }
+  3096→    "BrowserHardening"= @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 10 }
+  3097→    "FinalTouches"    = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 7 }
+  3098→    "WindowsFeatures" = @{ Safety = "Mixed";  RiskyCount = 3; ModerateCount = 2; ItemCount = 15 }
+  3099→}
+  3100→
+  3101→function Show-SimpleMenu {
+  3102→    $menuItems = @(
+  3103→        @{ ID = "1";  Key = "Privacy";             Name = "Privacy & Telemetry (Aggressive)";          Desc = "Telemetry, Cortana, Copilot, Recall, AI, Bing, tracking" },
+  3104→        @{ ID = "2";  Key = "Debloat";             Name = "Debloat: Remove Bloatware";                Desc = "Uninstall 60+ pre-installed junk apps" },
+  3105→        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer & UI Optimizations";              Desc = "File extensions, taskbar, CDM lockdown, context menu" },
+  3106→        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service & Startup Optimization";           Desc = "Disable 16 unnecessary services + startup delay" },
+  3107→        @{ ID = "5";  Key = "Performance";           Name = "Performance & Power Settings";             Desc = "Hibernation, fast startup, High Perf plan, Defender CPU" },
+  3108→        @{ ID = "6";  Key = "Security";             Name = "Security Hardening";                       Desc = "Defender, UAC, SMBv1, DNS-over-HTTPS, PSv2" },
+  3109→        @{ ID = "7";  Key = "Network";              Name = "Network Optimizations";                   Desc = "DNS, Nagle off, throttling off, Teredo off" },
+  3110→        @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update Configuration";           Desc = "Active hours, no auto-reboot, no delivery opt." },
+  3111→        @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup & Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
+  3112→        @{ ID = "10"; Key = "Winget";                Name = "Software Installation (Winget)";           Desc = "Chrome, Firefox, 7-Zip, VLC, Reader, Notepad++" },
+  3113→        @{ ID = "11"; Key = "OfficeActivation";      Name = "Office 365 Install + Activation";            Desc = "Download Office, MAS activation, Office telemetry off" },
+  3114→        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening (14 policies)";             Desc = "Shopping, Copilot, telemetry, preload, sync" },
+  3115→        @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
+  3116→        @{ ID = "14"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
+  3117→        @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
+  3118→        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Extensions & Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
+  3119→        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" },
+  3120→        @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features Removal";                  Desc = "Remove IE, WMP, PSv2, Fax, Paint3D, XPS, Work Folders" }
+  3121→    )
+  3122→
+  3123→    Write-Host ""
+  3124→    Write-Host "  SELECT OPTIMIZATIONS TO RUN:" -ForegroundColor White
+  3125→    Write-Host "  " + ("-" * 64) -ForegroundColor DarkGray
+  3126→    foreach ($item in $menuItems) {
+  3127→        Write-Host "  $($item.ID.ToString().PadRight(3)) $($item.Name)" -ForegroundColor Cyan
+  3128→        Write-Host "       $($item.Desc)" -ForegroundColor DarkGray
+  3129→    }
+  3130→    Write-Host ""
+  3131→    Write-Host "  A    Run ALL sections (full optimization)" -ForegroundColor Green
+  3132→    Write-Host "  0    Exit without changes" -ForegroundColor Red
+  3133→    Write-Host ""
+  3134→}
+  3135→
+  3136→function Get-SimpleUserSelection {
+  3137→    Show-SimpleMenu
+  3138→    $userInput = Read-Host "  Enter section numbers (comma-separated, e.g. '1,3,5') or 'A' for all"
+  3139→
+  3140→    if ($userInput -eq '0') {
+  3141→        Write-Host "  Exiting without changes." -ForegroundColor Yellow
+  3142→        Stop-Transcript | Out-Null
+  3143→        exit 0
+  3144→    }
+  3145→
+  3146→    $selected = @()
+  3147→    if ($userInput.Trim().ToUpper() -eq 'A') {
+  3148→        $selected = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
+  3149→                      "Security","Network","WindowsUpdate","DiskCleanup","Winget",
+  3150→                      "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
+  3151→    } else {
+  3152→        $numbers = $userInput -split ',' | ForEach-Object { $_.Trim() }
+  3153→        $allSections = @{
+  3154→            '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
+  3155→            '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
+  3156→            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='EdgeHardening'
+  3157→            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches';'18'='WindowsFeatures'
+  3158→        }
+  3159→        foreach ($num in $numbers) {
+  3160→            if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
+  3161→            else { Write-Warn "Invalid selection: $num (skipped)" }
+  3162→        }
+  3163→    }
+  3164→    return $selected
+  3165→}
+  3166→
+  3167→function Show-DetailedMenu {
+  3168→    $menuItems = @(
+  3169→        @{ ID = "1";  Key = "Privacy";             Name = "Privacy & Telemetry" },
+  3170→        @{ ID = "2";  Key = "Debloat";             Name = "Debloat" },
+  3171→        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer & UI" },
+  3172→        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service & Startup" },
+  3173→        @{ ID = "5";  Key = "Performance";           Name = "Performance & Power" },
+  3174→        @{ ID = "6";  Key = "Security";             Name = "Security" },
+  3175→        @{ ID = "7";  Key = "Network";              Name = "Network" },
+  3176→        @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update" },
+  3177→        @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup" },
+  3178→        @{ ID = "10"; Key = "Winget";                Name = "Software (Winget)" },
+  3179→        @{ ID = "11"; Key = "OfficeActivation";      Name = "Office 365" },
+  3180→        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening" },
+  3181→        @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive" },
+  3182→        @{ ID = "14"; Key = "Gaming";                Name = "Gaming / DVR" },
+  3183→        @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks" },
+  3184→        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Privacy" },
+  3185→        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches" },
+  3186→        @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features" }
+  3187→    )
+  3188→
+  3189→    Write-Host ""
+  3190→    Write-Host "  SELECT OPTIMIZATIONS:" -ForegroundColor White
+  3191→    Write-Host "  " + ("-" * 72) -ForegroundColor DarkGray
+  3192→
+  3193→    foreach ($item in $menuItems) {
+  3194→        $safetyInfo = $script:SectionSafetyInfo[$item.Key]
+  3195→        if (-not $safetyInfo) { $safetyInfo = @{ Safety = "Safe"; RiskyCount = 0; ModerateCount = 0; ItemCount = 0 } }
+  3196→
+  3197→        # Color-code the safety badge
+  3198→        $safetyBadge = ""
+  3199→        if ($safetyInfo.Safety -eq "Safe") {
+  3200→            $safetyBadge = "[Safe]"
+  3201→            $badgeColor = "Green"
+  3202→        } elseif ($safetyInfo.Safety -eq "Mixed") {
+  3203→            $riskyCount = $safetyInfo.RiskyCount
+  3204→            $modCount = $safetyInfo.ModerateCount
+  3205→            $safetyBadge = "[Mixed]"
+  3206→            $badgeColor = "Yellow"
+  3207→        } else {
+  3208→            $safetyBadge = "[Safe]"
+  3209→            $badgeColor = "Green"
+  3210→        }
+  3211→
+  3212→        $itemCountStr = "$($safetyInfo.ItemCount) items"
+  3213→        $warningStr = ""
+  3214→        if ($safetyInfo.RiskyCount -gt 0) {
+  3215→            $warningStr = " | $($safetyInfo.RiskyCount) risky"
+  3216→        }
+  3217→        if ($safetyInfo.ModerateCount -gt 0) {
+  3218→            $warningStr += " | $($safetyInfo.ModerateCount) moderate"
+  3219→        }
+  3220→
+  3221→        Write-Host "  $($item.ID.ToString().PadRight(3)) " -NoNewline
+  3222→        Write-Host "$($item.Name.PadRight(22))" -ForegroundColor Cyan -NoNewline
+  3223→        Write-Host " $safetyBadge " -ForegroundColor $badgeColor -NoNewline
+  3224→        Write-Host "$itemCountStr$warningStr" -ForegroundColor DarkGray
+  3225→    }
+  3226→
+  3227→    Write-Host ""
+  3228→    Write-Host "  A   Run ALL safe+moderate (skip risky)" -ForegroundColor Green
+  3229→    Write-Host "  R   Run ALL including risky" -ForegroundColor Yellow
+  3230→    Write-Host "  0   Exit without changes" -ForegroundColor Red
+  3231→    Write-Host ""
+  3232→}
+  3233→
+  3234→function Get-DetailedUserSelection {
+  3235→    # Show section-level menu and get selections
+  3236→    Show-DetailedMenu
+  3237→    $userInput = Read-Host "  Enter section numbers (comma-separated), 'A' for safe+moderate, 'R' for all+risky"
+  3238→
+  3239→    if ($userInput -eq '0') {
+  3240→        Write-Host "  Exiting without changes." -ForegroundColor Yellow
+  3241→        Stop-Transcript | Out-Null
+  3242→        exit 0
+  3243→    }
+  3244→
+  3245→    $allSectionKeys = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
+  3246→                        "Security","Network","WindowsUpdate","DiskCleanup","Winget",
+  3247→                        "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
+  3248→
+  3249→    $selected = @()
+  3250→    if ($userInput.Trim().ToUpper() -eq 'R') {
+  3251→        # Run ALL including risky
+  3252→        $selected = $allSectionKeys
+  3253→        $script:AllowRisky = $true
+  3254→        Write-Host "  Risky settings ENABLED for this run." -ForegroundColor Yellow
+  3255→    } elseif ($userInput.Trim().ToUpper() -eq 'A') {
+  3256→        # Run ALL safe+moderate (skip risky)
+  3257→        $selected = $allSectionKeys
+  3258→        $script:AllowRisky = $false
+  3259→        Write-Host "  Running safe + moderate settings only. Risky settings will be skipped." -ForegroundColor Green
+  3260→    } else {
+  3261→        $numbers = $userInput -split ',' | ForEach-Object { $_.Trim() }
+  3262→        $allSections = @{
+  3263→            '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
+  3264→            '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
+  3265→            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='EdgeHardening'
+  3266→            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches';'18'='WindowsFeatures'
+  3267→        }
+  3268→        foreach ($num in $numbers) {
+  3269→            if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
+  3270→            else { Write-Warn "Invalid selection: $num (skipped)" }
+  3271→        }
+  3272→
+  3273→        # Ask about risky settings
+  3274→        if ($selected.Count -gt 0) {
+  3275→            Write-Host ""
+  3276→            Write-Host "  Enable risky settings for selected sections? (y/N)" -ForegroundColor Yellow
+  3277→            $riskyChoice = Read-Host "  "
+  3278→            if ($riskyChoice -eq 'y' -or $riskyChoice -eq 'Y') {
+  3279→                $script:AllowRisky = $true
+  3280→                Write-Host "  Risky settings ENABLED." -ForegroundColor Yellow
+  3281→            }
+  3282→        }
+  3283→    }
+  3284→
+  3285→    # Show per-setting details for selected sections
+  3286→    if ($selected.Count -gt 0 -and -not $Silent) {
+  3287→        Write-Host ""
+  3288→        Write-Host "  SELECTED SECTIONS:" -ForegroundColor Cyan
+  3289→        Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+  3290→
+  3291→        foreach ($sec in $selected) {
+  3292→            $safetyInfo = $script:SectionSafetyInfo[$sec]
+  3293→            if (-not $safetyInfo) { continue }
+  3294→
+  3295→            $riskyNote = ""
+  3296→            if ($safetyInfo.RiskyCount -gt 0) {
+  3297→                $riskyNote = " (NOTE: $($safetyInfo.RiskyCount) risky items will be $(if ($script:AllowRisky) { 'APPLIED' } else { 'SKIPPED' }))"
+  3298→            }
+  3299→            $modNote = ""
+  3300→            if ($safetyInfo.ModerateCount -gt 0) {
+  3301→                $modNote = " | $($safetyInfo.ModerateCount) moderate warnings"
+  3302→            }
+  3303→            Write-Host "  - $sec : $($safetyInfo.Safety) | $($safetyInfo.ItemCount) items$modNote$riskyNote" -ForegroundColor White
+  3304→        }
+  3305→
+  3306→        # Show risky descriptions if any exist and risky is not enabled
+  3307→        if (-not $script:AllowRisky) {
+  3308→            $totalRiskyInSelected = 0
+  3309→            foreach ($sec in $selected) {
+  3310→                $si = $script:SectionSafetyInfo[$sec]
+  3311→                if ($si) { $totalRiskyInSelected += $si.RiskyCount }
+  3312→            }
+  3313→            if ($totalRiskyInSelected -gt 0) {
+  3314→                Write-Host ""
+  3315→                Write-Host "  RISKY SETTINGS THAT WILL BE SKIPPED (use -AllowRisky to enable):" -ForegroundColor Yellow
+  3316→                Write-Host "  " + ("-" * 60) -ForegroundColor DarkGray
+  3317→
+  3318→                # Show known risky settings per section
+  3319→                $riskyDescriptions = @{
+  3320→                    "Debloat"         = @("Microsoft.WindowsAlarms — Clock/Alarms app (some users rely on this)", "Microsoft.WindowsCamera — Camera app (laptop users need this)")
+  3321→                    "ServiceStartup"  = @("WSearch — Windows Search (breaks Start menu search, Cortana, Office)", "WbioSrvc — Biometrics (breaks Windows Hello fingerprint/face login)")
+  3322→                    "WindowsFeatures" = @("PrintToPDFServicesFeatures — Print to PDF (users often need PDF printing)", "WCF-Services45 — WCF Services (some .NET apps require this)", "Hello-Face-Package — Windows Hello Face (breaks facial recognition)")
+  3323→                }
+  3324→                foreach ($sec in $selected) {
+  3325→                    if ($riskyDescriptions.ContainsKey($sec)) {
+  3326→                        foreach ($desc in $riskyDescriptions[$sec]) {
+  3327→                            Write-Host "    [RISKY] $desc" -ForegroundColor Yellow
+  3328→                        }
+  3329→                    }
+  3330→                }
+  3331→            }
+  3332→        }
+  3333→
+  3334→        Write-Host ""
+  3335→        Write-Host "  Press Enter to proceed, or Ctrl+C to cancel..." -ForegroundColor DarkGray
+  3336→        Read-Host "  "
+  3337→    }
+  3338→
+  3339→    return $selected
+  3340→}
+  3341→
+  3342→#endregion
+  3343→
+  3344→#region ============================================================
+  3345→# MAIN EXECUTION
+  3346→# ============================================================
+  3347→
+  3348→try {
+  3349→    Initialize-Script
+  3350→
+  3351→    # === REMOTE EXECUTION SUPPORT ===
+  3352→    if ($ComputerName -and $ComputerName.Count -gt 0) {
+  3353→        Write-Host ""
+  3354→        Write-Host "  [REMOTE] Executing on remote computers..." -ForegroundColor Cyan
+  3355→        Write-Host ""
+  3356→        foreach ($comp in $ComputerName) {
+  3357→            Write-Step "Connecting to $comp..."
+  3358→            try {
+  3359→                $session = New-PSSession -ComputerName $comp -ErrorAction Stop
+  3360→                Write-Success "Connected to $comp."
+  3361→
+  3362→                # Copy script to remote machine
+  3363→                Write-Step "Copying script to $comp..."
+  3364→                try {
+  3365→                    Invoke-Command -Session $session -ScriptBlock {
+  3366→                        if (-not (Test-Path "C:\Temp")) { New-Item -Path "C:\Temp" -ItemType Directory -Force | Out-Null }
+  3367→                    } -ErrorAction SilentlyContinue
+  3368→                    Copy-Item -Path $PSCommandPath -Destination "C:\Temp\WinPostInstall.ps1" -ToSession $session -Force -ErrorAction Stop
+  3369→                    Write-Success "Script copied to $comp."
+  3370→                } catch {
+  3371→                    Write-Err "Failed to copy script to $comp : $_"
+  3372→                    Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+  3373→                    continue
+  3374→                }
+  3375→
+  3376→                # Invoke script on remote machine
+  3377→                Write-Step "Running WinPostInstall on $comp..."
+  3378→                try {
+  3379→                    $remoteResult = Invoke-Command -Session $session -ScriptBlock {
+  3380→                        & "C:\Temp\WinPostInstall.ps1" -Silent
+  3381→                    } -ErrorAction Stop
+  3382→                    Write-Success "Execution completed on $comp."
+  3383→                } catch {
+  3384→                    Write-Err "Execution failed on $comp : $_"
+  3385→                }
+  3386→
+  3387→                Remove-PSSession -Session $session -ErrorAction SilentlyContinue
+  3388→                Write-Success "Session closed for $comp."
+  3389→            } catch {
+  3390→                Write-Err "Could not connect to $comp : $_"
+  3391→            }
+  3392→        }
+  3393→        Write-Host ""
+  3394→        Write-Success "Remote execution complete."
+  3395→        return
+  3396→    }
+  3397→
+  3398→    # SAFETY FIRST: Enable System Restore (if disabled) and create a restore point
+  3399→    # BEFORE any optimization changes are made
+  3400→    Enable-SystemRestore
+  3401→    New-SystemRestorePoint
+  3402→
+  3403→    $selectedSections = @()
+  3404→    if ($ConfigFile -and (Test-Path $ConfigFile -ErrorAction SilentlyContinue)) {
+  3405→        # Load configuration from JSON file
+  3406→        Write-Step "Loading configuration from: $ConfigFile"
+  3407→        try {
+  3408→            $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+  3409→            if ($config.Sections) {
+  3410→                $selectedSections = @($config.Sections)
+  3411→                Write-Success "Loaded sections from config: $($selectedSections -join ', ')"
+  3412→            }
+  3413→            # Override Winget app list if specified
+  3414→            if ($config.AppList) {
+  3415→                Write-Success "Custom AppList loaded from config ($($config.AppList.Count) apps)."
+  3416→                $script:CustomAppList = $config.AppList
+  3417→            }
+  3418→            # Override bloatware list if specified
+  3419→            if ($config.BloatwareList) {
+  3420→                Write-Success "Custom BloatwareList loaded from config ($($config.BloatwareList.Count) items)."
+  3421→                $script:CustomBloatwareList = $config.BloatwareList
+  3422→            }
+  3423→        } catch {
+  3424→            Write-Err "Failed to load config file: $_"
+  3425→        }
+  3426→    } elseif ($Sections -and $Sections.Count -gt 0) {
+  3427→        $selectedSections = $Sections
+  3428→    } elseif ($Silent) {
+  3429→        $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
+  3430→                              "Security","Network","WindowsUpdate","DiskCleanup","Winget",
+  3431→                              "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
+  3432→        Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
+  3433→        if ($AllowRisky) {
+  3434→            $script:AllowRisky = $true
+  3435→            Write-Host "  Risky settings ENABLED via -AllowRisky flag." -ForegroundColor Yellow
+  3436→        }
+  3437→    } else {
+  3438→        # Interactive mode — use new detailed menu (or simple menu if -SimpleMenu)
+  3439→        if ($SimpleMenu) {
+  3440→            $selectedSections = Get-SimpleUserSelection
+  3441→        } else {
+  3442→            $selectedSections = Get-DetailedUserSelection
+  3443→        }
+  3444→    }
+  3445→
+  3446→    Write-Host ""
+  3447→    Write-Host "  SECTIONS SELECTED:" -ForegroundColor Cyan
+  3448→    foreach ($s in $selectedSections) { Write-Host "    - $s" -ForegroundColor White }
+  3449→    Write-Host ""
+  3450→
+  3451→    # === BEFORE/AFTER SNAPSHOT (start) ===
+  3452→    Write-Step "Taking 'before' snapshot of services and tasks..."
+  3453→    try {
+  3454→        if (-not (Test-Path $script:BackupDir)) { New-Item -Path $script:BackupDir -ItemType Directory -Force | Out-Null }
+  3455→        Get-Service | Select-Object Name, StartType, Status | Export-Csv "$script:BackupDir\Services_Before.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+  3456→        Get-ScheduledTask | Select-Object TaskName, TaskPath, State | Export-Csv "$script:BackupDir\Tasks_Before.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+  3457→        Write-Success "Before snapshots saved to $script:BackupDir"
+  3458→    } catch {
+  3459→        Write-Warn "Could not take before snapshot: $_"
+  3460→    }
+  3461→
+  3462→    $startTime = Get-Date
+  3463→
+  3464→    foreach ($section in $selectedSections) {
+  3465→        # Section timing
+  3466→        $sectionStart = Get-Date
+  3467→        $sectionChangedBefore = $script:TotalChanged
+  3468→        $sectionSkippedBefore = $script:TotalSkipped
+  3469→        $sectionFailedBefore = $script:TotalFailed
+  3470→
+  3471→        switch ($section) {
+  3472→            "Privacy"           { Invoke-PrivacyTweaks }
+  3473→            "Debloat"           { Invoke-Debloat }
+  3474→            "ExplorerUI"        { Invoke-ExplorerUI }
+  3475→            "ServiceStartup"    { Invoke-ServiceStartupOptimization }
+  3476→            "Performance"       { Invoke-PerformanceOptimization }
+  3477→            "Security"          { Invoke-SecurityHardening }
+  3478→            "Network"           { Invoke-NetworkOptimizations }
+  3479→            "WindowsUpdate"     { Invoke-WindowsUpdateConfig }
+  3480→            "DiskCleanup"       { Invoke-DiskCleanup }
+  3481→            "Winget"            { Invoke-WingetInstall }
+  3482→            "OfficeActivation"  { Invoke-OfficeActivation }
+  3483→            "EdgeHardening"     { Invoke-EdgeHardening }
+  3484→            "OneDrive"          { Invoke-OneDriveManagement }
+  3485→            "Gaming"            { Invoke-GamingDisable }
+  3486→            "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
+  3487→            "BrowserHardening"  { Invoke-BrowserHardening }
+  3488→            "FinalTouches"      { Invoke-FinalTouches }
+  3489→            "WindowsFeatures"   { Invoke-WindowsFeaturesRemoval }
+  3490→            default { Write-Warn "Unknown section: $section (skipped)" }
+  3491→        }
+  3492→
+  3493→        $sectionDuration = (Get-Date) - $sectionStart
+  3494→        $script:SectionStats[$section] = @{
+  3495→            Duration = $sectionDuration
+  3496→            Changed = $script:TotalChanged - $sectionChangedBefore
+  3497→            Skipped = $script:TotalSkipped - $sectionSkippedBefore
+  3498→            Failed  = $script:TotalFailed - $sectionFailedBefore
+  3499→        }
+  3500→    }
+  3501→
+  3502→    # === BEFORE/AFTER SNAPSHOT (end) ===
+  3503→    Write-Step "Taking 'after' snapshot of services and tasks..."
+  3504→    try {
+  3505→        Get-Service | Select-Object Name, StartType, Status | Export-Csv "$script:BackupDir\Services_After.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+  3506→        Get-ScheduledTask | Select-Object TaskName, TaskPath, State | Export-Csv "$script:BackupDir\Tasks_After.csv" -NoTypeInformation -ErrorAction SilentlyContinue
+  3507→        Write-Success "After snapshots saved to $script:BackupDir"
+  3508→        Write-Host "  Before/after snapshots saved to $script:BackupDir" -ForegroundColor DarkGray
+  3509→    } catch {
+  3510→        Write-Warn "Could not take after snapshot: $_"
+  3511→    }
+  3512→
+  3513→    $endTime = Get-Date
+  3514→    $duration = $endTime - $startTime
+  3515→
+  3516→    # === SECTION SUMMARY TABLE ===
+  3517→    Write-Host ""
+  3518→    Write-Host "  SECTION SUMMARY:" -ForegroundColor Cyan
+  3519→    Write-Host "  " + ("-" * 70) -ForegroundColor DarkGray
+  3520→    foreach ($sec in $selectedSections) {
+  3521→        if ($script:SectionStats.ContainsKey($sec)) {
+  3522→            $stat = $script:SectionStats[$sec]
+  3523→            $dur = $stat.Duration.ToString('mm\:ss')
+  3524→            $ch = $stat.Changed; $sk = $stat.Skipped; $fa = $stat.Failed
+  3525→            $line = "  {0,-20} | Changed: {1,3} | Skipped: {2,3} | Failed: {3,1} | {4}" -f $sec, $ch, $sk, $fa, $dur
+  3526→            Write-Host $line -ForegroundColor White
+  3527→        }
+  3528→    }
+  3529→    Write-Host "  " + ("-" * 70) -ForegroundColor DarkGray
+  3530→    $totalLine = "  {0,-20} | Changed: {1,3} | Skipped: {2,3} | Failed: {3,1}" -f "TOTAL", $script:TotalChanged, $script:TotalSkipped, $script:TotalFailed
+  3531→    Write-Host $totalLine -ForegroundColor Green
+  3532→    Write-Host ""
+  3533→
+  3534→    Write-Host ""
+  3535→    Write-Host "================================================================" -ForegroundColor Cyan
+  3536→    Write-Host "  OPTIMIZATION COMPLETE" -ForegroundColor Green
+  3537→    Write-Host "  Duration: $($duration.ToString('hh\:mm\:ss'))" -ForegroundColor White
+  3538→    Write-Host "  Sections run: $($selectedSections.Count)" -ForegroundColor White
+  3539→    Write-Host "  Changes: $($script:TotalChanged) | Skipped: $($script:TotalSkipped) | Failed: $($script:TotalFailed)" -ForegroundColor White
+  3540→    Write-Host "  Log saved to: $LogFile" -ForegroundColor DarkGray
+  3541→    Write-Host "================================================================" -ForegroundColor Cyan
+  3542→    Write-Host ""
+  3543→
+  3544→    if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation")) {
+  3545→        Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
+  3546→        Write-Host ""
+  3547→        if (-not $Silent) {
+  3548→            $restart = Read-Host "  Restart now? (y/N)"
+  3549→            if ($restart -eq 'y' -or $restart -eq 'Y') {
+  3550→                Write-Host "  Restarting in 10 seconds..." -ForegroundColor Yellow
+  3551→                Restart-Computer -Force -Delay 10
+  3552→            }
+  3553→        }
+  3554→    }
+  3555→
+  3556→} catch {
+  3557→    Write-Host ""
+  3558→    Write-Host "================================================================" -ForegroundColor Red
+  3559→    Write-Host "  UNEXPECTED ERROR" -ForegroundColor Red
+  3560→    Write-Host "================================================================" -ForegroundColor Red
+  3561→    Write-Host "  $($_.Exception.Message)" -ForegroundColor Yellow
+  3562→    Write-Host "  Line: $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor Yellow
+  3563→    Write-Host "  Command: $($_.InvocationInfo.Line.Trim())" -ForegroundColor DarkGray
+  3564→    Write-Host ""
+  3565→    Write-Host "  Check the log file for details: $LogFile" -ForegroundColor DarkGray
+  3566→    Write-Host "================================================================" -ForegroundColor Red
+  3567→    Write-Host ""
+  3568→} finally {
+  3569→    # Generate undo script
+  3570→    if ($script:UndoCommands -and $script:UndoCommands.Count -gt 0) {
+  3571→        $undoPath = Join-Path (Split-Path $PSCommandPath -Parent) "WinPostInstall-Undo.ps1"
+  3572→        try {
+  3573→            $undoHeader = @(
+  3574→                "<#",
+  3575→                ".SYNOPSIS",
+  3576→                "    Undo script for WinPostInstall v$ScriptVersion",
+  3577→                ".DESCRIPTION",
+  3578→                "    Generated automatically. Run this to revert registry and scheduled task changes.",
+  3579→                "    NOTE: AppX package removals cannot be undone automatically.",
+  3580→                "#>"
+  3581→                "",
+  3582→                "# Requires Administrator",
+  3583→                "if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {",
+  3584→                "    Write-Host 'This script requires Administrator privileges.' -ForegroundColor Red",
+  3585→                "    exit 1",
+  3586→                "}"
+  3587→                ""
+  3588→            )
+  3589→            $undoContent = $undoHeader + $script:UndoCommands
+  3590→            Set-Content -Path $undoPath -Value $undoContent -Encoding UTF8 -Force
+  3591→            Write-Host "  Undo script saved to: $undoPath" -ForegroundColor Green
+  3592→        } catch {
+  3593→            Write-Warn "Could not write undo script: $_"
+  3594→        }
+  3595→    }
+  3596→
+  3597→    try { Stop-Transcript | Out-Null } catch { }
+  3598→    Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+  3599→    Read-Host "  "
+  3600→}
+  3601→
+  3602→#endregion
+  3603→

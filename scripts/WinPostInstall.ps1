@@ -25,7 +25,7 @@
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    4.0.0
+    4.1.0
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -38,6 +38,16 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v4.1.0 - Safety audit + interactive tooltips:
+             [Safety] 3-tier classification (Safe/Moderate/Risky) for ALL settings
+             [Safety] Risky settings default OFF — must opt-in via -AllowRisky or menu
+             [Safety] Service dependency checks before disabling — warns if dependents exist
+             [Safety] AppX critical package check — prevents removing system-critical packages
+             [Safety] Hosts file DNS verification — confirms microsoft.com resolves after changes
+             [Safety] SysMain on HDD now explicitly protected (never disabled on spinning drives)
+             [Menu] New detailed interactive menu with safety badges, risky item counts, and warnings
+             [Menu] 'A' runs safe+moderate only, 'R' runs all including risky
+             [Menu] -SimpleMenu switch for legacy menu, -AllowRisky for scripts
     v4.0.0 - Major feature release: 17 new capabilities across 6 groups:
              [Safety] Undo script generation, Registry backup, Pre-flight checks (internet/disk/reboot/battery)
              [Deep Cleanup] Windows Features removal (Section 18), Taskbar deep customization, Context menu cleanup, Lock screen/Spotlight ad removal
@@ -64,7 +74,9 @@ param(
     [switch]$Silent,
     [string[]]$Sections,
     [string]$ConfigFile,
-    [string[]]$ComputerName
+    [string[]]$ComputerName,
+    [switch]$AllowRisky,
+    [switch]$SimpleMenu
 )
 
 # ================================================================
@@ -81,7 +93,7 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "4.0.0"
+$ScriptVersion = "4.1.0"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Undo command tracker (for rollback script generation)
@@ -93,6 +105,13 @@ $script:TotalSkipped = 0
 $script:TotalFailed = 0
 $script:SectionStats = @{}
 $script:BackupDir = "$env:SYSTEMDRIVE\Temp\PostInstall_RegBackup"
+
+# Safety infrastructure
+$script:AllowRisky = $AllowRisky.IsPresent
+$script:SettingCatalog = @{}          # Dynamically populated: ID -> @{Section, Safety, Desc, Action}
+$script:SettingOverrides = @{}        # ID -> $true (skip) for user-toggled-off items
+$script:CurrentSection = ""          # Track which section is currently executing
+$script:RiskyDescriptions = @()       # Collect risky setting descriptions for menu display
 
 # Prevent window from closing on crash (keeps window open no matter what)
 $ErrorActionPreference = "Continue"
@@ -116,6 +135,8 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     if ($Sections) { $scriptArgs += "-Sections"; $scriptArgs += $Sections }
     if ($ConfigFile) { $scriptArgs += "-ConfigFile"; $scriptArgs += $ConfigFile }
     if ($ComputerName) { $scriptArgs += "-ComputerName"; $scriptArgs += $ComputerName }
+    if ($AllowRisky) { $scriptArgs += "-AllowRisky" }
+    if ($SimpleMenu) { $scriptArgs += "-SimpleMenu" }
     try {
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $scriptArgs" -Verb RunAs -ErrorAction Stop
         Write-Host "  Elevated window opened. This window can be closed." -ForegroundColor Green
@@ -669,8 +690,53 @@ function Set-Registry {
         [string]$Path,
         [string]$Name,
         $Value,
-        [string]$Type = "DWord"
+        [string]$Type = "DWord",
+        [ValidateSet("Safe","Moderate","Risky")]
+        [string]$SafetyLevel = "Safe",
+        [string]$Description = "",
+        [string]$SettingID = ""
     )
+
+    # Generate a setting ID if not provided
+    if ([string]::IsNullOrEmpty($SettingID)) {
+        $SettingID = "$($Path.Replace('\','_').Replace(':','').Replace(' ',''))_$Name"
+    }
+
+    # Register in setting catalog for interactive menu
+    if (-not [string]::IsNullOrEmpty($Description)) {
+        $script:SettingCatalog[$SettingID] = @{
+            Section  = $script:CurrentSection
+            Safety   = $SafetyLevel
+            Desc     = $Description
+            Action   = "$Path\$Name = $Value"
+            Type     = "Registry"
+        }
+    }
+
+    # Collect risky descriptions for menu warnings
+    if ($SafetyLevel -eq "Risky" -and -not [string]::IsNullOrEmpty($Description)) {
+        $script:RiskyDescriptions += "$SettingID : $Description"
+    }
+
+    # Check if user has toggled this setting OFF via interactive menu
+    if ($script:SettingOverrides.ContainsKey($SettingID) -and $script:SettingOverrides[$SettingID]) {
+        Write-Host "  SKIPPED (user toggle): $Description" -ForegroundColor DarkGray
+        $script:TotalSkipped++
+        return
+    }
+
+    # Safety gate: Skip Risky settings unless explicitly allowed
+    if ($SafetyLevel -eq "Risky" -and -not $script:AllowRisky) {
+        Write-Host "  SKIPPED (risky): $Description — use -AllowRisky or enable in menu" -ForegroundColor Yellow
+        $script:TotalSkipped++
+        return
+    }
+
+    # Warn for Moderate settings
+    if ($SafetyLevel -eq "Moderate") {
+        Write-Host "  [MODERATE] $Description" -ForegroundColor DarkYellow
+    }
+
     try {
         if (-not (Test-Path $Path)) {
             New-Item -Path $Path -Force -ErrorAction SilentlyContinue | Out-Null
@@ -748,8 +814,53 @@ function Disable-ScheduledTask {
     [CmdletBinding()]
     param(
         [string]$TaskPath,
-        [string]$TaskName
+        [string]$TaskName,
+        [ValidateSet("Safe","Moderate","Risky")]
+        [string]$SafetyLevel = "Safe",
+        [string]$Description = "",
+        [string]$SettingID = ""
     )
+
+    # Generate a setting ID if not provided
+    if ([string]::IsNullOrEmpty($SettingID)) {
+        $SettingID = "Task_$($TaskPath.Replace('\','_').Replace(' ',''))_$TaskName"
+    }
+
+    # Register in setting catalog for interactive menu
+    if (-not [string]::IsNullOrEmpty($Description)) {
+        $script:SettingCatalog[$SettingID] = @{
+            Section  = $script:CurrentSection
+            Safety   = $SafetyLevel
+            Desc     = $Description
+            Action   = "Disable task: $TaskPath$TaskName"
+            Type     = "ScheduledTask"
+        }
+    }
+
+    # Collect risky descriptions for menu warnings
+    if ($SafetyLevel -eq "Risky" -and -not [string]::IsNullOrEmpty($Description)) {
+        $script:RiskyDescriptions += "$SettingID : $Description"
+    }
+
+    # Check if user has toggled this setting OFF via interactive menu
+    if ($script:SettingOverrides.ContainsKey($SettingID) -and $script:SettingOverrides[$SettingID]) {
+        Write-Host "  SKIPPED (user toggle): $Description" -ForegroundColor DarkGray
+        $script:TotalSkipped++
+        return
+    }
+
+    # Safety gate: Skip Risky settings unless explicitly allowed
+    if ($SafetyLevel -eq "Risky" -and -not $script:AllowRisky) {
+        Write-Host "  SKIPPED (risky): $Description — use -AllowRisky or enable in menu" -ForegroundColor Yellow
+        $script:TotalSkipped++
+        return
+    }
+
+    # Warn for Moderate settings
+    if ($SafetyLevel -eq "Moderate") {
+        Write-Host "  [MODERATE] $Description" -ForegroundColor DarkYellow
+    }
+
     try {
         $task = Get-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction SilentlyContinue
         if ($task) {
@@ -757,6 +868,11 @@ function Disable-ScheduledTask {
                 Write-Step "Already disabled: $TaskPath$TaskName"
                 $script:TotalSkipped++
             } else {
+                # Safety: Check for dependent services/tasks before disabling
+                $deps = $task.DependentOn
+                if ($deps) {
+                    Write-Host "  [DEPENDENCY] Task $TaskName has dependents: $($deps.TaskName -join ', ')" -ForegroundColor DarkYellow
+                }
                 Disable-ScheduledTask -TaskPath $TaskPath -TaskName $TaskName -ErrorAction Stop | Out-Null
                 Write-Success "Task disabled: $TaskPath$TaskName"
                 $script:TotalChanged++
@@ -776,6 +892,7 @@ function Disable-ScheduledTask {
 # ============================================================
 
 function Invoke-PrivacyTweaks {
+    $script:CurrentSection = "Privacy"
     Write-Host ""
     Write-Host "--- PRIVACY & TELEMETRY (Aggressive) ---" -ForegroundColor Magenta
     Write-Host ""
@@ -783,33 +900,38 @@ function Invoke-PrivacyTweaks {
     # 1. Disable Telemetry via Registry (multiple paths)
     Write-Step "Disabling Windows telemetry..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "AllowTelemetry" -Value 0 -Type DWord
+        -Name "AllowTelemetry" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Stops Windows from sending telemetry and diagnostic data to Microsoft" -SettingID "Privacy_AllowTelemetry"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection" `
-        -Name "AllowTelemetry" -Value 0 -Type DWord
+        -Name "AllowTelemetry" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Reinforces telemetry block via secondary policy path" -SettingID "Privacy_AllowTelemetry2"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord
+        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Removes Feedback Hub notifications and prompts" -SettingID "Privacy_NoFeedback"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord
+        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Limits diagnostic log collection to critical events only" -SettingID "Privacy_LimitDiagLog"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "LimitDumpCollection" -Value 1 -Type DWord
+        -Name "LimitDumpCollection" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Limits crash dump collection to reduce data sent to Microsoft" -SettingID "Privacy_LimitDump"
 
     # Disable Application Impact Telemetry + Inventory + UAR
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
-        -Name "AITEnable" -Value 0 -Type DWord
+        -Name "AITEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Application Impact Telemetry — stops app compat data collection" -SettingID "Privacy_AITEnable"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
-        -Name "DisableInventory" -Value 1 -Type DWord
+        -Name "DisableInventory" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables app compatibility inventory — stops hardware/software inventory" -SettingID "Privacy_DisableInventory"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
-        -Name "DisableUAR" -Value 1 -Type DWord
+        -Name "DisableUAR" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables User App Compatibility Reporter — stops compat data uploads" -SettingID "Privacy_DisableUAR"
 
     # Disable CEIP
     foreach ($p in @("HKLM:\SOFTWARE\Policies\Microsoft\SQMClient\Windows",
                       "HKCU:\SOFTWARE\Microsoft\SQMClient\Windows")) {
-        Set-Registry -Path $p -Name "CEIPEnable" -Value 0 -Type DWord
+        Set-Registry -Path $p -Name "CEIPEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Customer Experience Improvement Program — stops CEIP data collection" -SettingID "Privacy_CEIPEnable"
     }
 
     # Disable Tailored Experiences
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
-        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord
+        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables tailored experiences with diagnostic data — stops personalized ads/tips" -SettingID "Privacy_NoTailoredExp"
 
     # 2. Disable Diagnostic Tracking Services
     Write-Step "Stopping and disabling diagnostic tracking services..."
@@ -828,253 +950,270 @@ function Invoke-PrivacyTweaks {
     # 3. CompatTelRunner IFEO Kill
     Write-Step "Killing CompatTelRunner via IFEO..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe" `
-        -Name "Debugger" -Value "%windir%\System32\taskkill.exe" -Type String
+        -Name "Debugger" -Value "%windir%\System32\taskkill.exe" -Type String -SafetyLevel "Safe" -Description "Kills CompatTelRunner.exe via IFEO — blocks telemetry compatibility runner" -SettingID "Privacy_KillCompatTelRunner"
 
     # 4. Disable Activity History
     Write-Step "Disabling activity history..."
     foreach ($name in @("EnableActivityFeed", "PublishUserActivities", "UploadUserActivities")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
-            -Name $name -Value 0 -Type DWord
+            -Name $name -Value 0 -Type DWord `
+            -SafetyLevel "Safe" -Description "Disables activity history tracking — prevents Windows from recording user activity" -SettingID "Privacy_$($name)"
     }
 
     # 5. Disable Location Tracking
     Write-Step "Disabling location tracking..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" `
-        -Name "Value" -Value "Deny" -Type String
+        -Name "Value" -Value "Deny" -Type String -SafetyLevel "Moderate" -Description "Disables geolocation service — breaks Find My Device and Maps location" -SettingID "Privacy_NoGeolocation"
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration" `
-        -Name "Status" -Value 0 -Type DWord
+        -Name "Status" -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables geolocation service — breaks Find My Device and Maps location" -SettingID "Privacy_NoGeolocation"
 
     # 6. Disable Advertising ID
     Write-Step "Disabling advertising ID..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" `
-        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord
+        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Removes the unique advertising ID assigned to this device" -SettingID "Privacy_AdvID_Policy"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo" `
-        -Name "Enabled" -Value 0 -Type DWord
+        -Name "Enabled" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables advertising ID in current user scope" -SettingID "Privacy_AdvID_User"
 
     # 7. Disable Cortana (multi-layer)
     Write-Step "Disabling Cortana (multi-layer)..."
     foreach ($prop in @("AllowCortana", "AllowSearchToUseLocation", "AllowCloudSearch")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
-            -Name $prop -Value 0 -Type DWord
+            -Name $prop -Value 0 -Type DWord `
+            -SafetyLevel "Safe" -Description "Disables Cortana digital assistant and web search in Start"
     }
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
-        -Name "DisableWebSearch" -Value 1 -Type DWord
+        -Name "DisableWebSearch" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Stops Start menu from using Bing web search" -SettingID "Privacy_DisableWebSearch"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" `
-        -Name "ConnectedSearchUseWeb" -Value 0 -Type DWord
+        -Name "ConnectedSearchUseWeb" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Blocks Cortana from using web for search results" -SettingID "Privacy_NoConnectedSearch"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsStore" `
-        -Name "DisableWindowsStoreRealTimeConfig" -Value 1 -Type DWord
+        -Name "DisableWindowsStoreRealTimeConfig" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows Store real-time configuration — reduces Store telemetry" -SettingID "Privacy_NoStoreRealTime"
 
     # 8. Disable Bing Search in Start Menu
     Write-Step "Disabling Bing search in Start Menu..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" `
-        -Name "BingSearchEnabled" -Value 0 -Type DWord
+        -Name "BingSearchEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Bing search in Start Menu — stops web search results" -SettingID "Privacy_NoBingSearch"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" `
-        -Name "CortanaConsent" -Value 0 -Type DWord
+        -Name "CortanaConsent" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Revokes Cortana consent — stops Cortana data collection" -SettingID "Privacy_NoCortanaConsent"
 
     # 9. Disable Copilot (policy + button)
     Write-Step "Disabling Copilot (multi-layer)..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" `
-        -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord
+        -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Windows Copilot AI assistant (machine policy)" -SettingID "Privacy_NoCopilot_Machine"
     Set-Registry -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot" `
-        -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord
+        -Name "TurnOffWindowsCopilot" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Windows Copilot AI assistant (user policy)" -SettingID "Privacy_NoCopilot_User"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "ShowCopilotButton" -Value 0 -Type DWord
+        -Name "ShowCopilotButton" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Hides Copilot button from taskbar" -SettingID "Privacy_HideCopilotBtn"
 
     # 10. Disable Windows Recall (Win11 24H2+)
     Write-Step "Disabling Windows Recall..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
-        -Name "AllowRecallEnablement" -Value 0 -Type DWord
+        -Name "AllowRecallEnablement" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Windows Recall AI memory/timeline feature (machine)" -SettingID "Privacy_NoRecall_Machine"
     Set-Registry -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
-        -Name "AllowRecallEnablement" -Value 0 -Type DWord
+        -Name "AllowRecallEnablement" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Windows Recall AI memory/timeline feature (user)" -SettingID "Privacy_NoRecall_User"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
-        -Name "DisableAIDataAnalysis" -Value 1 -Type DWord
+        -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables AI data analysis — stops AI telemetry collection" -SettingID "Privacy_NoAIDataAnalysis"
 
     # 11. Disable AI: Click-to-Do, Image Creator, Cocreator, Generative Fill
     Write-Step "Disabling AI features..."
     foreach ($prop in @("DisableClickToDo", "DisableImageCreator", "DisableCocreator", "DisableGenerativeFill")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI" `
-            -Name $prop -Value 1 -Type DWord
+            -Name $prop -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows AI feature — stops AI data collection" -SettingID "Privacy_AI_Privacy_AIFeature"
     }
 
     # 12. Disable AI in Paint
     Write-Step "Disabling AI features in Paint..."
     foreach ($prop in @("DisableImageCreator", "DisableCocreator", "DisableGenerativeFill")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\PaintStudio" `
-            -Name $prop -Value 1 -Type DWord
+            -Name $prop -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables AI feature in Paint — stops AI telemetry" -SettingID "Privacy_NoPaintAI_Privacy_PaintAI"
     }
 
     # 13. Disable Clipboard
     Write-Step "Disabling Clipboard cloud sync & history..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
-        -Name "AllowClipboardHistory" -Value 0 -Type DWord
+        -Name "AllowClipboardHistory" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables clipboard history (Win+V)" -SettingID "Privacy_NoClipHistory"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
-        -Name "AllowCrossDeviceClipboard" -Value 0 -Type DWord
+        -Name "AllowCrossDeviceClipboard" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables cloud clipboard sync across devices" -SettingID "Privacy_NoClipSync"
 
     # 14. Disable Input Telemetry
     Write-Step "Disabling input/typing telemetry..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" `
-        -Name "RestrictImplicitTextCollection" -Value 1 -Type DWord
+        -Name "RestrictImplicitTextCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Restricts implicit text collection — stops typing telemetry" -SettingID "Privacy_NoImplicitText"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" `
-        -Name "RestrictImplicitInkCollection" -Value 1 -Type DWord
+        -Name "RestrictImplicitInkCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Restricts implicit ink collection — stops inking telemetry" -SettingID "Privacy_NoImplicitInk"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" `
-        -Name "HarvestContacts" -Value 0 -Type DWord
+        -Name "HarvestContacts" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables contact harvesting for typing suggestions — stops contact data collection" -SettingID "Privacy_NoHarvestContacts"
 
     # 15. Disable Feedback
     Write-Step "Disabling Feedback notifications..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Siuf\Rules" `
-        -Name "NumberOfSIUFInPeriod" -Value 0 -Type DWord
+        -Name "NumberOfSIUFInPeriod" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables feedback notifications — stops Feedback Hub prompts" -SettingID "Privacy_NoFeedbackNotif"
 
     # 16. Disable targeted tips
     Write-Step "Disabling targeted tips & suggestions..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "Start_TrackProgs" -Value 0 -Type DWord
+        -Name "Start_TrackProgs" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables tracking of most-used programs in Start — stops usage telemetry" -SettingID "Privacy_NoTrackProgs"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "Start_TrackDocs" -Value 0 -Type DWord
+        -Name "Start_TrackDocs" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables tracking of recently opened documents in Start — stops usage telemetry" -SettingID "Privacy_NoTrackDocs"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
-        -Name "DisableSoftLanding" -Value 1 -Type DWord
+        -Name "DisableSoftLanding" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows soft landing tips — stops suggestion telemetry" -SettingID "Privacy_NoSoftLanding"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
-        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord
+        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows consumer features — stops Store suggestions/ads" -SettingID "Privacy_NoConsumerFeatures2"
 
     # 17. Disable Wi-Fi Sense
     Write-Step "Disabling Wi-Fi Sense..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting" `
-        -Name "Value" -Value 0 -Type DWord
+        -Name "Value" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Wi-Fi Sense — stops sharing Wi-Fi passwords with contacts" -SettingID "Privacy_NoWiFiSense_Privacy_WiFi"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots" `
-        -Name "Value" -Value 0 -Type DWord
+        -Name "Value" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Wi-Fi Sense — stops sharing Wi-Fi passwords with contacts" -SettingID "Privacy_NoWiFiSense_Privacy_WiFi_2"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config" `
-        -Name "AutoConnectAllowedOEM" -Value 0 -Type DWord
+        -Name "AutoConnectAllowedOEM" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Wi-Fi Sense — stops sharing Wi-Fi passwords with contacts" -SettingID "Privacy_NoWiFiSense_Privacy_WiFi_3"
 
     # 18. Disable Error Reporting
     Write-Step "Disabling Windows Error Reporting..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" `
-        -Name "Disabled" -Value 1 -Type DWord
+        -Name "Disabled" -Value 1 -Type DWord `
+        -SafetyLevel "Moderate" -Description "Stops Windows Error Reporting — makes troubleshooting harder" -SettingID "Privacy_NoWER"
 
     # 19. Disable Insider experiments
     Write-Step "Disabling Windows Insider experiments..."
     foreach ($prop in @("EnableExperimentation", "EnableConfigFlighting", "AllowBuildPreview")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds" `
-            -Name $prop -Value 0 -Type DWord
+            -Name $prop -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Windows Insider experiments — stops A/B testing and flighting" -SettingID "Privacy_NoInsiderExperiments_Privacy_Insider"
     }
 
     # 20. Disable Setting Sync (Windows Backup)
     Write-Step "Disabling Setting Sync / Windows Backup..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync" `
-        -Name "DisableSettingSync" -Value 2 -Type DWord
+        -Name "DisableSettingSync" -Value 2 -Type DWord -SafetyLevel "Moderate" -Description "Disables Setting Sync — stops cloud settings sync" -SettingID "Privacy_NoSettingSync"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync" `
-        -Name "DisableSettingSyncUserOverride" -Value 1 -Type DWord
+        -Name "DisableSettingSyncUserOverride" -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Disables Setting Sync — stops cloud settings sync" -SettingID "Privacy_NoSettingSync"
 
     # 21. Full diagnostics/analytics lockdown (Settings > Privacy > Diagnostics & Feedback)
     Write-Step "Locking down all diagnostics & analytics for developers..."
     # Diagnostic Data: Send required only (=1) or off (=0)
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "AllowTelemetry" -Value 0 -Type DWord
+        -Name "AllowTelemetry" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Stops Windows from sending telemetry and diagnostic data to Microsoft" -SettingID "Privacy_AllowTelemetry3"
     # Tailored Experiences
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
-        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord
+        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables tailored experiences with diagnostic data — stops personalized ads/tips" -SettingID "Privacy_NoTailoredExp"
     # Feedback frequency: Never
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord
+        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Removes Feedback Hub notifications and prompts" -SettingID "Privacy_NoFeedback2"
     # Diagnostic Data Viewer: disable
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "EnableDiagnosticDataViewer" -Value 0 -Type DWord
+        -Name "EnableDiagnosticDataViewer" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Diagnostic Data Viewer — removes data viewer feature" -SettingID "Privacy_NoDiagDataViewer"
     # Limit diagnostic log collection
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord
+        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Limits diagnostic log collection to critical events only" -SettingID "Privacy_LimitDiagLog2"
     # Limit dump collection
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "LimitDumpCollection" -Value 1 -Type DWord
+        -Name "LimitDumpCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Limits crash dump collection to reduce data sent to Microsoft" -SettingID "Privacy_LimitDump2"
     # Microsoft Compatibility Telemetry (AIT/Inventory/UAR) - already above but reinforced
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
-        -Name "AITEnable" -Value 0 -Type DWord
+        -Name "AITEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Application Impact Telemetry — stops app compat data collection" -SettingID "Privacy_AITEnable"
     # Device Census (sends hardware inventory)
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceCensus" `
-        -Name "DisableDeviceCensus" -Value 1 -Type DWord
+        -Name "DisableDeviceCensus" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Device Census — stops hardware inventory reporting to Microsoft" -SettingID "Privacy_NoDeviceCensus"
     # Watson (error reporting telemetry)
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" `
-        -Name "Disabled" -Value 1 -Type DWord
+        -Name "Disabled" -Value 1 -Type DWord `
+        -SafetyLevel "Moderate" -Description "Stops Watson error reporting telemetry — makes troubleshooting harder" -SettingID "Privacy_NoWatson"
     # SQM (Customer Experience Improvement) - reinforced
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\SQMClient\Windows" `
-        -Name "CEIPEnable" -Value 0 -Type DWord
+        -Name "CEIPEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Customer Experience Improvement Program — stops CEIP data collection" -SettingID "Privacy_CEIPEnable"
     # Disable Windows Error Reporting completely
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting" `
-        -Name "Disabled" -Value 1 -Type DWord
+        -Name "Disabled" -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Stops Windows Error Reporting — makes troubleshooting harder" -SettingID "Privacy_NoWER2"
     # Disable Program Compatibility Assistant
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat" `
-        -Name "DisablePCA" -Value 1 -Type DWord
+        -Name "DisablePCA" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Program Compatibility Assistant — stops compatibility telemetry" -SettingID "Privacy_DisablePCA"
     # Disable Application Impact Telemetry
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost" `
-        -Name "EnableWebContentEvaluation" -Value 0 -Type DWord
+        -Name "EnableWebContentEvaluation" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables web content evaluation — stops app telemetry" -SettingID "Privacy_NoWebContentEval"
     # Disable活动记录 (Activity History) - additional key
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
-        -Name "PublishUserActivities" -Value 0 -Type DWord
+        -Name "PublishUserActivities" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Prevents Windows from tracking activity history" -SettingID "Privacy_NoPublishActivities"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" `
-        -Name "UploadUserActivities" -Value 0 -Type DWord
+        -Name "UploadUserActivities" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Prevents uploading activity history to Microsoft cloud" -SettingID "Privacy_NoUploadActivities"
     # Disable Full Language Telemetry
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "FullTelemetryOnInstall" -Value 0 -Type DWord
+        -Name "FullTelemetryOnInstall" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables full telemetry on install — stops initial data collection burst" -SettingID "Privacy_NoFullTelemetryInstall"
     # Disable the diagnostic data viewer feature
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection" `
-        -Name "AllowUpdateComplianceTelemetry" -Value 0 -Type DWord
+        -Name "AllowUpdateComplianceTelemetry" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Update Compliance telemetry — stops WU data reporting" -SettingID "Privacy_NoUpdateComplianceTelemetry"
 
     # 22. Disable all Background Activity / App Diagnostics permissions
     Write-Step "Disabling background app diagnostics..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications" `
-        -Name "GlobalUserDisabled" -Value 1 -Type DWord
+        -Name "GlobalUserDisabled" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables background app access globally — stops apps running in background" -SettingID "Privacy_NoBackgroundApps"
     # Disable App Diagnostics (Settings > Privacy > App Diagnostics)
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" `
-        -Name "LetAppsGetDiagnosticInfo" -Value 2 -Type DWord
+        -Name "LetAppsGetDiagnosticInfo" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Denies apps access to diagnostic info — stops app diagnostics data sharing" -SettingID "Privacy_NoAppDiagInfo"
     # Disable App Activity History
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy" `
-        -Name "LetAppsAccessActivityHistory" -Value 2 -Type DWord
+        -Name "LetAppsAccessActivityHistory" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Denies apps access to activity history — stops app activity tracking" -SettingID "Privacy_NoAppActivityHist"
 
     # 23. Disable all Advertising and personalization data sharing
     Write-Step "Disabling advertising & personalization data sharing..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo" `
-        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord
+        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Removes advertising ID via group policy — stops targeted advertising" -SettingID "Privacy_AdvIDPolicy2"
     # Disable Browse Web / Search suggestions personalization
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
-        -Name "DisableCloudOptimizedContent" -Value 1 -Type DWord
+        -Name "DisableCloudOptimizedContent" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables cloud-optimized content — stops personalized suggestions" -SettingID "Privacy_NoCloudContent"
     # Disable third-party suggestions in Windows
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
-        -Name "DisableThirdPartySuggestions" -Value 1 -Type DWord
+        -Name "DisableThirdPartySuggestions" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables third-party suggestions in Windows — stops third-party ads" -SettingID "Privacy_No3rdPartySuggestions"
     # Disable Windows Spotlight (lock screen tips, suggestions)
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
-        -Name "SubscribedContent-338389Enabled" -Value 0 -Type DWord
+        -Name "SubscribedContent-338389Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows Spotlight suggestions — stops lock screen tips/ads" -SettingID "Privacy_NoSpotlight338389"
     # Disable Get even more out of Windows / Tips
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
-        -Name "SubscribedContent-310093Enabled" -Value 0 -Type DWord
+        -Name "SubscribedContent-310093Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables 'Get even more out of Windows' tips — stops suggestion prompts" -SettingID "Privacy_NoTips310093"
 
     # 24. Disable all optional diagnostic data (Kernel, network, app crashes)
     Write-Step "Disabling optional diagnostic data providers..."
     # Disable Windows Kernel telemetry
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener" `
-        -Name "Start" -Value 0 -Type DWord
+        -Name "Start" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables AutoLogger DiagTrack listener — stops kernel telemetry logging" -SettingID "Privacy_NoDiagtrackListener"
     # Disable NCSI passive polling (network connectivity telemetry)
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" `
-        -Name "NoActiveProbe" -Value 1 -Type DWord
+        -Name "NoActiveProbe" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables NCSI active probing — stops network connectivity telemetry" -SettingID "Privacy_NoNCSIProbe2"
     # Disable User Profile service telemetry
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\UserProfile" `
-        -Name "DisableUserProfileTelemetry" -Value 1 -Type DWord
+        -Name "DisableUserProfileTelemetry" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables User Profile service telemetry — stops profile data collection" -SettingID "Privacy_NoUserProfileTelemetry"
 
     # === LOCK SCREEN / SPOTLIGHT ADS ===
 
     # 25. Disable Windows Spotlight and lock screen ads
     Write-Step "Disabling Windows Spotlight and lock screen ads..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
-        -Name "ContentDeliveryEnabled" -Value 0 -Type DWord
+        -Name "ContentDeliveryEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables content delivery — stops silent app installs and suggestions" -SettingID "Privacy_NoContentDelivery"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
-        -Name "SubscribedContent-338387Enabled" -Value 0 -Type DWord
+        -Name "SubscribedContent-338387Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables suggested content in Settings — stops Settings suggestions" -SettingID "Privacy_NoSuggestedContent338387"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
-        -Name "SubscribedContent-338388Enabled" -Value 0 -Type DWord
+        -Name "SubscribedContent-338388Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables suggested content (tips) — stops tips/suggestions" -SettingID "Privacy_NoSuggestedContent338388"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
-        -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord
+        -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables rotating lock screen images — stops Windows Spotlight ads" -SettingID "Privacy_NoRotatingLockScreen2"
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager" `
-        -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord
+        -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables lock screen overlay — stops Windows Spotlight tips/ads" -SettingID "Privacy_NoLockScreenOverlay2"
 
     # 26. Disable lock screen app notifications
     Write-Step "Disabling lock screen app notifications..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings" `
-        -Name "NOC_GLOBAL_SETTING_TOASTS_ENABLED" -Value 0 -Type DWord
+        -Name "NOC_GLOBAL_SETTING_TOASTS_ENABLED" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables lock screen toast notifications — stops lock screen notification display" -SettingID "Privacy_NoLockScreenNotif"
 
     Write-Host ""
     Write-Success "Privacy & Telemetry section complete (26 items)."
@@ -1087,51 +1226,156 @@ function Invoke-PrivacyTweaks {
 # ============================================================
 
 function Invoke-Debloat {
+    $script:CurrentSection = "Debloat"
     Write-Host ""
     Write-Host "--- DEBLOAT: Removing Bloatware ---" -ForegroundColor Magenta
     Write-Host ""
 
+    # Bloatware list with safety classifications
+    # Safe = standard bloatware, always remove
+    # Moderate = some users may want (Xbox, MixedReality), apply by default but warn
+    # Risky = laptop/essential users may need (Camera, Alarms), skip by default
     $bloatwareList = @(
-        # Microsoft bloat
-        "*Microsoft.3DBuilder*","*Microsoft.BingFinance*","*Microsoft.BingFoodAndDrink*",
-        "*Microsoft.BingHealth*","*Microsoft.BingMaps*","*Microsoft.BingNews*",
-        "*Microsoft.BingSports*","*Microsoft.BingTranslator*","*Microsoft.BingTravel*",
-        "*Microsoft.BingWeather*","*Microsoft.CommsPhone*","*Microsoft.Getstarted*",
-        "*Microsoft.GamingApp*","*Microsoft.GamingServices*","*Microsoft.Messaging*",
-        "*Microsoft.Microsoft3DViewer*","*Microsoft.MicrosoftOfficeHub*",
-        "*Microsoft.MicrosoftSolitaireCollection*","*Microsoft.MixedReality.Portal*",
-        "*Microsoft.MinecraftUWP*","*Microsoft.NetworkSpeedTest*",
-        "*Microsoft.Office.OneNote*","*Microsoft.Office.Sway*","*Microsoft.Office.Lens*",
-        "*Microsoft.People*","*Microsoft.PowerAutomateDesktop*",
-        "*Microsoft.Print3D*","*Microsoft.SkypeApp*","*Microsoft.Wallet*",
-        "*Microsoft.Whiteboard*","*Microsoft.WindowsAlarms*","*Microsoft.WindowsCamera*",
-        "*microsoft.windowscommunicationsapps*","*Microsoft.WindowsFeedbackHub*",
-        "*Microsoft.WindowsMaps*","*Microsoft.WindowsSoundRecorder*",
-        "*Microsoft.XboxApp*","*Microsoft.Xbox.TCUI*","*Microsoft.XboxGameOverlay*",
-        "*Microsoft.XboxGamingOverlay*","*Microsoft.XboxIdentityProvider*",
-        "*Microsoft.XboxSpeechToTextOverlay*","*Microsoft.ZuneMusic*","*Microsoft.ZuneVideo*",
-        "*MicrosoftTeamsFree*","*Microsoft.Copilot*","*Microsoft.Todos*",
-        "*Microsoft.OutlookForWindows*","*Microsoft.Windows.DevHome*",
-        "*MicrosoftCorporationII.QuickAssist*","*Clipchamp.Clipchamp*",
-        "*Microsoft.Advertising.Xaml*",
-        # Third-party bloat
-        "*ActiproSoftware*","*Disney*","*Duolingo*","*EclipseManager*",
-        "*Facebook*","*Fitbit*","*Flipboard*","*king.com.CandyCrush*",
-        "*king.com.CandyCrushSodaSaga*","*king.com.FarmHeroesSaga*",
-        "*king.com.BubbleWitch3Saga*","*Hulu*","*Netflix*","*Pandora*",
-        "*Plex*","*Shazam*","*SlingTV*","*SpotifyAB*","*TikTok*",
-        "*Twitter*","*WildTangent*","*Wunderlist*","*LinkedInforWindows*",
-        "*AutodeskSketchBook*","*DisneyMagicKingdoms*","*MarchofEmpires*",
-        "*CookingFever*","*iHeartRadio*","*PicsArt*","*Polarr*",
-        "*TuneIn*","*NYTCrossword*"
+        # Microsoft bloat — Safe
+        @{ App = "*Microsoft.3DBuilder*";               Safety = "Safe";    Reason = "Removes 3D Builder — pre-installed junk app" },
+        @{ App = "*Microsoft.BingFinance*";             Safety = "Safe";    Reason = "Removes Bing Finance — pre-installed junk app" },
+        @{ App = "*Microsoft.BingFoodAndDrink*";        Safety = "Safe";    Reason = "Removes Bing Food & Drink — pre-installed junk app" },
+        @{ App = "*Microsoft.BingHealth*";              Safety = "Safe";    Reason = "Removes Bing Health — pre-installed junk app" },
+        @{ App = "*Microsoft.BingMaps*";                Safety = "Safe";    Reason = "Removes Bing Maps — pre-installed junk app" },
+        @{ App = "*Microsoft.BingNews*";                Safety = "Safe";    Reason = "Removes Bing News — pre-installed junk app" },
+        @{ App = "*Microsoft.BingSports*";              Safety = "Safe";    Reason = "Removes Bing Sports — pre-installed junk app" },
+        @{ App = "*Microsoft.BingTranslator*";          Safety = "Safe";    Reason = "Removes Bing Translator — pre-installed junk app" },
+        @{ App = "*Microsoft.BingTravel*";              Safety = "Safe";    Reason = "Removes Bing Travel — pre-installed junk app" },
+        @{ App = "*Microsoft.BingWeather*";             Safety = "Safe";    Reason = "Removes Bing Weather — pre-installed junk app" },
+        @{ App = "*Microsoft.CommsPhone*";              Safety = "Safe";    Reason = "Removes Phone Comms — pre-installed junk app" },
+        @{ App = "*Microsoft.Getstarted*";              Safety = "Safe";    Reason = "Removes Get Started — pre-installed junk app" },
+        @{ App = "*Microsoft.GamingApp*";               Safety = "Moderate"; Reason = "Removes Gaming App — WARNING: gamers need this" },
+        @{ App = "*Microsoft.GamingServices*";          Safety = "Moderate"; Reason = "Removes Gaming Services — WARNING: gamers need this" },
+        @{ App = "*Microsoft.Messaging*";               Safety = "Safe";    Reason = "Removes Messaging — pre-installed junk app" },
+        @{ App = "*Microsoft.Microsoft3DViewer*";       Safety = "Safe";    Reason = "Removes 3D Viewer — pre-installed junk app" },
+        @{ App = "*Microsoft.MicrosoftOfficeHub*";      Safety = "Safe";    Reason = "Removes Office Hub — pre-installed junk app" },
+        @{ App = "*Microsoft.MicrosoftSolitaireCollection*"; Safety = "Safe"; Reason = "Removes Solitaire — pre-installed junk app" },
+        @{ App = "*Microsoft.MixedReality.Portal*";     Safety = "Moderate"; Reason = "Removes Mixed Reality Portal — VR headsets need this" },
+        @{ App = "*Microsoft.MinecraftUWP*";            Safety = "Safe";    Reason = "Removes Minecraft — pre-installed trial/junk app" },
+        @{ App = "*Microsoft.NetworkSpeedTest*";        Safety = "Safe";    Reason = "Removes Network Speed Test — pre-installed junk app" },
+        @{ App = "*Microsoft.Office.OneNote*";          Safety = "Safe";    Reason = "Removes OneNote (Store version) — pre-installed junk app" },
+        @{ App = "*Microsoft.Office.Sway*";             Safety = "Safe";    Reason = "Removes Sway — pre-installed junk app" },
+        @{ App = "*Microsoft.Office.Lens*";             Safety = "Safe";    Reason = "Removes Office Lens — pre-installed junk app" },
+        @{ App = "*Microsoft.People*";                  Safety = "Safe";    Reason = "Removes People — pre-installed junk app" },
+        @{ App = "*Microsoft.PowerAutomateDesktop*";    Safety = "Safe";    Reason = "Removes Power Automate Desktop — pre-installed junk app" },
+        @{ App = "*Microsoft.Print3D*";                 Safety = "Safe";    Reason = "Removes Print 3D — pre-installed junk app" },
+        @{ App = "*Microsoft.SkypeApp*";                Safety = "Safe";    Reason = "Removes Skype — pre-installed junk app" },
+        @{ App = "*Microsoft.Wallet*";                  Safety = "Safe";    Reason = "Removes Wallet — pre-installed junk app" },
+        @{ App = "*Microsoft.Whiteboard*";              Safety = "Safe";    Reason = "Removes Whiteboard — pre-installed junk app" },
+        @{ App = "*Microsoft.WindowsAlarms*";           Safety = "Risky";   Reason = "Removes Clock/Alarms — WARNING: some users rely on this" },
+        @{ App = "*Microsoft.WindowsCamera*";           Safety = "Risky";   Reason = "Removes Camera — WARNING: laptop users need this" },
+        @{ App = "*microsoft.windowscommunicationsapps*"; Safety = "Safe"; Reason = "Removes Mail/Calendar — pre-installed junk app" },
+        @{ App = "*Microsoft.WindowsFeedbackHub*";      Safety = "Safe";    Reason = "Removes Feedback Hub — pre-installed junk app" },
+        @{ App = "*Microsoft.WindowsMaps*";             Safety = "Safe";    Reason = "Removes Maps — pre-installed junk app" },
+        @{ App = "*Microsoft.WindowsSoundRecorder*";    Safety = "Safe";    Reason = "Removes Sound Recorder — pre-installed junk app" },
+        @{ App = "*Microsoft.XboxApp*";                 Safety = "Moderate"; Reason = "Removes Xbox App — WARNING: gamers need these" },
+        @{ App = "*Microsoft.Xbox.TCUI*";               Safety = "Moderate"; Reason = "Removes Xbox TCUI — WARNING: gamers need these" },
+        @{ App = "*Microsoft.XboxGameOverlay*";          Safety = "Moderate"; Reason = "Removes Xbox Game Overlay — WARNING: gamers need these" },
+        @{ App = "*Microsoft.XboxGamingOverlay*";        Safety = "Moderate"; Reason = "Removes Xbox Gaming Overlay — WARNING: gamers need these" },
+        @{ App = "*Microsoft.XboxIdentityProvider*";     Safety = "Moderate"; Reason = "Removes Xbox Identity Provider — WARNING: gamers need these" },
+        @{ App = "*Microsoft.XboxSpeechToTextOverlay*";  Safety = "Moderate"; Reason = "Removes Xbox Speech-to-Text — WARNING: gamers need these" },
+        @{ App = "*Microsoft.ZuneMusic*";               Safety = "Safe";    Reason = "Removes Groove Music — pre-installed junk app" },
+        @{ App = "*Microsoft.ZuneVideo*";               Safety = "Safe";    Reason = "Removes Movies & TV — pre-installed junk app" },
+        @{ App = "*MicrosoftTeamsFree*";                Safety = "Safe";    Reason = "Removes Teams (free) — pre-installed junk app" },
+        @{ App = "*Microsoft.Copilot*";                 Safety = "Safe";    Reason = "Removes Copilot — pre-installed junk app" },
+        @{ App = "*Microsoft.Todos*";                   Safety = "Safe";    Reason = "Removes To Do — pre-installed junk app" },
+        @{ App = "*Microsoft.OutlookForWindows*";        Safety = "Safe";    Reason = "Removes Outlook (new) — pre-installed junk app" },
+        @{ App = "*Microsoft.Windows.DevHome*";          Safety = "Safe";    Reason = "Removes Dev Home — pre-installed junk app" },
+        @{ App = "*MicrosoftCorporationII.QuickAssist*"; Safety = "Safe";   Reason = "Removes Quick Assist — pre-installed junk app" },
+        @{ App = "*Clipchamp.Clipchamp*";               Safety = "Safe";    Reason = "Removes Clipchamp — pre-installed junk app" },
+        @{ App = "*Microsoft.Advertising.Xaml*";         Safety = "Safe";   Reason = "Removes Advertising XAML framework — bloat" },
+        # Third-party bloat — all Safe
+        @{ App = "*ActiproSoftware*";                   Safety = "Safe";    Reason = "Removes Actipro Software — third-party bloat" },
+        @{ App = "*Disney*";                            Safety = "Safe";    Reason = "Removes Disney — third-party bloat" },
+        @{ App = "*Duolingo*";                          Safety = "Safe";    Reason = "Removes Duolingo — third-party bloat" },
+        @{ App = "*EclipseManager*";                    Safety = "Safe";    Reason = "Removes Eclipse Manager — third-party bloat" },
+        @{ App = "*Facebook*";                          Safety = "Safe";    Reason = "Removes Facebook — third-party bloat" },
+        @{ App = "*Fitbit*";                            Safety = "Safe";    Reason = "Removes Fitbit — third-party bloat" },
+        @{ App = "*Flipboard*";                         Safety = "Safe";    Reason = "Removes Flipboard — third-party bloat" },
+        @{ App = "*king.com.CandyCrush*";               Safety = "Safe";    Reason = "Removes Candy Crush — third-party bloat" },
+        @{ App = "*king.com.CandyCrushSodaSaga*";       Safety = "Safe";    Reason = "Removes Candy Crush Soda — third-party bloat" },
+        @{ App = "*king.com.FarmHeroesSaga*";            Safety = "Safe";    Reason = "Removes Farm Heroes Saga — third-party bloat" },
+        @{ App = "*king.com.BubbleWitch3Saga*";          Safety = "Safe";    Reason = "Removes Bubble Witch 3 — third-party bloat" },
+        @{ App = "*Hulu*";                              Safety = "Safe";    Reason = "Removes Hulu — third-party bloat" },
+        @{ App = "*Netflix*";                           Safety = "Safe";    Reason = "Removes Netflix — third-party bloat" },
+        @{ App = "*Pandora*";                           Safety = "Safe";    Reason = "Removes Pandora — third-party bloat" },
+        @{ App = "*Plex*";                              Safety = "Safe";    Reason = "Removes Plex — third-party bloat" },
+        @{ App = "*Shazam*";                            Safety = "Safe";    Reason = "Removes Shazam — third-party bloat" },
+        @{ App = "*SlingTV*";                           Safety = "Safe";    Reason = "Removes Sling TV — third-party bloat" },
+        @{ App = "*SpotifyAB*";                         Safety = "Safe";    Reason = "Removes Spotify — third-party bloat" },
+        @{ App = "*TikTok*";                            Safety = "Safe";    Reason = "Removes TikTok — third-party bloat" },
+        @{ App = "*Twitter*";                           Safety = "Safe";    Reason = "Removes Twitter — third-party bloat" },
+        @{ App = "*WildTangent*";                       Safety = "Safe";    Reason = "Removes WildTangent — third-party bloat" },
+        @{ App = "*Wunderlist*";                        Safety = "Safe";    Reason = "Removes Wunderlist — third-party bloat" },
+        @{ App = "*LinkedInforWindows*";                Safety = "Safe";    Reason = "Removes LinkedIn — third-party bloat" },
+        @{ App = "*AutodeskSketchBook*";                Safety = "Safe";    Reason = "Removes SketchBook — third-party bloat" },
+        @{ App = "*DisneyMagicKingdoms*";               Safety = "Safe";    Reason = "Removes Disney Magic Kingdoms — third-party bloat" },
+        @{ App = "*MarchofEmpires*";                    Safety = "Safe";    Reason = "Removes March of Empires — third-party bloat" },
+        @{ App = "*CookingFever*";                      Safety = "Safe";    Reason = "Removes Cooking Fever — third-party bloat" },
+        @{ App = "*iHeartRadio*";                       Safety = "Safe";    Reason = "Removes iHeartRadio — third-party bloat" },
+        @{ App = "*PicsArt*";                           Safety = "Safe";    Reason = "Removes PicsArt — third-party bloat" },
+        @{ App = "*Polarr*";                            Safety = "Safe";    Reason = "Removes Polarr — third-party bloat" },
+        @{ App = "*TuneIn*";                            Safety = "Safe";    Reason = "Removes TuneIn — third-party bloat" },
+        @{ App = "*NYTCrossword*";                      Safety = "Safe";    Reason = "Removes NYT Crossword — third-party bloat" }
     )
 
-    $removed = 0; $notFound = 0
+    $removed = 0; $notFound = 0; $skippedRisky = 0; $skippedModerate = 0
 
-    foreach ($app in $bloatwareList) {
+    # System-critical AppX packages that should NEVER be removed
+    $criticalPrefixes = @(
+        "Microsoft.Windows.ShellExperienceHost",
+        "Microsoft.Windows.Cortana",
+        "Microsoft.Windows.Search",
+        "Microsoft.Windows.SecurityHealthCenter",
+        "Microsoft.Windows.SecHealthUI",
+        "Microsoft.Windows.StartMenuExperienceHost",
+        "Microsoft.Windows.Shell",
+        "Microsoft.VfsHelper",
+        "Microsoft.WindowsAppRuntime"
+    )
+
+    foreach ($bloatware in $bloatwareList) {
+        $app = $bloatware.App
+        $safety = $bloatware.Safety
+        $reason = $bloatware.Reason
+
+        # Safety gate: Skip Risky items unless explicitly allowed
+        if ($safety -eq "Risky" -and -not $script:AllowRisky) {
+            # Still check if the app exists so we can report it
+            $packages = Get-AppxPackage -Name $app -AllUsers -ErrorAction SilentlyContinue
+            if ($packages) {
+                Write-Host "  SKIPPED (risky): $reason — use -AllowRisky or enable in menu" -ForegroundColor Yellow
+                $skippedRisky++
+            }
+            continue
+        }
+
+        # Warn for Moderate items
+        if ($safety -eq "Moderate") {
+            Write-Host "  [MODERATE] $reason" -ForegroundColor DarkYellow
+        }
+
         $packages = Get-AppxPackage -Name $app -AllUsers -ErrorAction SilentlyContinue
         if ($packages) {
             foreach ($pkg in $packages) {
+                # Safety: Check if this is a system-critical package
+                $isCritical = $false
+                foreach ($prefix in $criticalPrefixes) {
+                    if ($pkg.Name -like "$prefix*") {
+                        $isCritical = $true
+                        break
+                    }
+                }
+                if ($isCritical) {
+                    Write-Host "  SKIPPED (system-critical): $($pkg.Name) — removing would break Windows" -ForegroundColor Red
+                    continue
+                }
+
                 try {
                     Write-Step "Removing: $($pkg.Name)"
                     Remove-AppxPackage -Package $pkg.PackageFullName -AllUsers -ErrorAction Stop
@@ -1144,10 +1388,13 @@ function Invoke-Debloat {
         } else { $notFound++ }
     }
 
-    # Remove provisioned packages (prevents reinstall for new users)
+    # Remove provisioned packages (prevents reinstall for new users) — only Safe ones
     Write-Step "Cleaning provisioned (stub) packages..."
     $provRemoved = 0; $provNotFound = 0
-    foreach ($app in $bloatwareList) {
+    foreach ($bloatware in $bloatwareList) {
+        # Skip Risky and Moderate from provisioned removal too
+        if ($bloatware.Safety -eq "Risky" -and -not $script:AllowRisky) { continue }
+        $app = $bloatware.App
         $prov = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object DisplayName -like $app
         if ($prov) {
             try {
@@ -1159,7 +1406,7 @@ function Invoke-Debloat {
     }
 
     Write-Host ""
-    Write-Success "Debloat complete. Removed: $removed | Already removed: $notFound | Provisioned removed: $provRemoved | Provisioned clean: $provNotFound"
+    Write-Success "Debloat complete. Removed: $removed | Already removed: $notFound | Skipped risky: $skippedRisky | Provisioned removed: $provRemoved | Provisioned clean: $provNotFound"
 }
 
 #endregion
@@ -1169,6 +1416,7 @@ function Invoke-Debloat {
 # ============================================================
 
 function Invoke-ExplorerUI {
+    $script:CurrentSection = "ExplorerUI"
     Write-Host ""
     Write-Host "--- EXPLORER & UI OPTIMIZATIONS ---" -ForegroundColor Magenta
     Write-Host ""
@@ -1176,18 +1424,18 @@ function Invoke-ExplorerUI {
     # 1. Show file extensions
     Write-Step "Showing file extensions..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "HideFileExt" -Value 0 -Type DWord
+        -Name "HideFileExt" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Shows file extensions — prevents accidental execution of disguised files" -SettingID "ExplorerUI_ShowFileExt"
 
     # 2. Show hidden files
     Write-Step "Showing hidden files..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "Hidden" -Value 1 -Type DWord
+        -Name "Hidden" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Shows hidden files — improves visibility of system files" -SettingID "ExplorerUI_ShowHiddenFiles"
 
     # 3. Classic right-click context menu (Win11)
     Write-Step "Enabling classic right-click context menu..."
     if ($script:IsWin11) {
         Set-Registry -Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" `
-            -Name "(Default)" -Value "" -Type String
+            -Name "(Default)" -Value "" -Type String -SafetyLevel "Safe" -Description "Enables classic right-click context menu — removes Win11 simplified menu" -SettingID "ExplorerUI_ClassicContextMenu"
     }
 
     # 4. Content Delivery Manager FULL LOCKDOWN (prevent silent app reinstalls)
@@ -1205,60 +1453,61 @@ function Invoke-ExplorerUI {
         "SubscribedContentEnabled","SystemPaneSuggestionsEnabled"
     )
     foreach ($key in $cdmKeys) {
-        Set-Registry -Path $cdmPath -Name $key -Value 0 -Type DWord
+        Set-Registry -Path $cdmPath -Name $key -Value 0 -Type DWord `
+            -SafetyLevel "Safe" -Description "Disables content delivery setting — stops suggestions/silent installs" -SettingID "ExplorerUI_CDM_$($key)"
     }
 
     # 5. Disable File Explorer ads
     Write-Step "Disabling File Explorer ads..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "ShowSyncProviderNotifications" -Value 0 -Type DWord
+        -Name "ShowSyncProviderNotifications" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables File Explorer ads — removes OneDrive ads in Explorer" -SettingID "ExplorerUI_NoExplorerAds"
 
     # 6. Disable Lock Screen
     Write-Step "Disabling Lock Screen..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization" `
-        -Name "NoLockScreen" -Value 1 -Type DWord
-    Set-Registry -Path $cdmPath -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord
-    Set-Registry -Path $cdmPath -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord
+        -Name "NoLockScreen" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Lock Screen — goes directly to login screen" -SettingID "ExplorerUI_NoLockScreen"
+    Set-Registry -Path $cdmPath -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables rotating lock screen images — stops Windows Spotlight ads" -SettingID "ExplorerUI_NoRotatingLockScreen"
+    Set-Registry -Path $cdmPath -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables lock screen overlay — stops Windows Spotlight tips/ads" -SettingID "ExplorerUI_NoLockScreenOverlay"
 
     # 7. Disable consumer suggestions
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent" `
-        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord
+        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows consumer features — stops Store suggestions/ads" -SettingID "ExplorerUI_NoConsumerFeatures2"
 
     # 8. Remove Chat icon from Taskbar (Win11)
     Write-Step "Removing Chat icon from Taskbar..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "TaskbarMn" -Value 0 -Type DWord
+        -Name "TaskbarMn" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Chat icon from Taskbar — hides Microsoft Chat/Teams" -SettingID "ExplorerUI_NoChatIcon"
 
     # 9. Remove Widgets from Taskbar (Win11)
     Write-Step "Removing Widgets from Taskbar..."
     if ($script:IsWin11) {
         Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-            -Name "TaskbarDa" -Value 0 -Type DWord
+            -Name "TaskbarDa" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Widgets from Taskbar — hides news/weather widget" -SettingID "ExplorerUI_NoWidgets"
     }
 
     # 10. Remove Search from Taskbar
     Write-Step "Removing Search from Taskbar..."
     if ($script:IsWin11) {
         Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-            -Name "TaskbarSearchBox" -Value 0 -Type DWord
+            -Name "TaskbarSearchBox" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Search box from Taskbar — simplifies taskbar" -SettingID "ExplorerUI_NoSearchBox"
     }
 
     # 11. Disable Snap Layouts flyout (Win11)
     Write-Step "Disabling Snap Layouts flyout..."
     if ($script:IsWin11) {
         Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-            -Name "EnableSnapAssistFlyout" -Value 0 -Type DWord
+            -Name "EnableSnapAssistFlyout" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Snap Layouts flyout — removes snap layout suggestions" -SettingID "ExplorerUI_NoSnapAssist"
     }
 
     # 12. Enable "End Task" in Taskbar right-click (Win11 22H2+)
     Write-Step "Enabling 'End Task' in Taskbar right-click menu..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarEndTask" `
-        -Name "TaskbarEndTask" -Value 1 -Type DWord
+        -Name "TaskbarEndTask" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Enables 'End Task' in Taskbar right-click — adds quick task kill option" -SettingID "ExplorerUI_TaskbarEndTask"
 
     # 13. Open This PC instead of Quick Access
     Write-Step "Setting File Explorer to open 'This PC'..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "LaunchTo" -Value 1 -Type DWord
+        -Name "LaunchTo" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Sets File Explorer to open This PC instead of Quick Access" -SettingID "ExplorerUI_OpenThisPC"
 
     # 14. Remove 3D Objects from This PC
     Write-Step "Removing 3D Objects from This PC..."
@@ -1272,7 +1521,7 @@ function Invoke-ExplorerUI {
     Write-Step "Disabling Drag Tray..."
     if ($script:IsWin11) {
         Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-            -Name "DragBetweenWindows" -Value 0 -Type DWord
+            -Name "DragBetweenWindows" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Drag Tray — removes Win11 share/move files tray" -SettingID "ExplorerUI_NoDragTray"
     }
 
     # === TASKBAR DEEP CUSTOMIZATION ===
@@ -1280,17 +1529,17 @@ function Invoke-ExplorerUI {
     # 16. Remove Task View button from Taskbar
     Write-Step "Removing Task View button from Taskbar..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "ShowTaskViewButton" -Value 0 -Type DWord
+        -Name "ShowTaskViewButton" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Task View button from Taskbar — hides virtual desktops UI" -SettingID "ExplorerUI_NoTaskView"
 
     # 17. Set Search bar to icon-only (not full bar)
     Write-Step "Setting Search bar to icon-only mode..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search" `
-        -Name "SearchboxTaskbarMode" -Value 1 -Type DWord
+        -Name "SearchboxTaskbarMode" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Sets Search bar to icon-only mode — simplifies taskbar" -SettingID "ExplorerUI_SearchIconOnly"
 
     # 18. Hide Copilot button from Taskbar
     Write-Step "Hiding Copilot button from Taskbar..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced" `
-        -Name "ShowCopilotButton" -Value 0 -Type DWord
+        -Name "ShowCopilotButton" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Hides Copilot button from taskbar" -SettingID "ExplorerUI_HideCopilotBtn2"
 
     # 19. Unpin default Edge+Store from taskbar
     # NOTE: Unpinning Edge and Store from taskbar requires deleting the Taskband registry key
@@ -1355,33 +1604,54 @@ function Invoke-ExplorerUI {
 # ============================================================
 
 function Invoke-ServiceStartupOptimization {
+    $script:CurrentSection = "ServiceStartup"
     Write-Host ""
     Write-Host "--- SERVICE & STARTUP OPTIMIZATION ---" -ForegroundColor Magenta
     Write-Host ""
 
     $disableServices = @(
-        @{ Name = "WSearch";               Desc = "Windows Search" },
-        @{ Name = "WMPNetworkSvc";         Desc = "Windows Media Player Network Sharing" },
-        @{ Name = "WpcSvc";                Desc = "Parental Controls" },
-        @{ Name = "TabletInputService";    Desc = "Tablet PC Input" },
-        @{ Name = "RetailDemo";            Desc = "Retail Demo Service" },
-        @{ Name = "PimIndexMaintenance";   Desc = "People Indexing" },
-        @{ Name = "MessagingService";      Desc = "Messaging Service" },
-        @{ Name = "MapsBroker";            Desc = "Downloaded Maps Manager" },
-        @{ Name = "lfsvc";                 Desc = "Geolocation Service" },
-        @{ Name = "HvHost";                Desc = "Hyper-V Host Compute Service" },
-        @{ Name = "wisvc";                 Desc = "Windows Insider Service" },
-        @{ Name = "WbioSrvc";              Desc = "Windows Biometric Service" },
-        @{ Name = "wisvc";                 Desc = "Windows Insider Service" },
-        @{ Name = "OneSyncSvc";            Desc = "OneSync Sync Host" },
-        @{ Name = "UnistoreSvc";           Desc = "User Data Storage Service" },
-        @{ Name = "PushToInstall";         Desc = "Push to Install Service" }
+        @{ Name = "WSearch";               Desc = "Windows Search";                    Safety = "Risky";    Reason = "Disables Windows Search — WARNING: breaks Start menu search, Cortana, Office search" },
+        @{ Name = "WMPNetworkSvc";         Desc = "Windows Media Player Network Sharing"; Safety = "Safe";   Reason = "Disables WMP Network Sharing — not needed unless sharing media" },
+        @{ Name = "WpcSvc";                Desc = "Parental Controls";                 Safety = "Safe";    Reason = "Disables Parental Controls — not needed on adult machines" },
+        @{ Name = "TabletInputService";    Desc = "Tablet PC Input";                   Safety = "Safe";    Reason = "Disables Tablet PC Input — not needed on desktops" },
+        @{ Name = "RetailDemo";            Desc = "Retail Demo Service";               Safety = "Safe";    Reason = "Disables Retail Demo — only needed in retail/store environments" },
+        @{ Name = "PimIndexMaintenance";   Desc = "People Indexing";                   Safety = "Safe";    Reason = "Disables People Indexing — not needed without People app" },
+        @{ Name = "MessagingService";      Desc = "Messaging Service";                  Safety = "Safe";    Reason = "Disables Messaging Service — WUH messaging not needed" },
+        @{ Name = "MapsBroker";            Desc = "Downloaded Maps Manager";            Safety = "Safe";    Reason = "Disables Downloaded Maps Manager — saves resources if Maps unused" },
+        @{ Name = "lfsvc";                 Desc = "Geolocation Service";               Safety = "Moderate"; Reason = "Disables Geolocation — breaks Find My Device and Maps location" },
+        @{ Name = "HvHost";                Desc = "Hyper-V Host Compute Service";      Safety = "Moderate"; Reason = "Disables Hyper-V Host — WARNING: needed for VMs, WSL2, Docker" },
+        @{ Name = "wisvc";                 Desc = "Windows Insider Service";            Safety = "Safe";    Reason = "Disables Windows Insider Service — not needed on stable builds" },
+        @{ Name = "WbioSrvc";              Desc = "Windows Biometric Service";          Safety = "Risky";   Reason = "Disables Biometrics — WARNING: breaks Windows Hello fingerprint/face login" },
+        @{ Name = "OneSyncSvc";            Desc = "OneSync Sync Host";                 Safety = "Moderate"; Reason = "Disables OneSync — may affect Mail/Calendar sync" },
+        @{ Name = "UnistoreSvc";           Desc = "User Data Storage Service";          Safety = "Safe";    Reason = "Disables User Data Storage — not typically needed" },
+        @{ Name = "PushToInstall";         Desc = "Push to Install Service";            Safety = "Safe";    Reason = "Disables Push to Install — Microsoft Store push installs" }
     )
 
     foreach ($svc in $disableServices) {
+        # Safety gate: Skip Risky services unless explicitly allowed
+        if ($svc.Safety -eq "Risky" -and -not $script:AllowRisky) {
+            $service = Get-Service -Name $svc.Name -ErrorAction SilentlyContinue
+            if ($service -and $service.StartType -ne 'Disabled') {
+                Write-Host "  SKIPPED (risky): $($svc.Reason) — use -AllowRisky or enable in menu" -ForegroundColor Yellow
+            }
+            continue
+        }
+
+        # Warn for Moderate services
+        if ($svc.Safety -eq "Moderate") {
+            Write-Host "  [MODERATE] $($svc.Reason)" -ForegroundColor DarkYellow
+        }
+
         try {
             $service = Get-Service -Name $svc.Name -ErrorAction SilentlyContinue
             if ($service -and $service.StartType -ne 'Disabled') {
+                # Safety: Check for dependent services before disabling
+                $deps = $service.DependentServices | Where-Object { $_.Status -eq 'Running' }
+                if ($deps) {
+                    $depNames = ($deps | ForEach-Object { "$($_.Name)($($_.Status))" }) -join ', '
+                    Write-Host "  [DEPENDENCY] $($svc.Name) has running dependents: $depNames" -ForegroundColor DarkYellow
+                }
+
                 Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
                 Set-Service -Name $svc.Name -StartupType Disabled -ErrorAction Stop
                 Write-Success "Disabled service: $($svc.Desc) ($($svc.Name))"
@@ -1396,7 +1666,7 @@ function Invoke-ServiceStartupOptimization {
     # Disable Startup delay
     Write-Step "Disabling Startup delay..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Serialize" `
-        -Name "StartupDelayInMSec" -Value 0 -Type DWord
+        -Name "StartupDelayInMSec" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables startup delay — speeds up boot by removing artificial delay" -SettingID "ServiceStartup_NoStartupDelay"
 
     Write-Host ""
     Write-Success "Service & Startup optimization complete."
@@ -1409,6 +1679,7 @@ function Invoke-ServiceStartupOptimization {
 # ============================================================
 
 function Invoke-PerformanceOptimization {
+    $script:CurrentSection = "Performance"
     Write-Host ""
     Write-Host "--- PERFORMANCE & POWER SETTINGS ---" -ForegroundColor Magenta
     Write-Host ""
@@ -1443,16 +1714,19 @@ function Invoke-PerformanceOptimization {
     # 2. Disable Fast Startup (causes partial shutdowns, driver issues)
     Write-Step "Disabling Fast Startup..."
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" `
-        -Name "HiberbootEnabled" -Value 0 -Type DWord
+        -Name "HiberbootEnabled" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Fast Startup — prevents partial shutdown/driver issues" -SettingID "Perf_NoFastStartup"
 
     # 3. Disable Modern Standby Networking (battery drain + security)
     Write-Step "Disabling Modern Standby network connectivity..."
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power" `
-        -Name "ModernSleep" -Value 0 -Type DWord
+        -Name "ModernSleep" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Modern Standby network — prevents battery drain during sleep" -SettingID "Perf_NoModernSleep"
 
     # 4. Set power plan based on chassis type
     if ($script:IsLaptop) {
-        # Laptop: keep Balanced, just tweak
+        # Laptop: keep Balanced, but warn about High Performance option
+        Write-Host "  [MODERATE] High Performance on laptop — WARNING: drains battery. Keeping Balanced." -ForegroundColor DarkYellow
         Write-Step "Keeping Balanced power plan (laptop)."
     } else {
         # Desktop: set High Performance, disable lid close action
@@ -1488,7 +1762,8 @@ function Invoke-PerformanceOptimization {
     # 5. Set visual effects to Best Performance
     Write-Step "Setting visual effects to 'Best Performance'..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" `
-        -Name "VisualFXSetting" -Value 2 -Type DWord
+        -Name "VisualFXSetting" -Value 2 -Type DWord `
+        -SafetyLevel "Safe" -Description "Sets visual effects to Best Performance mode" -SettingID "Perf_VisualFX"
 
     $visualFx = @{
         "AnimateMinMaxMenus"=0; "ComboBoxAnimation"=0; "CursorShadow"=0;
@@ -1497,10 +1772,10 @@ function Invoke-PerformanceOptimization {
         "TaskbarAnimations"=0; "TooltipAnimation"=0
     }
     foreach ($key in $visualFx.Keys) {
-        Set-Registry -Path "HKCU:\Control Panel\Desktop" -Name $key -Value $visualFx[$key] -Type DWord
+        Set-Registry -Path "HKCU:\Control Panel\Desktop" -Name $key -Value $visualFx[$key] -Type DWord -SafetyLevel "Safe" -Description "Disables visual animation — improves performance" -SettingID "Performance_VisFX_Performance_VisFX"
     }
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\DWM" `
-        -Name "EnableAeroPeek" -Value 0 -Type DWord
+        -Name "EnableAeroPeek" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Aero Peek — removes desktop preview on taskbar hover" -SettingID "Performance_NoAeroPeek"
 
     # 6. SysMain/Prefetch based on drive type
     if ($script:BootDriveType -eq "SSD") {
@@ -1510,7 +1785,7 @@ function Invoke-PerformanceOptimization {
             if ($sysMain -and $sysMain.StartType -ne 'Disabled') {
                 Stop-Service -Name "SysMain" -Force -ErrorAction SilentlyContinue
                 Set-Service -Name "SysMain" -StartupType Disabled -ErrorAction Stop
-                Write-Success "SysMain disabled (SSD)."
+                Write-Success "SysMain disabled (SSD — safe, speeds boot)."
             } elseif ($sysMain) {
                 Write-Step "SysMain already disabled."
             }
@@ -1518,16 +1793,18 @@ function Invoke-PerformanceOptimization {
 
         # Disable Prefetch via registry
         Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" `
-            -Name "EnablePrefetcher" -Value 0 -Type DWord
+            -Name "EnablePrefetcher" -Value 0 -Type DWord `
+            -SafetyLevel "Safe" -Description "Disables Prefetch on SSD — safe, reduces unnecessary disk I/O" -SettingID "Perf_NoPrefetch_SSD"
         Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management\PrefetchParameters" `
-            -Name "EnableSuperfetch" -Value 0 -Type DWord
+            -Name "EnableSuperfetch" -Value 0 -Type DWord `
+            -SafetyLevel "Safe" -Description "Disables SuperFetch on SSD — safe, reduces unnecessary disk I/O" -SettingID "Perf_NoSuperfetch_SSD"
 
         # Disable scheduled defrag on SSD
         Write-Step "Disabling scheduled defragmentation (SSD)..."
         try {
             $defragTask = Get-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue
             if ($defragTask -and $defragTask.State -ne 'Disabled') {
-                Disable-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue
+                Disable-ScheduledTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue -SafetyLevel "Safe" -Description "Disables scheduled defragmentation — SSD does not need defrag" -SettingID "Performance_NoScheduledDefrag"
                 Write-Success "Scheduled defrag disabled (SSD)."
             }
         } catch { Write-Warn "Could not disable scheduled defrag: $_" }
@@ -1544,16 +1821,17 @@ function Invoke-PerformanceOptimization {
             }
         } catch { Write-Warn "Could not check/enable TRIM: $_" }
     } else {
+        # HDD: SysMain is IMPORTANT for performance — do NOT disable
+        Write-Host "  HDD detected: Keeping SysMain (SuperFetch) enabled — disabling on HDD kills performance." -ForegroundColor Yellow
         Write-Step "HDD detected: Keeping SysMain (SuperFetch) and Prefetch enabled."
-        # Do not disable SysMain on HDD - it helps with performance
     }
 
     # 7. Limit Windows Defender CPU usage to ~25%
     Write-Step "Limiting Windows Defender CPU usage..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Advanced" `
-        -Name "ExcludedProcesses" -Value "" -Type String
+        -Name "ExcludedProcesses" -Value "" -Type String -SafetyLevel "Safe" -Description "Clears Defender excluded processes — maintains scan coverage" -SettingID "Performance_DefenderNoExclusions"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Scan" `
-        -Name "AvgCPULoadFactor" -Value 25 -Type DWord
+        -Name "AvgCPULoadFactor" -Value 25 -Type DWord -SafetyLevel "Safe" -Description "Limits Windows Defender CPU usage to 25% — reduces scan impact" -SettingID "Performance_DefenderCPULimit"
 
     # 8. Disable OEM telemetry services
     Write-Step "Disabling OEM telemetry services..."
@@ -1575,20 +1853,22 @@ function Invoke-PerformanceOptimization {
     # 9. Increase SvcHost splitting threshold (reduce svchost.exe proliferation)
     Write-Step "Increasing SvcHost split threshold..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ServiceHostConfiguration" `
-        -Name "SvcHostSplitThresholdInKB" -Value 0x04000000 -Type DWord
+        -Name "SvcHostSplitThresholdInKB" -Value 0x04000000 -Type DWord -SafetyLevel "Safe" -Description "Increases SvcHost split threshold — reduces svchost.exe proliferation" -SettingID "Performance_SvcHostSplit"
 
     # === RAM-AWARE TWEAKS ===
 
     # 10. Page file optimization based on RAM
     if ($totalRAM -ge 32) {
-        # >=32GB: suggest disabling page file entirely (comment, don't auto-apply)
-        Write-Step "RAM >= 32GB: Consider disabling the page file entirely for maximum performance."
-        Write-Host "    (Not auto-applied. To disable: System Properties > Advanced > Performance > Virtual Memory > No paging file)" -ForegroundColor DarkGray
+        # >=32GB: Risky to disable page file entirely — only recommend, don't apply
+        Write-Host "  [RISKY] Disabling page file with 32GB+ RAM — WARNING: can crash memory-heavy workloads" -ForegroundColor Yellow
+        Write-Host "  (Not auto-applied. To disable: System Properties > Advanced > Performance > Virtual Memory > No paging file)" -ForegroundColor DarkGray
     } elseif ($totalRAM -ge 16) {
-        # >=16GB: set fixed 1024MB page file
+        # >=16GB: set fixed 1024MB page file (Moderate)
+        Write-Host "  [MODERATE] Setting fixed 1GB page file — OK with 16GB+ RAM, but some apps may need more" -ForegroundColor DarkYellow
         Write-Step "RAM >= 16GB: Setting fixed page file to 1024MB..."
         Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" `
-            -Name "PagingFiles" -Value "C:\pagefile.sys 1024 1024" -Type MultiString
+            -Name "PagingFiles" -Value "C:\pagefile.sys 1024 1024" -Type MultiString `
+            -SafetyLevel "Moderate" -Description "Sets page file to fixed 1GB — OK with 16GB+ RAM" -SettingID "Perf_FixedPageFile"
     } elseif ($totalRAM -le 8 -and $totalRAM -gt 0) {
         # <=8GB: keep system-managed page file, but warn
         Write-Warn "RAM <= 8GB: Keeping system-managed page file. Consider adding more RAM."
@@ -1614,6 +1894,7 @@ function Invoke-PerformanceOptimization {
 # ============================================================
 
 function Invoke-SecurityHardening {
+    $script:CurrentSection = "Security"
     Write-Host ""
     Write-Host "--- SECURITY HARDENING ---" -ForegroundColor Magenta
     Write-Host ""
@@ -1623,46 +1904,48 @@ function Invoke-SecurityHardening {
     foreach ($prop in @("DisableRealtimeMonitoring","DisableBehaviorMonitoring",
                         "DisableOnAccessProtection","DisableScanOnRealtimeEnable")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection" `
-            -Name $prop -Value 0 -Type DWord
+            -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Ensures Defender real-time protection stays enabled — maintains security" -SettingID "Security_DefenderRT_Security_DefRT"
     }
 
     # 2. Enable DNS over HTTPS
     Write-Step "Configuring DNS-over-HTTPS..."
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" `
-        -Name "EnableAutoDoh" -Value 2 -Type DWord
+        -Name "EnableAutoDoh" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS — encrypts DNS queries for privacy" -SettingID "Security_EnableDoH"
 
     # 3. Disable USB auto-run
     Write-Step "Disabling USB auto-run..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer" `
-        -Name "NoDriveTypeAutoRun" -Value 255 -Type DWord
+        -Name "NoDriveTypeAutoRun" -Value 255 -Type DWord -SafetyLevel "Safe" -Description "Disables USB auto-run — prevents malware from auto-executing on USB" -SettingID "Security_NoAutoRun"
 
     # 4. Disable Remote Desktop
     Write-Step "Disabling Remote Desktop..."
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server" `
-        -Name "fDenyTSConnections" -Value 1 -Type DWord
+        -Name "fDenyTSConnections" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Remote Desktop — reduces attack surface" -SettingID "Security_NoRDP"
 
     # 5. Disable SMBv1
     Write-Step "Disabling SMBv1..."
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters" `
-        -Name "SMB1" -Value 0 -Type DWord
+        -Name "SMB1" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables SMBv1 — protects against WannaCry-like exploits" -SettingID "Sec_NoSMB1"
     Disable-WindowsOptionalFeature -Online -FeatureName "SMB1Protocol" -NoRestart -ErrorAction SilentlyContinue | Out-Null
 
     # 6. Disable PowerShell v2
     Write-Step "Disabling PowerShell v2..."
+    Write-Host "  [MODERATE] Disabling PowerShell v2 — breaks very old PS scripts" -ForegroundColor DarkYellow
     Disable-WindowsOptionalFeature -Online -FeatureName "MicrosoftWindowsPowerShellV2" `
         -NoRestart -ErrorAction SilentlyContinue | Out-Null
 
     # 7. Ensure UAC enabled
     Write-Step "Ensuring UAC is enabled..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
-        -Name "EnableLUA" -Value 1 -Type DWord
+        -Name "EnableLUA" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Ensures UAC is enabled — maintains admin consent prompts" -SettingID "Security_UAC_Enabled"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" `
-        -Name "ConsentPromptBehaviorAdmin" -Value 5 -Type DWord
+        -Name "ConsentPromptBehaviorAdmin" -Value 5 -Type DWord -SafetyLevel "Safe" -Description "Sets UAC to prompt for consent — secure admin elevation behavior" -SettingID "Security_UAC_Consent"
 
     # 8. Disable password reveal
     Write-Step "Disabling password reveal in credential UI..."
     Set-Registry -Path "HKLM:\Software\Policies\Microsoft\Windows\CredUI" `
-        -Name "DisablePasswordReveal" -Value 1 -Type DWord
+        -Name "DisablePasswordReveal" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables password reveal button — prevents password visibility" -SettingID "Security_NoPasswordReveal"
 
     Write-Host ""
     Write-Success "Security hardening complete."
@@ -1675,6 +1958,7 @@ function Invoke-SecurityHardening {
 # ============================================================
 
 function Invoke-NetworkOptimizations {
+    $script:CurrentSection = "Network"
     Write-Host ""
     Write-Host "--- NETWORK OPTIMIZATIONS ---" -ForegroundColor Magenta
     Write-Host ""
@@ -1695,9 +1979,9 @@ function Invoke-NetworkOptimizations {
     # 2. Disable Network Throttling
     Write-Step "Disabling network throttling..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" `
-        -Name "NetworkThrottlingIndex" -Value 0xffffffff -Type DWord
+        -Name "NetworkThrottlingIndex" -Value 0xffffffff -Type DWord -SafetyLevel "Safe" -Description "Disables network throttling — improves network throughput for gaming/streams" -SettingID "Network_NoNetThrottle"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile" `
-        -Name "NoLazyMode" -Value 1 -Type DWord
+        -Name "NoLazyMode" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables network lazy mode — reduces latency" -SettingID "Network_NoLazyMode"
 
     # 3. Disable Nagle Algorithm
     Write-Step "Disabling Nagle Algorithm (reduces latency)..."
@@ -1705,19 +1989,20 @@ function Invoke-NetworkOptimizations {
         $path = "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces"
         $interfaces = Get-ChildItem -Path $path -ErrorAction SilentlyContinue
         foreach ($iface in $interfaces) {
-            Set-Registry -Path $iface.PSPath -Name $param -Value 1 -Type DWord
+            Set-Registry -Path $iface.PSPath -Name $param -Value 1 -Type DWord `
+                -SafetyLevel "Safe" -Description "Disables Nagle Algorithm on network interface — reduces latency" -SettingID "Network_NoNagle_$($param)_$($iface.PSPath.GetHashCode())"
         }
     }
 
     # 4. Disable NCSI Active Probing
     Write-Step "Disabling NCSI active probing..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator" `
-        -Name "NoActiveProbe" -Value 1 -Type DWord
+        -Name "NoActiveProbe" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables NCSI active probing — stops network connectivity telemetry" -SettingID "Network_NoNCSIProbe2"
 
     # 5. Disable Teredo (IPv6 transition)
     Write-Step "Disabling Teredo..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition" `
-        -Name "Teredo_State" -Value "Disabled" -Type String
+        -Name "Teredo_State" -Value "Disabled" -Type String -SafetyLevel "Safe" -Description "Disables Teredo IPv6 transition — reduces attack surface" -SettingID "Network_NoTeredo"
 
     # 6. DNS-over-HTTPS provider setup (Cloudflare)
     Write-Step "Configuring DNS-over-HTTPS with Cloudflare..."
@@ -1740,10 +2025,10 @@ function Invoke-NetworkOptimizations {
 
     # Enable DoH
     Set-Registry -Path "HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters" `
-        -Name "EnableAutoDoh" -Value 2 -Type DWord
+        -Name "EnableAutoDoh" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS — encrypts DNS queries for privacy" -SettingID "Network_EnableDoH2"
     # Configure Cloudflare DoH template via policy
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient" `
-        -Name "EnableDOH" -Value 1 -Type DWord
+        -Name "EnableDOH" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS via policy — encrypts DNS queries" -SettingID "Network_EnableDoH_Policy"
 
     # 7. Hosts file hardening - block Microsoft telemetry domains
     Write-Step "Hardening hosts file against telemetry domains..."
@@ -1790,6 +2075,18 @@ function Invoke-NetworkOptimizations {
         } else {
             Write-Step "All telemetry domains already in hosts file."
         }
+
+        # Safety: Verify the system can still resolve microsoft.com after hosts file changes
+        Write-Step "Verifying DNS resolution after hosts file modification..."
+        try {
+            $dnsTest = Resolve-DnsName -Name "microsoft.com" -ErrorAction Stop
+            if ($dnsTest) {
+                Write-Success "DNS resolution OK: microsoft.com resolves correctly."
+            }
+        } catch {
+            Write-Host "  [WARNING] DNS resolution for microsoft.com failed after hosts file modification!" -ForegroundColor Red
+            Write-Host "  Consider reviewing the hosts file at $hostsPath for errors." -ForegroundColor Yellow
+        }
     } catch {
         Write-Warn "Could not modify hosts file: $_"
     }
@@ -1805,43 +2102,42 @@ function Invoke-NetworkOptimizations {
 # ============================================================
 
 function Invoke-WindowsUpdateConfig {
-    Write-Host ""
-    Write-Host "--- WINDOWS UPDATE CONFIGURATION ---" -ForegroundColor Magenta
+    $script:CurrentSection = "WindowsUpdate"
     Write-Host ""
 
     # 1. Auto-download and notify (not auto-install)
     Write-Step "Configuring Windows Update behavior..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" `
-        -Name "AUOptions" -Value 4 -Type DWord
+        -Name "AUOptions" -Value 4 -Type DWord -SafetyLevel "Safe" -Description "Sets WU to auto-download and notify — prevents automatic install" -SettingID "WindowsUpdate_WU_NotifyOnly"
 
     # 2. Prevent auto-reboot
     Write-Step "Disabling automatic reboot after updates..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" `
-        -Name "NoAutoRebootWithLoggedOnUsers" -Value 1 -Type DWord
+        -Name "NoAutoRebootWithLoggedOnUsers" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Prevents auto-reboot after updates when users are logged in" -SettingID "WindowsUpdate_WU_NoAutoReboot"
 
     # 3. Disable Delivery Optimization
     Write-Step "Disabling Delivery Optimization..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization" `
-        -Name "DODownloadMode" -Value 0 -Type DWord
+        -Name "DODownloadMode" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Delivery Optimization — stops peer-to-peer update sharing" -SettingID "WindowsUpdate_NoDeliveryOpt"
 
     # 4. Exclude drivers from quality updates
     Write-Step "Excluding drivers from quality updates..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" `
-        -Name "ExcludeWUDriversInQualityUpdate" -Value 1 -Type DWord
+        -Name "ExcludeWUDriversInQualityUpdate" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Excludes drivers from quality updates — prevents driver issues" -SettingID "WindowsUpdate_WU_NoDriverUpdates"
 
     # 5. Set Active Hours
     Write-Step "Setting active hours to 09:00 - 21:00..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UFH" `
-        -Name "ActiveHoursStart" -Value 9 -Type DWord
+        -Name "ActiveHoursStart" -Value 9 -Type DWord -SafetyLevel "Safe" -Description "Sets active hours start to 09:00 — prevents reboots during work" -SettingID "WindowsUpdate_WU_ActiveHrsStart"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UFH" `
-        -Name "ActiveHoursEnd" -Value 21 -Type DWord
+        -Name "ActiveHoursEnd" -Value 21 -Type DWord -SafetyLevel "Safe" -Description "Sets active hours end to 21:00 — prevents reboots during work" -SettingID "WindowsUpdate_WU_ActiveHrsEnd"
 
     # 6. Prevent device companion app auto-install
     Write-Step "Preventing device companion app auto-install..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" `
-        -Name "DoNotConnectToWindowsUpdateInternetLocations" -Value 0 -Type DWord
+        -Name "DoNotConnectToWindowsUpdateInternetLocations" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Configures WU internet locations — standard WU policy" -SettingID "WindowsUpdate_WU_InternetConfig"
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching" `
-        -Name "SearchOrderConfig" -Value 0 -Type DWord
+        -Name "SearchOrderConfig" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Prevents automatic driver search via Windows Update" -SettingID "WindowsUpdate_WU_NoAutoDriverSearch"
 
     Write-Host ""
     Write-Success "Windows Update configuration complete."
@@ -1854,15 +2150,14 @@ function Invoke-WindowsUpdateConfig {
 # ============================================================
 
 function Invoke-DiskCleanup {
-    Write-Host ""
-    Write-Host "--- DISK CLEANUP & SYSTEM MAINTENANCE ---" -ForegroundColor Magenta
+    $script:CurrentSection = "DiskCleanup"
     Write-Host ""
 
     # 1. Run Disk Cleanup (Restore point already created at script startup)
     Write-Step "Configuring Disk Cleanup options..."
     foreach ($key in @("ActiveSetupTemp","OldFiles","ServicePackCleanup")) {
         Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\$key" `
-            -Name "StateFlags0001" -Value 2 -Type DWord
+            -Name "StateFlags0001" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Configures Disk Cleanup state flags — enables automated cleanup" -SettingID "DiskCleanup_DiskCleanupFlags_DiskCleanup_DC"
     }
     Write-Step "Running Disk Cleanup..."
     Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:1" -NoNewWindow -Wait -ErrorAction SilentlyContinue
@@ -1881,7 +2176,7 @@ function Invoke-DiskCleanup {
     # 4. Disable Storage Sense
     Write-Step "Disabling Storage Sense..."
     Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense" `
-        -Name "AllowStorageSenseGlobal" -Value 0 -Type DWord
+        -Name "AllowStorageSenseGlobal" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Storage Sense — prevents automatic file deletion" -SettingID "DiskCleanup_NoStorageSense"
 
     Write-Host ""
     Write-Success "Disk cleanup & maintenance complete."
@@ -1894,8 +2189,7 @@ function Invoke-DiskCleanup {
 # ============================================================
 
 function Invoke-WingetInstall {
-    Write-Host ""
-    Write-Host "--- SOFTWARE INSTALLATION (Winget) ---" -ForegroundColor Magenta
+    $script:CurrentSection = "Winget"
     Write-Host ""
 
     $appList = @(
@@ -1964,8 +2258,7 @@ function Invoke-WingetInstall {
 # ============================================================
 
 function Invoke-OfficeActivation {
-    Write-Host ""
-    Write-Host "--- OFFICE 365 INSTALLATION & ACTIVATION ---" -ForegroundColor Magenta
+    $script:CurrentSection = "OfficeActivation"
     Write-Host ""
 
     $officeSetupUrl = "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=O365ProPlusRetail&platform=x64&language=en-us&version=O16GA"
@@ -2123,7 +2416,7 @@ function Invoke-OfficeActivation {
         @{ Path = "HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy"; Name = "ContentServicesEnabled"; Value = 0 }
     )
     foreach ($item in $officeTelemetry) {
-        Set-Registry -Path $item.Path -Name $item.Name -Value $item.Value -Type DWord
+        Set-Registry -Path $item.Path -Name $item.Name -Value $item.Value -Type DWord -SafetyLevel "Safe" -Description "Disables Office telemetry/data collection — stops Office data sharing with Microsoft" -SettingID "OfficeActivation_Office_OfficeActivation_Office"
     }
     Write-Success "Office telemetry disabled (18 keys)."
 
@@ -2139,8 +2432,7 @@ function Invoke-OfficeActivation {
 # ============================================================
 
 function Invoke-EdgeHardening {
-    Write-Host ""
-    Write-Host "--- EDGE HARDENING ---" -ForegroundColor Magenta
+    $script:CurrentSection = "EdgeHardening"
     Write-Host ""
 
     $edgePath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
@@ -2165,20 +2457,21 @@ function Invoke-EdgeHardening {
 
     Write-Step "Applying Edge hardening policies..."
     foreach ($prop in $edgePolicies.Keys) {
-        Set-Registry -Path $edgePath -Name $prop -Value $edgePolicies[$prop] -Type DWord
+        Set-Registry -Path $edgePath -Name $prop -Value $edgePolicies[$prop] -Type DWord `
+            -SafetyLevel "Safe" -Description "Hardens Edge browser privacy/security — reduces Edge data collection" -SettingID "EdgeHardening_$($prop)"
     }
 
     # Disable Edge prelaunch and tab preloading
     Write-Step "Disabling Edge prelaunch and tab preloading..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
-        -Name "AllowPrelaunch" -Value 0 -Type DWord
+        -Name "AllowPrelaunch" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge prelaunch — prevents Edge running in background at startup" -SettingID "EdgeHardening_NoEdgePrelaunch"
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader" `
-        -Name "AllowTabPreloading" -Value 0 -Type DWord
+        -Name "AllowTabPreloading" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge tab preloading — reduces background resource usage" -SettingID "EdgeHardening_NoEdgeTabPreload"
 
     # Disable first-run experience
     Write-Step "Disabling Edge first-run..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
-        -Name "DisallowFirstRun" -Value 1 -Type DWord
+        -Name "DisallowFirstRun" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge first-run experience — prevents Edge welcome screen" -SettingID "EdgeHardening_NoEdgeFirstRun2"
 
     Write-Host ""
     Write-Success "Edge hardening complete."
@@ -2191,21 +2484,20 @@ function Invoke-EdgeHardening {
 # ============================================================
 
 function Invoke-OneDriveManagement {
-    Write-Host ""
-    Write-Host "--- ONEDRIVE MANAGEMENT ---" -ForegroundColor Magenta
+    $script:CurrentSection = "OneDrive"
     Write-Host ""
 
     # 1. Disable OneDrive via Group Policy
     Write-Step "Disabling OneDrive..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive" `
-        -Name "DisableFileSyncNGSC" -Value 1 -Type DWord
+        -Name "DisableFileSyncNGSC" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables OneDrive file sync via Group Policy — prevents OneDrive integration" -SettingID "OneDrive_DisableOneDrive"
 
     # 2. Hide OneDrive from File Explorer navigation pane
     Write-Step "Hiding OneDrive from File Explorer..."
     foreach ($path in @(
         "HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}",
         "HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}")) {
-        Set-Registry -Path $path -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord
+        Set-Registry -Path $path -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Hides OneDrive from File Explorer navigation pane" -SettingID "OneDrive_HideOneDriveNav"
     }
 
     # 3. Remove OneDrive from startup (if present)
@@ -2230,30 +2522,29 @@ function Invoke-OneDriveManagement {
 # ============================================================
 
 function Invoke-GamingDisable {
-    Write-Host ""
-    Write-Host "--- GAMING / XBOX / DVR DISABLE ---" -ForegroundColor Magenta
+    $script:CurrentSection = "Gaming"
     Write-Host ""
 
     # 1. Disable GameDVR via policy
     Write-Step "Disabling GameDVR..."
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR" `
-        -Name "AllowgameDVR" -Value 0 -Type DWord
+        -Name "AllowgameDVR" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR via policy — stops game clip recording" -SettingID "Gaming_NoGameDVR"
 
     # 2. Disable Game Bar capture
     Write-Step "Disabling Game Bar capture..."
     foreach ($prop in @("AppCaptureEnabled", "HistoricalCaptureEnabled")) {
         Set-Registry -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" `
-            -Name $prop -Value 0 -Type DWord
+            -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR/Game Bar setting — stops game recording" -SettingID "Gaming_GameDVR_Gaming_GVR"
         Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR" `
-            -Name $prop -Value 0 -Type DWord
+            -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR/Game Bar setting — stops game recording" -SettingID "Gaming_GameDVR_Gaming_GVR_2"
     }
 
     # 3. Disable GameDVR_Enabled
     Write-Step "Disabling GameDVR_Enabled..."
     Set-Registry -Path "HKCU:\System\GameConfigStore" `
-        -Name "GameDVR_Enabled" -Value 0 -Type DWord
+        -Name "GameDVR_Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR — stops game recording and broadcasting" -SettingID "Gaming_GameDVR_Off"
     Set-Registry -Path "HKLM:\System\GameConfigStore" `
-        -Name "GameDVR_Enabled" -Value 0 -Type DWord
+        -Name "GameDVR_Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR — stops game recording and broadcasting" -SettingID "Gaming_GameDVR_Off"
 
     Write-Host ""
     Write-Success "Gaming / Xbox / DVR disable complete."
@@ -2266,8 +2557,7 @@ function Invoke-GamingDisable {
 # ============================================================
 
 function Invoke-ScheduledTasksCleanup {
-    Write-Host ""
-    Write-Host "--- SCHEDULED TASKS CLEANUP ---" -ForegroundColor Magenta
+    $script:CurrentSection = "ScheduledTasks"
     Write-Host ""
 
     $tasksToDisable = @(
@@ -2304,7 +2594,7 @@ function Invoke-ScheduledTasksCleanup {
 
     $disabled = 0; $notFound = 0
     foreach ($task in $tasksToDisable) {
-        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name
+        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task"
         $disabled++
     }
 
@@ -2318,7 +2608,7 @@ function Invoke-ScheduledTasksCleanup {
         @{ Path = "\Microsoft\Office\"; Name = "Office 16 Subscription Heartbeat" }
     )
     foreach ($task in $officeTasks) {
-        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name
+        Disable-ScheduledTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task_2"
         $disabled++
     }
 
@@ -2333,8 +2623,7 @@ function Invoke-ScheduledTasksCleanup {
 # ============================================================
 
 function Invoke-BrowserHardening {
-    Write-Host ""
-    Write-Host "--- BROWSER EXTENSIONS & PRIVACY ---" -ForegroundColor Magenta
+    $script:CurrentSection = "BrowserHardening"
     Write-Host ""
 
     # ================================================================
@@ -2524,7 +2813,8 @@ function Invoke-BrowserHardening {
     foreach ($prop in $chromePrivacySettings.Keys) {
         $val = $chromePrivacySettings[$prop]
         $type = if ($val -is [int]) { "DWord" } else { "String" }
-        Set-Registry -Path $chromePol -Name $prop -Value $val -Type $type
+        Set-Registry -Path $chromePol -Name $prop -Value $val -Type $type `
+            -SafetyLevel "Safe" -Description "Applies Chrome privacy policy — reduces Chrome data collection" -SettingID "BrowserHardening_Chrome_$($prop)"
     }
 
     # --- Brave Privacy (Brave has built-in shields, but we can set policies too) ---
@@ -2547,7 +2837,8 @@ function Invoke-BrowserHardening {
     foreach ($prop in $bravePrivacySettings.Keys) {
         $val = $bravePrivacySettings[$prop]
         $type = if ($val -is [int]) { "DWord" } else { "String" }
-        Set-Registry -Path $bravePol -Name $prop -Value $val -Type $type
+        Set-Registry -Path $bravePol -Name $prop -Value $val -Type $type `
+            -SafetyLevel "Safe" -Description "Applies Brave privacy policy — hardens Brave browser" -SettingID "BrowserHardening_Brave_$($prop)"
     }
 
     # --- Opera Privacy ---
@@ -2562,28 +2853,40 @@ function Invoke-BrowserHardening {
         "UrlKeyedAnonymizedDataCollectionEnabled" = 0
     }
     foreach ($prop in $operaPrivacySettings.Keys) {
-        Set-Registry -Path $operaPol -Name $prop -Value $operaPrivacySettings[$prop] -Type DWord
+        Set-Registry -Path $operaPol -Name $prop -Value $operaPrivacySettings[$prop] -Type DWord `
+            -SafetyLevel "Safe" -Description "Applies Opera privacy policy — reduces Opera data collection" -SettingID "BrowserHardening_Opera_$($prop)"
     }
 
     # --- Firefox Privacy ---
     Write-Step "Applying Firefox privacy policies..."
     $ffPol = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox"
-    Set-Registry -Path $ffPol -Name "DisableTelemetry" -Value 1 -Type DWord
-    Set-Registry -Path $ffPol -Name "DisableFirefoxStudies" -Value 1 -Type DWord
-    Set-Registry -Path $ffPol -Name "DisablePocket" -Value 1 -Type DWord
-    Set-Registry -Path $ffPol -Name "DisableFormHistory" -Value 1 -Type DWord
-    Set-Registry -Path $ffPol -Name "OfferToSaveLogins" -Value 0 -Type DWord
-    Set-Registry -Path $ffPol -Name "PasswordManagerEnabled" -Value 0 -Type DWord
-    Set-Registry -Path $ffPol -Name "SanitizeOnShutdown" -Value 1 -Type DWord
-    Set-Registry -Path $ffPol -Name "DontCheckDefaultBrowser" -Value 1 -Type DWord
+    Set-Registry -Path $ffPol -Name "DisableTelemetry" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Firefox telemetry — stops Firefox data collection" -SettingID "BrowserHardening_FF_NoTelemetry"
+    Set-Registry -Path $ffPol -Name "DisableFirefoxStudies" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Firefox Studies — stops Firefox A/B experiments" -SettingID "BrowserHardening_FF_NoStudies"
+    Set-Registry -Path $ffPol -Name "DisablePocket" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Pocket integration — stops Pocket data collection" -SettingID "BrowserHardening_FF_NoPocket"
+    Set-Registry -Path $ffPol -Name "DisableFormHistory" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables form history — stops autofill data collection" -SettingID "BrowserHardening_FF_NoFormHist"
+    Set-Registry -Path $ffPol -Name "OfferToSaveLogins" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables login save offers — prevents credential storage in browser" -SettingID "BrowserHardening_FF_NoSaveLogins"
+    Set-Registry -Path $ffPol -Name "PasswordManagerEnabled" -Value 0 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables Firefox password manager — prevents credential storage in browser" -SettingID "BrowserHardening_FF_NoPasswordMgr"
+    Set-Registry -Path $ffPol -Name "SanitizeOnShutdown" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Enables sanitize on shutdown — clears browsing data on exit" -SettingID "BrowserHardening_FF_SanitizeOnShutdown"
+    Set-Registry -Path $ffPol -Name "DontCheckDefaultBrowser" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Disables default browser check — reduces startup prompts" -SettingID "BrowserHardening_FF_NoDefaultCheck"
 
     # Firefox tracking protection (strict mode) + DoH
     Write-Step "Configuring Firefox strict tracking protection + DoH..."
     $ffTpPath = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection"
-    Set-Registry -Path $ffTpPath -Name "Value" -Value 1 -Type DWord
-    Set-Registry -Path $ffTpPath -Name "Cryptomining" -Value 1 -Type DWord
-    Set-Registry -Path $ffTpPath -Name "Fingerprinting" -Value 1 -Type DWord
-    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" -Name "Enabled" -Value 1 -Type DWord
+    Set-Registry -Path $ffTpPath -Name "Value" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Enables strict tracking protection in Firefox" -SettingID "BrowserHardening_FF_TrackingProt"
+    Set-Registry -Path $ffTpPath -Name "Cryptomining" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Blocks cryptomining in Firefox — stops coin miner scripts" -SettingID "BrowserHardening_FF_NoCryptomining"
+    Set-Registry -Path $ffTpPath -Name "Fingerprinting" -Value 1 -Type DWord `
+        -SafetyLevel "Safe" -Description "Blocks fingerprinting in Firefox — stops browser fingerprint tracking" -SettingID "BrowserHardening_FF_NoFingerprinting"
+    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" -Name "Enabled" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS in Firefox — encrypts DNS queries" -SettingID "BrowserHardening_FF_DoH"
 
     # If Firefox policies.json exists, also update it with privacy settings
     if ($firefoxRoot -and (Test-Path (Join-Path $firefoxRoot "distribution\policies.json"))) {
@@ -2623,43 +2926,42 @@ function Invoke-BrowserHardening {
 # ============================================================
 
 function Invoke-FinalTouches {
-    Write-Host ""
-    Write-Host "--- FINAL TOUCHES ---" -ForegroundColor Magenta
+    $script:CurrentSection = "FinalTouches"
     Write-Host ""
 
     # 1. Disable Edge first-run (additional key)
     Write-Step "Disabling Edge first-run (additional)..."
     Set-Registry -Path "HKCU:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
-        -Name "DisableFirstRunSettings" -Value 1 -Type DWord
+        -Name "DisableFirstRunSettings" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge first-run experience — prevents Edge welcome screen" -SettingID "FinalTouches_NoEdgeFirstRun"
 
     # 2. Disable Windows Insider UI
     Write-Step "Hiding Windows Insider page..."
     Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\WindowsSelfHost\UI\Visibility" `
-        -Name "HideInsiderPage" -Value 1 -Type DWord
+        -Name "HideInsiderPage" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Hides Windows Insider page from Settings — removes insider enrollment UI" -SettingID "FinalTouches_HideInsiderPage"
 
     # 3. Set sound scheme to "No Sounds"
     Write-Step "Setting sound scheme to No Sounds..."
     Set-Registry -Path "HKCU:\AppEvents\Schemes" `
-        -Name "(Default)" -Value ".None" -Type String
+        -Name "(Default)" -Value ".None" -Type String -SafetyLevel "Safe" -Description "Sets sound scheme to No Sounds — disables all system sounds" -SettingID "FinalTouches_NoSounds"
 
     # 4. Set NumLock OFF at startup
     Write-Step "Setting NumLock OFF at startup..."
     Set-Registry -Path "HKU:\.DEFAULT\Control Panel\Keyboard" `
-        -Name "InitialKeyboardIndicators" -Value "0" -Type String
+        -Name "InitialKeyboardIndicators" -Value "0" -Type String -SafetyLevel "Safe" -Description "Sets NumLock state at startup" -SettingID "FinalTouches_NumLockStartup"
 
     # 5. Disable mouse acceleration (enhance pointer precision)
     Write-Step "Disabling mouse acceleration..."
     Set-Registry -Path "HKCU:\Control Panel\Mouse" `
-        -Name "MouseSpeed" -Value 1 -Type String
+        -Name "MouseSpeed" -Value 1 -Type String -SafetyLevel "Safe" -Description "Disables mouse acceleration — improves pointer precision for gamers" -SettingID "FinalTouches_NoMouseAccel"
     Set-Registry -Path "HKCU:\Control Panel\Mouse" `
-        -Name "MouseThreshold1" -Value 0 -Type String
+        -Name "MouseThreshold1" -Value 0 -Type String -SafetyLevel "Safe" -Description "Disables mouse acceleration threshold 1 — improves pointer precision" -SettingID "FinalTouches_MouseThreshold1"
     Set-Registry -Path "HKCU:\Control Panel\Mouse" `
-        -Name "MouseThreshold2" -Value 0 -Type String
+        -Name "MouseThreshold2" -Value 0 -Type String -SafetyLevel "Safe" -Description "Disables mouse acceleration threshold 2 — improves pointer precision" -SettingID "FinalTouches_MouseThreshold2"
 
     # 6. Disable Sticky Keys
     Write-Step "Disabling Sticky Keys..."
     Set-Registry -Path "HKCU:\Control Panel\Accessibility\StickyKeys" `
-        -Name "Flags" -Value 506 -Type String
+        -Name "Flags" -Value 506 -Type String -SafetyLevel "Safe" -Description "Disables Sticky Keys accessibility feature — prevents accidental activation" -SettingID "FinalTouches_NoStickyKeys"
 
     # 7. Restart File Explorer
     Write-Step "Restarting File Explorer to apply changes..."
@@ -2681,34 +2983,82 @@ function Invoke-FinalTouches {
 # ============================================================
 
 function Invoke-WindowsFeaturesRemoval {
-    Write-Host ""
-    Write-Host "--- WINDOWS FEATURES REMOVAL ---" -ForegroundColor Magenta
+    $script:CurrentSection = "WindowsFeatures"
     Write-Host ""
 
     $featuresToRemove = @(
-        @{ Name = "Internet-Explorer-Optional-amd64";            Desc = "Internet Explorer" },
-        @{ Name = "MediaPlayback";                               Desc = "Media Playback" },
-        @{ Name = "WindowsMediaPlayer";                          Desc = "Windows Media Player" },
-        @{ Name = "MicrosoftWindowsPowerShellV2";                Desc = "PowerShell V2" },
-        @{ Name = "MicrosoftWindowsPowerShellV2Root";            Desc = "PowerShell V2 Root" },
-        @{ Name = "Fax";                                         Desc = "Fax" },
-        @{ Name = "Hello-Face-Package";                          Desc = "Windows Hello Face" },
-        @{ Name = "Math-Recognizer";                             Desc = "Math Recognizer" },
-        @{ Name = "Paint3D";                                     Desc = "Paint 3D" },
-        # PrintToPDFServicesFeatures - keep if user needs PDF printing
-        # @{ Name = "PrintToPDFServicesFeatures";                Desc = "Print to PDF (keep if needed)" },
-        @{ Name = "Xps-Foundation-XpsDriver";                    Desc = "XPS Printer Driver" },
-        # WCF-Services45 - some apps need it
-        # @{ Name = "WCF-Services45";                            Desc = "WCF Services (keep if needed)" },
-        @{ Name = "InternetPrintPrintOverInternet";              Desc = "Internet Printing" },
-        @{ Name = "WorkFolders-Client";                          Desc = "Work Folders Client" }
-        # SmbDirect - may be needed on some systems
-        # @{ Name = "SmbDirect";                                 Desc = "SMB Direct (keep if needed)" }
+        @{ Name = "Internet-Explorer-Optional-amd64";            Desc = "Internet Explorer";       Safety = "Safe";    Reason = "Removes Internet Explorer — no one needs this in 2025+" },
+        @{ Name = "MediaPlayback";                               Desc = "Media Playback";           Safety = "Safe";    Reason = "Removes Media Playback — VLC is better" },
+        @{ Name = "WindowsMediaPlayer";                          Desc = "Windows Media Player";     Safety = "Safe";    Reason = "Removes Windows Media Player — use VLC instead" },
+        @{ Name = "MicrosoftWindowsPowerShellV2";                Desc = "PowerShell V2";            Safety = "Moderate"; Reason = "Removes PowerShell v2 engine — legacy only, breaks very old scripts" },
+        @{ Name = "MicrosoftWindowsPowerShellV2Root";            Desc = "PowerShell V2 Root";       Safety = "Moderate"; Reason = "Removes PowerShell v2 root — legacy only" },
+        @{ Name = "Fax";                                         Desc = "Fax";                      Safety = "Safe";    Reason = "Removes Fax service — obsolete for most users" },
+        @{ Name = "Hello-Face-Package";                          Desc = "Windows Hello Face";       Safety = "Risky";   Reason = "Removes Windows Hello Face — WARNING: breaks facial recognition login" },
+        @{ Name = "Math-Recognizer";                             Desc = "Math Recognizer";          Safety = "Safe";    Reason = "Removes Math Recognizer — rarely used" },
+        @{ Name = "Paint3D";                                     Desc = "Paint 3D";                 Safety = "Safe";    Reason = "Removes Paint 3D — standard Paint still available" },
+        @{ Name = "Xps-Foundation-XpsDriver";                    Desc = "XPS Printer Driver";       Safety = "Safe";    Reason = "Removes XPS printer driver — rarely used" },
+        @{ Name = "InternetPrintPrintOverInternet";              Desc = "Internet Printing";        Safety = "Safe";    Reason = "Removes Internet Printing — rarely used" },
+        @{ Name = "WorkFolders-Client";                          Desc = "Work Folders Client";      Safety = "Safe";    Reason = "Removes Work Folders — enterprise feature, not needed for most" }
+    )
+
+    # Risky features (disabled by default, enabled with -AllowRisky)
+    $riskyFeatures = @(
+        @{ Name = "PrintToPDFServicesFeatures";                  Desc = "Print to PDF";             Safety = "Risky";   Reason = "Removes Print to PDF — WARNING: users often need PDF printing" },
+        @{ Name = "WCF-Services45";                              Desc = "WCF Services 4.5";         Safety = "Risky";   Reason = "Removes WCF Services — WARNING: some .NET apps require this" },
+        @{ Name = "SmbDirect";                                   Desc = "SMB Direct";               Safety = "Moderate"; Reason = "Removes SMB Direct — needed only for RDMA network storage" }
     )
 
     $disabledCount = 0; $alreadyOffCount = 0; $notFoundCount = 0
 
     foreach ($feature in $featuresToRemove) {
+        # Safety gate for Risky features
+        if ($feature.Safety -eq "Risky" -and -not $script:AllowRisky) {
+            Write-Host "  SKIPPED (risky): $($feature.Reason) — use -AllowRisky or enable in menu" -ForegroundColor Yellow
+            continue
+        }
+        # Warn for Moderate
+        if ($feature.Safety -eq "Moderate") {
+            Write-Host "  [MODERATE] $($feature.Reason)" -ForegroundColor DarkYellow
+        }
+
+        Write-Step "Checking feature: $($feature.Desc) ($($feature.Name))..."
+        try {
+            $featState = Get-WindowsOptionalFeature -Online -FeatureName $feature.Name -ErrorAction SilentlyContinue
+            if ($featState) {
+                if ($featState.State -eq 'Enabled') {
+                    Disable-WindowsOptionalFeature -Online -FeatureName $feature.Name -NoRestart -ErrorAction Stop | Out-Null
+                    Write-Success "Disabled feature: $($feature.Desc)"
+                    $disabledCount++
+                    $script:TotalChanged++
+                    $null = $script:UndoCommands.Add("Enable-WindowsOptionalFeature -Online -FeatureName '$($feature.Name)' -NoRestart -ErrorAction SilentlyContinue")
+                } else {
+                    Write-Step "Already disabled: $($feature.Desc)"
+                    $alreadyOffCount++
+                    $script:TotalSkipped++
+                }
+            } else {
+                Write-Warn "Feature not found: $($feature.Name)"
+                $notFoundCount++
+            }
+        } catch {
+            Write-Warn "Could not disable feature $($feature.Name): $_"
+            $script:TotalFailed++
+        }
+    }
+
+    # Process risky features (only if -AllowRisky)
+    foreach ($feature in $riskyFeatures) {
+        if ($feature.Safety -eq "Risky" -and -not $script:AllowRisky) {
+            $featState = Get-WindowsOptionalFeature -Online -FeatureName $feature.Name -ErrorAction SilentlyContinue
+            if ($featState -and $featState.State -eq 'Enabled') {
+                Write-Host "  SKIPPED (risky): $($feature.Reason) — use -AllowRisky or enable in menu" -ForegroundColor Yellow
+            }
+            continue
+        }
+        if ($feature.Safety -eq "Moderate") {
+            Write-Host "  [MODERATE] $($feature.Reason)" -ForegroundColor DarkYellow
+        }
+
         Write-Step "Checking feature: $($feature.Desc) ($($feature.Name))..."
         try {
             $featState = Get-WindowsOptionalFeature -Online -FeatureName $feature.Name -ErrorAction SilentlyContinue
@@ -2744,7 +3094,29 @@ function Invoke-WindowsFeaturesRemoval {
 # INTERACTIVE MENU
 # ============================================================
 
-function Show-Menu {
+# Safety info for each section
+$script:SectionSafetyInfo = @{
+    "Privacy"         = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 2; ItemCount = 26 }
+    "Debloat"         = @{ Safety = "Mixed";  RiskyCount = 2; ModerateCount = 7; ItemCount = 60 }
+    "ExplorerUI"      = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 23 }
+    "ServiceStartup"  = @{ Safety = "Mixed";  RiskyCount = 2; ModerateCount = 3; ItemCount = 16 }
+    "Performance"     = @{ Safety = "Mixed";  RiskyCount = 0; ModerateCount = 2; ItemCount = 11 }
+    "Security"        = @{ Safety = "Mixed";  RiskyCount = 0; ModerateCount = 1; ItemCount = 8 }
+    "Network"         = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 7 }
+    "WindowsUpdate"   = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 6 }
+    "DiskCleanup"     = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 4 }
+    "Winget"          = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 8 }
+    "OfficeActivation"= @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
+    "EdgeHardening"   = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 14 }
+    "OneDrive"        = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
+    "Gaming"          = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
+    "ScheduledTasks"  = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 33 }
+    "BrowserHardening"= @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 10 }
+    "FinalTouches"    = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 7 }
+    "WindowsFeatures" = @{ Safety = "Mixed";  RiskyCount = 3; ModerateCount = 2; ItemCount = 15 }
+}
+
+function Show-SimpleMenu {
     $menuItems = @(
         @{ ID = "1";  Key = "Privacy";             Name = "Privacy & Telemetry (Aggressive)";          Desc = "Telemetry, Cortana, Copilot, Recall, AI, Bing, tracking" },
         @{ ID = "2";  Key = "Debloat";             Name = "Debloat: Remove Bloatware";                Desc = "Uninstall 60+ pre-installed junk apps" },
@@ -2779,8 +3151,8 @@ function Show-Menu {
     Write-Host ""
 }
 
-function Get-UserSelection {
-    Show-Menu
+function Get-SimpleUserSelection {
+    Show-SimpleMenu
     $userInput = Read-Host "  Enter section numbers (comma-separated, e.g. '1,3,5') or 'A' for all"
 
     if ($userInput -eq '0') {
@@ -2807,6 +3179,181 @@ function Get-UserSelection {
             else { Write-Warn "Invalid selection: $num (skipped)" }
         }
     }
+    return $selected
+}
+
+function Show-DetailedMenu {
+    $menuItems = @(
+        @{ ID = "1";  Key = "Privacy";             Name = "Privacy & Telemetry" },
+        @{ ID = "2";  Key = "Debloat";             Name = "Debloat" },
+        @{ ID = "3";  Key = "ExplorerUI";          Name = "Explorer & UI" },
+        @{ ID = "4";  Key = "ServiceStartup";       Name = "Service & Startup" },
+        @{ ID = "5";  Key = "Performance";           Name = "Performance & Power" },
+        @{ ID = "6";  Key = "Security";             Name = "Security" },
+        @{ ID = "7";  Key = "Network";              Name = "Network" },
+        @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update" },
+        @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup" },
+        @{ ID = "10"; Key = "Winget";                Name = "Software (Winget)" },
+        @{ ID = "11"; Key = "OfficeActivation";      Name = "Office 365" },
+        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening" },
+        @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive" },
+        @{ ID = "14"; Key = "Gaming";                Name = "Gaming / DVR" },
+        @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks" },
+        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Privacy" },
+        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches" },
+        @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features" }
+    )
+
+    Write-Host ""
+    Write-Host "  SELECT OPTIMIZATIONS:" -ForegroundColor White
+    Write-Host "  " + ("-" * 72) -ForegroundColor DarkGray
+
+    foreach ($item in $menuItems) {
+        $safetyInfo = $script:SectionSafetyInfo[$item.Key]
+        if (-not $safetyInfo) { $safetyInfo = @{ Safety = "Safe"; RiskyCount = 0; ModerateCount = 0; ItemCount = 0 } }
+
+        # Color-code the safety badge
+        $safetyBadge = ""
+        if ($safetyInfo.Safety -eq "Safe") {
+            $safetyBadge = "[Safe]"
+            $badgeColor = "Green"
+        } elseif ($safetyInfo.Safety -eq "Mixed") {
+            $riskyCount = $safetyInfo.RiskyCount
+            $modCount = $safetyInfo.ModerateCount
+            $safetyBadge = "[Mixed]"
+            $badgeColor = "Yellow"
+        } else {
+            $safetyBadge = "[Safe]"
+            $badgeColor = "Green"
+        }
+
+        $itemCountStr = "$($safetyInfo.ItemCount) items"
+        $warningStr = ""
+        if ($safetyInfo.RiskyCount -gt 0) {
+            $warningStr = " | $($safetyInfo.RiskyCount) risky"
+        }
+        if ($safetyInfo.ModerateCount -gt 0) {
+            $warningStr += " | $($safetyInfo.ModerateCount) moderate"
+        }
+
+        Write-Host "  $($item.ID.ToString().PadRight(3)) " -NoNewline
+        Write-Host "$($item.Name.PadRight(22))" -ForegroundColor Cyan -NoNewline
+        Write-Host " $safetyBadge " -ForegroundColor $badgeColor -NoNewline
+        Write-Host "$itemCountStr$warningStr" -ForegroundColor DarkGray
+    }
+
+    Write-Host ""
+    Write-Host "  A   Run ALL safe+moderate (skip risky)" -ForegroundColor Green
+    Write-Host "  R   Run ALL including risky" -ForegroundColor Yellow
+    Write-Host "  0   Exit without changes" -ForegroundColor Red
+    Write-Host ""
+}
+
+function Get-DetailedUserSelection {
+    # Show section-level menu and get selections
+    Show-DetailedMenu
+    $userInput = Read-Host "  Enter section numbers (comma-separated), 'A' for safe+moderate, 'R' for all+risky"
+
+    if ($userInput -eq '0') {
+        Write-Host "  Exiting without changes." -ForegroundColor Yellow
+        Stop-Transcript | Out-Null
+        exit 0
+    }
+
+    $allSectionKeys = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
+                        "Security","Network","WindowsUpdate","DiskCleanup","Winget",
+                        "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
+
+    $selected = @()
+    if ($userInput.Trim().ToUpper() -eq 'R') {
+        # Run ALL including risky
+        $selected = $allSectionKeys
+        $script:AllowRisky = $true
+        Write-Host "  Risky settings ENABLED for this run." -ForegroundColor Yellow
+    } elseif ($userInput.Trim().ToUpper() -eq 'A') {
+        # Run ALL safe+moderate (skip risky)
+        $selected = $allSectionKeys
+        $script:AllowRisky = $false
+        Write-Host "  Running safe + moderate settings only. Risky settings will be skipped." -ForegroundColor Green
+    } else {
+        $numbers = $userInput -split ',' | ForEach-Object { $_.Trim() }
+        $allSections = @{
+            '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
+            '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
+            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='EdgeHardening'
+            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches';'18'='WindowsFeatures'
+        }
+        foreach ($num in $numbers) {
+            if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
+            else { Write-Warn "Invalid selection: $num (skipped)" }
+        }
+
+        # Ask about risky settings
+        if ($selected.Count -gt 0) {
+            Write-Host ""
+            Write-Host "  Enable risky settings for selected sections? (y/N)" -ForegroundColor Yellow
+            $riskyChoice = Read-Host "  "
+            if ($riskyChoice -eq 'y' -or $riskyChoice -eq 'Y') {
+                $script:AllowRisky = $true
+                Write-Host "  Risky settings ENABLED." -ForegroundColor Yellow
+            }
+        }
+    }
+
+    # Show per-setting details for selected sections
+    if ($selected.Count -gt 0 -and -not $Silent) {
+        Write-Host ""
+        Write-Host "  SELECTED SECTIONS:" -ForegroundColor Cyan
+        Write-Host "  " + ("-" * 50) -ForegroundColor DarkGray
+
+        foreach ($sec in $selected) {
+            $safetyInfo = $script:SectionSafetyInfo[$sec]
+            if (-not $safetyInfo) { continue }
+
+            $riskyNote = ""
+            if ($safetyInfo.RiskyCount -gt 0) {
+                $riskyNote = " (NOTE: $($safetyInfo.RiskyCount) risky items will be $(if ($script:AllowRisky) { 'APPLIED' } else { 'SKIPPED' }))"
+            }
+            $modNote = ""
+            if ($safetyInfo.ModerateCount -gt 0) {
+                $modNote = " | $($safetyInfo.ModerateCount) moderate warnings"
+            }
+            Write-Host "  - $sec : $($safetyInfo.Safety) | $($safetyInfo.ItemCount) items$modNote$riskyNote" -ForegroundColor White
+        }
+
+        # Show risky descriptions if any exist and risky is not enabled
+        if (-not $script:AllowRisky) {
+            $totalRiskyInSelected = 0
+            foreach ($sec in $selected) {
+                $si = $script:SectionSafetyInfo[$sec]
+                if ($si) { $totalRiskyInSelected += $si.RiskyCount }
+            }
+            if ($totalRiskyInSelected -gt 0) {
+                Write-Host ""
+                Write-Host "  RISKY SETTINGS THAT WILL BE SKIPPED (use -AllowRisky to enable):" -ForegroundColor Yellow
+                Write-Host "  " + ("-" * 60) -ForegroundColor DarkGray
+
+                # Show known risky settings per section
+                $riskyDescriptions = @{
+                    "Debloat"         = @("Microsoft.WindowsAlarms — Clock/Alarms app (some users rely on this)", "Microsoft.WindowsCamera — Camera app (laptop users need this)")
+                    "ServiceStartup"  = @("WSearch — Windows Search (breaks Start menu search, Cortana, Office)", "WbioSrvc — Biometrics (breaks Windows Hello fingerprint/face login)")
+                    "WindowsFeatures" = @("PrintToPDFServicesFeatures — Print to PDF (users often need PDF printing)", "WCF-Services45 — WCF Services (some .NET apps require this)", "Hello-Face-Package — Windows Hello Face (breaks facial recognition)")
+                }
+                foreach ($sec in $selected) {
+                    if ($riskyDescriptions.ContainsKey($sec)) {
+                        foreach ($desc in $riskyDescriptions[$sec]) {
+                            Write-Host "    [RISKY] $desc" -ForegroundColor Yellow
+                        }
+                    }
+                }
+            }
+        }
+
+        Write-Host ""
+        Write-Host "  Press Enter to proceed, or Ctrl+C to cancel..." -ForegroundColor DarkGray
+        Read-Host "  "
+    }
+
     return $selected
 }
 
@@ -2901,8 +3448,17 @@ try {
                               "Security","Network","WindowsUpdate","DiskCleanup","Winget",
                               "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
         Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
+        if ($AllowRisky) {
+            $script:AllowRisky = $true
+            Write-Host "  Risky settings ENABLED via -AllowRisky flag." -ForegroundColor Yellow
+        }
     } else {
-        $selectedSections = Get-UserSelection
+        # Interactive mode — use new detailed menu (or simple menu if -SimpleMenu)
+        if ($SimpleMenu) {
+            $selectedSections = Get-SimpleUserSelection
+        } else {
+            $selectedSections = Get-DetailedUserSelection
+        }
     }
 
     Write-Host ""

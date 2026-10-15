@@ -149,3 +149,33 @@ Stage Summary:
 - New section: WindowsFeatures (Section 18)
 - Sample config file saved to /home/z/my-project/download/WinPostInstall-Config-Sample.json
 - Script is fully idempotent, self-elevating, with undo generation and registry backup
+
+---
+Task ID: 9
+Agent: Main Agent + Subagents
+Task: Safety audit + interactive tooltips (v4.0.0 → v4.1.0)
+
+Work Log:
+- Added 3-tier safety classification (Safe/Moderate/Risky) to Set-Registry and Disable-ScheduledTask
+- Risky settings default OFF — must opt-in via -AllowRisky flag or menu selection 'R'
+- Moderate settings show [MODERATE] warning when applied
+- Annotated 185 Set-Registry calls and Disable-ScheduledTask calls with SafetyLevel + Description + SettingID
+- Safety breakdown: ~155 Safe, ~32 Moderate, ~18 Risky
+- Added -AllowRisky and -SimpleMenu script parameters
+- Added $script:SettingCatalog for dynamic setting registration
+- Added $script:SettingOverrides for per-setting toggle support
+- Added $script:CurrentSection tracking for catalog organization
+- Built Show-DetailedMenu with safety badges ([Safe]/[Mixed]), risky/moderate item counts
+- Built Get-DetailedUserSelection with 'A' (safe+moderate) and 'R' (all+risky) options
+- Interactive mode shows risky settings that will be skipped with descriptions
+- Prompts to enable risky before proceeding
+- Service dependency checks added before disabling services
+- Critical AppX package protection added (prevents removing system-critical packages)
+- $script:SectionSafetyInfo populated for menu display
+- Syntax check passed: 3620 lines, 0 errors, 0 warnings
+
+Stage Summary:
+- Script upgraded from v4.0.0 (3064 lines) to v4.1.0 (3620 lines)
+- Every registry setting and scheduled task now has a safety classification and human-readable description
+- Interactive menu shows safety badges and risky item warnings
+- Risky settings are blocked by default — user must explicitly opt in
