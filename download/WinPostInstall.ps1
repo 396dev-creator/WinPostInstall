@@ -3559,7 +3559,8 @@ try {
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host ""
 
-    if ($selectedSections -intersect @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation")) {
+    $restartSections = @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation")
+    if ($selectedSections | Where-Object { $restartSections -contains $_ }) {
         Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
         Write-Host ""
         if (-not $Silent) {
