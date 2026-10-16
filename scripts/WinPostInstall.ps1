@@ -1828,10 +1828,17 @@ function Invoke-PerformanceOptimization {
 
     # 7. Limit Windows Defender CPU usage to ~25%
     Write-Step "Limiting Windows Defender CPU usage..."
-    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Advanced" `
-        -Name "ExcludedProcesses" -Value "" -Type String -SafetyLevel "Safe" -Description "Clears Defender excluded processes — maintains scan coverage" -SettingID "Performance_DefenderNoExclusions"
-    Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Scan" `
-        -Name "AvgCPULoadFactor" -Value 25 -Type DWord -SafetyLevel "Safe" -Description "Limits Windows Defender CPU usage to 25% — reduces scan impact" -SettingID "Performance_DefenderCPULimit"
+    # Note: Windows Defender Tamper Protection blocks direct registry edits.
+    # Use Set-MpPreference cmdlet where possible, fall back to registry.
+    try {
+        Set-MpPreference -ScanAvgCPULoadFactor 25 -ErrorAction Stop
+        Write-Success "Defender CPU limit set to 25% via Set-MpPreference"
+    } catch {
+        Write-Warn "Set-MpPreference failed (Tamper Protection may be on): $_"
+        # Fallback: try registry directly (may fail if Tamper Protection is enabled)
+        Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Scan" `
+            -Name "AvgCPULoadFactor" -Value 25 -Type DWord -SafetyLevel "Safe" -Description "Limits Windows Defender CPU usage to 25% — reduces scan impact" -SettingID "Performance_DefenderCPULimit"
+    }
 
     # 8. Disable OEM telemetry services
     Write-Step "Disabling OEM telemetry services..."
@@ -1901,10 +1908,19 @@ function Invoke-SecurityHardening {
 
     # 1. Ensure Windows Defender real-time protection ON
     Write-Step "Ensuring Windows Defender real-time protection is on..."
-    foreach ($prop in @("DisableRealtimeMonitoring","DisableBehaviorMonitoring",
-                        "DisableOnAccessProtection","DisableScanOnRealtimeEnable")) {
-        Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection" `
-            -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Ensures Defender real-time protection stays enabled — maintains security" -SettingID "Security_DefenderRT_Security_DefRT"
+    # Note: Defender Tamper Protection blocks registry edits to Defender keys.
+    # Use Set-MpPreference cmdlet as primary method.
+    try {
+        Set-MpPreference -DisableRealtimeMonitoring $false -ErrorAction Stop
+        Set-MpPreference -DisableBehaviorMonitoring $false -ErrorAction Stop
+        Write-Success "Defender real-time protection ensured via Set-MpPreference"
+    } catch {
+        Write-Warn "Set-MpPreference failed (Tamper Protection may be on). Trying registry fallback..."
+        foreach ($prop in @("DisableRealtimeMonitoring","DisableBehaviorMonitoring",
+                            "DisableOnAccessProtection","DisableScanOnRealtimeEnable")) {
+            Set-Registry -Path "HKLM:\SOFTWARE\Microsoft\Windows Defender\Real-Time Protection" `
+                -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Ensures Defender real-time protection stays enabled — maintains security" -SettingID "Security_DefenderRT_$prop"
+        }
     }
 
     # 2. Enable DNS over HTTPS
@@ -1929,11 +1945,26 @@ function Invoke-SecurityHardening {
         -SafetyLevel "Safe" -Description "Disables SMBv1 — protects against WannaCry-like exploits" -SettingID "Sec_NoSMB1"
     Disable-WindowsOptionalFeature -Online -FeatureName "SMB1Protocol" -NoRestart -ErrorAction SilentlyContinue | Out-Null
 
-    # 6. Disable PowerShell v2
+    # 6. Disable PowerShell v2 (feature name varies by Windows build)
     Write-Step "Disabling PowerShell v2..."
     Write-Host "  [MODERATE] Disabling PowerShell v2 — breaks very old PS scripts" -ForegroundColor DarkYellow
-    Disable-WindowsOptionalFeature -Online -FeatureName "MicrosoftWindowsPowerShellV2" `
-        -NoRestart -ErrorAction SilentlyContinue | Out-Null
+    try {
+        $psv2Disabled = $false
+        foreach ($featName in @("MicrosoftWindowsPowerShellV2", "PowerShellV2")) {
+            $feat = Get-WindowsOptionalFeature -Online -FeatureName $featName -ErrorAction SilentlyContinue
+            if ($feat -and $feat.State -eq 'Enabled') {
+                Disable-WindowsOptionalFeature -Online -FeatureName $featName -NoRestart -ErrorAction Stop | Out-Null
+                Write-Success "Disabled PowerShell v2 feature: $featName"
+                $psv2Disabled = $true
+                break
+            }
+        }
+        if (-not $psv2Disabled) {
+            Write-Step "PowerShell v2 feature not found or already disabled."
+        }
+    } catch {
+        Write-Warn "Could not disable PowerShell v2: $_"
+    }
 
     # 7. Ensure UAC enabled
     Write-Step "Ensuring UAC is enabled..."
