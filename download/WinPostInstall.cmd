@@ -338,7 +338,7 @@ function Initialize-Script {
     $script:OSBuild = $osInfo.BuildNumber
     $script:IsWin11 = $script:OSBuild -ge 22000
     $script:OSCaption = if ($script:IsWin11) { "Windows 11" } else { "Windows 10" }
-    $script:ComputerName = $env:COMPUTERNAME
+    $script:LocalComputerName = $env:COMPUTERNAME
 
     # Laptop vs Desktop detection
     $script:IsLaptop = $false
@@ -358,7 +358,7 @@ function Initialize-Script {
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host "  Windows Post-Installation Optimizer v$ScriptVersion" -ForegroundColor Cyan
     Write-Host "  Target: $script:OSCaption (Build $script:OSBuild)" -ForegroundColor Cyan
-    Write-Host "  Computer: $script:ComputerName" -ForegroundColor Cyan
+    Write-Host "  Computer: $script:LocalComputerName" -ForegroundColor Cyan
     Write-Host "  Chassis: $(if ($script:IsLaptop) { 'Laptop' } else { 'Desktop' })" -ForegroundColor Cyan
     Write-Host "  Log file: $LogFile" -ForegroundColor DarkGray
     Write-Host "================================================================" -ForegroundColor Cyan
