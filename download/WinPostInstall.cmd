@@ -3322,6 +3322,182 @@ function Show-DetailedMenu {
     Write-Host ""
 }
 
+function Show-SettingTweakMenu {
+    <#
+    .SYNOPSIS
+        Per-setting interactive tweak menu — lets users toggle individual settings on/off
+    .DESCRIPTION
+        After sections are selected, this menu lets users drill into each section and
+        toggle specific settings on/off before execution. Toggled-off settings are added
+        to $script:SettingOverrides so that Set-Registry and Disable-AppTask skip them.
+    .PARAMETER SelectedSections
+        Array of section key names (e.g. "Privacy","Debloat") the user selected.
+    #>
+    param(
+        [string[]]$SelectedSections
+    )
+
+    # Section key -> display name mapping (same as Show-DetailedMenu)
+    $sectionDisplayNames = @{
+        "Privacy"         = "PRIVACY AND TELEMETRY"
+        "Debloat"         = "DEBLOAT"
+        "ExplorerUI"      = "EXPLORER AND UI"
+        "ServiceStartup"  = "SERVICE AND STARTUP"
+        "Performance"     = "PERFORMANCE AND POWER"
+        "Security"        = "SECURITY"
+        "Network"         = "NETWORK"
+        "WindowsUpdate"   = "WINDOWS UPDATE"
+        "DiskCleanup"     = "DISK CLEANUP"
+        "Winget"          = "SOFTWARE (WINGET)"
+        "OfficeActivation"= "OFFICE 365"
+        "EdgeHardening"   = "EDGE HARDENING"
+        "OneDrive"        = "ONEDRIVE"
+        "Gaming"          = "GAMING / DVR"
+        "ScheduledTasks"  = "SCHEDULED TASKS"
+        "BrowserHardening"= "BROWSER PRIVACY"
+        "FinalTouches"    = "FINAL TOUCHES"
+        "WindowsFeatures" = "WINDOWS FEATURES"
+    }
+
+    foreach ($section in $SelectedSections) {
+        # Gather settings for this section from the catalog
+        $sectionSettings = @()
+        foreach ($key in $script:SettingCatalog.Keys) {
+            if ($script:SettingCatalog[$key].Section -eq $section) {
+                $sectionSettings += $key
+            }
+        }
+
+        # Skip sections with no catalog entries (e.g. Winget has no registry settings)
+        if ($sectionSettings.Count -eq 0) {
+            continue
+        }
+
+        # Sort settings by Safety level (Safe first, then Moderate, then Risky)
+        $safetyOrder = @{ "Safe" = 0; "Moderate" = 1; "Risky" = 2 }
+        $sectionSettings = $sectionSettings | Sort-Object { $safetyOrder[$script:SettingCatalog[$_].Safety] }, { $script:SettingCatalog[$_].Desc }
+
+        $displayName = if ($sectionDisplayNames.ContainsKey($section)) { $sectionDisplayNames[$section] } else { $section.ToUpper() }
+
+        # --- Interactive loop for this section ---
+        $doneWithSection = $false
+        while (-not $doneWithSection) {
+            Write-Host ""
+            Write-Host "  === $displayName - Individual Settings ===" -ForegroundColor White
+            Write-Host ""
+
+            # Print table header
+            Write-Host "  #   Toggle  Safety     Setting" -ForegroundColor DarkGray
+            Write-Host "  " + ("-" * 72) -ForegroundColor DarkGray
+
+            $index = 0
+            $settingList = @()  # Ordered list for index lookup
+            foreach ($settingID in $sectionSettings) {
+                $index++
+                $catEntry = $script:SettingCatalog[$settingID]
+                $isOn = -not ($script:SettingOverrides.ContainsKey($settingID) -and $script:SettingOverrides[$settingID])
+                $toggleStr = if ($isOn) { "[ON]" } else { "[OFF]" }
+                $safetyStr = $catEntry.Safety.PadRight(9)
+
+                # Color the toggle
+                $toggleColor = if ($isOn) { "Green" } else { "DarkGray" }
+                # Color the safety badge
+                $safetyColor = switch ($catEntry.Safety) {
+                    "Safe"     { "Green" }
+                    "Moderate" { "Yellow" }
+                    "Risky"    { "Red" }
+                    default    { "White" }
+                }
+
+                $numStr = $index.ToString().PadRight(4)
+                Write-Host "  $numStr" -NoNewline
+                Write-Host "$toggleStr  " -ForegroundColor $toggleColor -NoNewline
+                Write-Host "$safetyStr" -ForegroundColor $safetyColor -NoNewline
+                Write-Host " $($catEntry.Desc)" -ForegroundColor White
+
+                $settingList += $settingID
+            }
+
+            Write-Host ""
+            Write-Host "  Enter number to toggle ON/OFF, 'D#' for details, 'Q' when done:" -ForegroundColor Cyan
+            $menuInput = Read-Host "  "
+
+            $menuInput = $menuInput.Trim()
+
+            if ($menuInput -eq 'Q' -or $menuInput -eq 'q' -or [string]::IsNullOrEmpty($menuInput)) {
+                $doneWithSection = $true
+                continue
+            }
+
+            # Handle 'D#' — show details for setting number
+            if ($menuInput -match '^[Dd](\d+)$') {
+                $detailNum = [int]$Matches[1]
+                if ($detailNum -ge 1 -and $detailNum -le $settingList.Count) {
+                    $detailID = $settingList[$detailNum - 1]
+                    $detailEntry = $script:SettingCatalog[$detailID]
+                    $isOn = -not ($script:SettingOverrides.ContainsKey($detailID) -and $script:SettingOverrides[$detailID])
+
+                    Write-Host ""
+                    Write-Host "  Setting #$detailNum`: $($detailEntry.Desc)" -ForegroundColor White
+                    $safetyColor = switch ($detailEntry.Safety) {
+                        "Safe"     { "Green" }
+                        "Moderate" { "Yellow" }
+                        "Risky"    { "Red" }
+                        default    { "White" }
+                    }
+                    Write-Host "  Safety: " -NoNewline
+                    Write-Host "$($detailEntry.Safety)" -ForegroundColor $safetyColor
+                    Write-Host "  Action: $($detailEntry.Action)" -ForegroundColor DarkGray
+                    Write-Host "  Type:   $($detailEntry.Type)" -ForegroundColor DarkGray
+                    Write-Host "  State:  $(if ($isOn) { 'ON (will be applied)' } else { 'OFF (will be skipped)' })" -ForegroundColor $(if ($isOn) { 'Green' } else { 'DarkGray' })
+                    Write-Host "  ID:     $detailID" -ForegroundColor DarkGray
+
+                    # Provide a brief effect description based on safety level
+                    if ($detailEntry.Safety -eq "Risky") {
+                        Write-Host "  Effect: This is a RISKY change. Disabling may affect system functionality." -ForegroundColor Yellow
+                        Write-Host "          Only toggle OFF if you understand the consequences." -ForegroundColor Yellow
+                    } elseif ($detailEntry.Safety -eq "Moderate") {
+                        Write-Host "  Effect: This is a MODERATE change. Some users may notice side effects." -ForegroundColor DarkYellow
+                    } else {
+                        Write-Host "  Effect: Safe to apply. No significant side effects expected." -ForegroundColor DarkGray
+                    }
+                    Write-Host ""
+                } else {
+                    Write-Host "  Invalid setting number: $detailNum" -ForegroundColor Red
+                }
+                continue
+            }
+
+            # Handle plain number — toggle setting
+            if ($menuInput -match '^\d+$') {
+                $toggleNum = [int]$menuInput
+                if ($toggleNum -ge 1 -and $toggleNum -le $settingList.Count) {
+                    $toggleID = $settingList[$toggleNum - 1]
+                    $isOn = -not ($script:SettingOverrides.ContainsKey($toggleID) -and $script:SettingOverrides[$toggleID])
+
+                    if ($isOn) {
+                        # Currently ON → toggle OFF
+                        $script:SettingOverrides[$toggleID] = $true
+                        $desc = $script:SettingCatalog[$toggleID].Desc
+                        Write-Host "  Toggled OFF: $desc" -ForegroundColor DarkGray
+                    } else {
+                        # Currently OFF → toggle ON (remove from overrides)
+                        $script:SettingOverrides.Remove($toggleID)
+                        $desc = $script:SettingCatalog[$toggleID].Desc
+                        Write-Host "  Toggled ON: $desc" -ForegroundColor Green
+                    }
+                } else {
+                    Write-Host "  Invalid setting number: $toggleNum (range 1-$($settingList.Count))" -ForegroundColor Red
+                }
+                continue
+            }
+
+            # Unrecognized input
+            Write-Host "  Unrecognized input. Enter a number, 'D#', or 'Q'." -ForegroundColor Red
+        }
+    }
+}
+
 function Get-DetailedUserSelection {
     # Show section-level menu and get selections
     Show-DetailedMenu
@@ -3419,6 +3595,28 @@ function Get-DetailedUserSelection {
                         }
                     }
                 }
+            }
+        }
+
+        # Offer per-setting tweak menu
+        Write-Host ""
+        Write-Host "  Do you want to review/tweak individual settings? (y/N)" -ForegroundColor Cyan
+        $tweakChoice = Read-Host "  "
+        if ($tweakChoice -eq 'y' -or $tweakChoice -eq 'Y') {
+            Show-SettingTweakMenu -SelectedSections $selected
+            Write-Host ""
+            # Summarize how many settings were toggled off
+            $toggledOff = 0
+            foreach ($key in $script:SettingOverrides.Keys) {
+                $catEntry = $script:SettingCatalog[$key]
+                if ($catEntry -and $selected -contains $catEntry.Section) {
+                    $toggledOff++
+                }
+            }
+            if ($toggledOff -gt 0) {
+                Write-Host "  $toggledOff setting(s) toggled OFF and will be skipped." -ForegroundColor Yellow
+            } else {
+                Write-Host "  All settings remain ON (default)." -ForegroundColor Green
             }
         }
 
@@ -3662,25 +3860,86 @@ try {
     if ($script:UndoCommands -and $script:UndoCommands.Count -gt 0) {
         $undoPath = Join-Path (Split-Path $PSCommandPath -Parent) "WinPostInstall-Undo.ps1"
         try {
+            # Separate AppX reinstall comments from actual undo commands
+            $appxReinstallLines = @()
+            $registryAndTaskLines = @()
+            foreach ($cmd in $script:UndoCommands) {
+                if ($cmd -match '^#\s*Re-install:\s*Add-AppxPackage') {
+                    $appxReinstallLines += $cmd
+                } else {
+                    $registryAndTaskLines += $cmd
+                }
+            }
+
             $undoHeader = @(
                 "<#",
                 ".SYNOPSIS",
                 "    Undo script for WinPostInstall v$ScriptVersion",
                 ".DESCRIPTION",
                 "    Generated automatically. Run this to revert registry and scheduled task changes.",
-                "    NOTE: AppX package removals cannot be undone automatically.",
-                "#>"
+                "    NOTE: AppX package removals cannot be fully automated for reinstall.",
+                "          The reinstall commands are listed below as comments — you must run",
+                "          them manually from an elevated PowerShell prompt.",
+                "#>",
                 "",
                 "# Requires Administrator",
                 "if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {",
                 "    Write-Host 'This script requires Administrator privileges.' -ForegroundColor Red",
                 "    exit 1",
-                "}"
+                "}",
+                "",
+                "Write-Host '' -ForegroundColor White",
+                "Write-Host '  WinPostInstall Undo Script v$ScriptVersion' -ForegroundColor Cyan",
+                "Write-Host '  Reverting registry and scheduled task changes...' -ForegroundColor White",
+                "Write-Host '' -ForegroundColor White",
                 ""
             )
-            $undoContent = $undoHeader + $script:UndoCommands
+
+            # Build AppX reinstall section with clear header
+            $appxSection = @()
+            if ($appxReinstallLines.Count -gt 0) {
+                $appxSection = @(
+                    "",
+                    "# ============================================================",
+                    "# AppX packages that were removed (reinstall from Microsoft Store or Add-AppxPackage):",
+                    "# ============================================================",
+                    ""
+                )
+                foreach ($line in $appxReinstallLines) {
+                    # Rewrite as cleaner Add-AppxPackage command comments
+                    if ($line -match 'Add-AppxPackage\s+-Package\s+''(.+?)''') {
+                        $pkgName = $Matches[1]
+                        $appxSection += "# Add-AppxPackage -Package \"$pkgName\""
+                    } else {
+                        $appxSection += "# $line"
+                    }
+                }
+                $appxSection += @(
+                    "",
+                    "# NOTE: These packages may need to be reinstalled from the Microsoft Store",
+                    "# if Add-AppxPackage fails (e.g. package not found in local cache).",
+                    ""
+                )
+            }
+
+            $undoContent = $undoHeader + $registryAndTaskLines + $appxSection
             Set-Content -Path $undoPath -Value $undoContent -Encoding UTF8 -Force
-            Write-Host "  Undo script saved to: $undoPath" -ForegroundColor Green
+
+            # Display prominent undo script notification
+            Write-Host ""
+            Write-Host "  ================================================================" -ForegroundColor Green
+            Write-Host "  UNDO SCRIPT SAVED:" -ForegroundColor White
+            Write-Host "  $undoPath" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "  To revert ALL changes, run:" -ForegroundColor White
+            Write-Host "      powershell -ExecutionPolicy Bypass -File \"$undoPath\"" -ForegroundColor Yellow
+            if ($appxReinstallLines.Count -gt 0) {
+                Write-Host ""
+                Write-Host "  NOTE: $($appxReinstallLines.Count) AppX package(s) were removed." -ForegroundColor Yellow
+                Write-Host "  Reinstall commands are in the undo script as comments." -ForegroundColor Yellow
+            }
+            Write-Host "  ================================================================" -ForegroundColor Green
+            Write-Host ""
         } catch {
             Write-Warn "Could not write undo script: $_"
         }
