@@ -98,6 +98,7 @@ $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmms
 
 # Undo command tracker (for rollback script generation)
 $script:UndoCommands = [System.Collections.ArrayList]::new()
+$script:UndoDescriptions = [System.Collections.ArrayList]::new()
 
 # Statistics counters (for change summary report)
 $script:TotalChanged = 0
@@ -772,8 +773,10 @@ function Set-Registry {
         if ($null -ne $currentValue) {
             $oldVal = $currentValue.ToString()
             $null = $script:UndoCommands.Add("Set-ItemProperty -Path '$Path' -Name '$Name' -Value '$oldVal' -Type '$Type' -Force")
+            $null = $script:UndoDescriptions.Add("Restore registry: $Path\$Name = $oldVal")
         } else {
             $null = $script:UndoCommands.Add("Remove-ItemProperty -Path '$Path' -Name '$Name' -Force -ErrorAction SilentlyContinue")
+            $null = $script:UndoDescriptions.Add("Remove registry key that was added: $Path\$Name")
         }
 
         Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
@@ -877,6 +880,7 @@ function Disable-AppTask {
                 Write-Success "Task disabled: $TaskPath$TaskName"
                 $script:TotalChanged++
                 $null = $script:UndoCommands.Add("Enable-ScheduledTask -TaskPath '$TaskPath' -TaskName '$TaskName' -ErrorAction SilentlyContinue")
+                $null = $script:UndoDescriptions.Add("Re-enable scheduled task: $TaskPath$TaskName")
             }
         }
     }
@@ -1382,6 +1386,7 @@ function Invoke-Debloat {
                     $removed++
                     $script:TotalChanged++
                     $null = $script:UndoCommands.Add("# Re-install: Add-AppxPackage -Package '$($pkg.PackageFullName)'")
+                    $null = $script:UndoDescriptions.Add("Re-install removed app: $($pkg.Name)")
                     Write-Success "Removed: $($pkg.Name)"
                 } catch { Write-Warn "Could not remove $($pkg.Name): $_" }
             }
@@ -1555,6 +1560,7 @@ function Invoke-ExplorerUI {
         $castKey = "HKCR:\Local\Microsoft\Windows\Shell\Cast"
         if (Test-Path $castKey -ErrorAction SilentlyContinue) {
             $null = $script:UndoCommands.Add("New-Item -Path '$castKey' -Force -ErrorAction SilentlyContinue")
+            $null = $script:UndoDescriptions.Add("Restore Cast device registry key")
             Remove-Item -Path $castKey -Recurse -Force -ErrorAction SilentlyContinue
             Write-Success "Removed: Cast to Device"
         }
@@ -1566,6 +1572,7 @@ function Invoke-ExplorerUI {
         $skypeKey = "HKCR:\Local\Microsoft\Windows\Shell\Skype"
         if (Test-Path $skypeKey -ErrorAction SilentlyContinue) {
             $null = $script:UndoCommands.Add("New-Item -Path '$skypeKey' -Force -ErrorAction SilentlyContinue")
+            $null = $script:UndoDescriptions.Add("Restore Skype registry key")
             Remove-Item -Path $skypeKey -Recurse -Force -ErrorAction SilentlyContinue
             Write-Success "Removed: Share with Skype"
         }
@@ -1577,6 +1584,7 @@ function Invoke-ExplorerUI {
         $sharingKey = "HKCR:\AllFileObjects\shell\sharing"
         if (Test-Path $sharingKey -ErrorAction SilentlyContinue) {
             $null = $script:UndoCommands.Add("New-Item -Path '$sharingKey' -Force -ErrorAction SilentlyContinue")
+            $null = $script:UndoDescriptions.Add("Restore Sharing registry key")
             Remove-Item -Path $sharingKey -Recurse -Force -ErrorAction SilentlyContinue
             Write-Success "Removed: Give access to"
         }
@@ -1588,6 +1596,7 @@ function Invoke-ExplorerUI {
         $libraryKey = "HKCR:\Folder\Shell\include in library"
         if (Test-Path $libraryKey -ErrorAction SilentlyContinue) {
             $null = $script:UndoCommands.Add("New-Item -Path '$libraryKey' -Force -ErrorAction SilentlyContinue")
+            $null = $script:UndoDescriptions.Add("Restore Library registry key")
             Remove-Item -Path $libraryKey -Recurse -Force -ErrorAction SilentlyContinue
             Write-Success "Removed: Include in library"
         }
@@ -2091,6 +2100,7 @@ function Invoke-NetworkOptimizations {
         # Backup hosts file first
         Copy-Item $hostsPath "$hostsPath.bak" -Force -ErrorAction SilentlyContinue
         $null = $script:UndoCommands.Add("Copy-Item '$hostsPath.bak' '$hostsPath' -Force -ErrorAction SilentlyContinue")
+        $null = $script:UndoDescriptions.Add("Restore original hosts file (undo telemetry blocking)")
 
         $hostsAdded = 0
         foreach ($domain in $telemetryDomains) {
@@ -3062,6 +3072,7 @@ function Invoke-WindowsFeaturesRemoval {
                     $disabledCount++
                     $script:TotalChanged++
                     $null = $script:UndoCommands.Add("Enable-WindowsOptionalFeature -Online -FeatureName '$($feature.Name)' -NoRestart -ErrorAction SilentlyContinue")
+                    $null = $script:UndoDescriptions.Add("Re-enable Windows feature: $($feature.Desc)")
                 } else {
                     Write-Step "Already disabled: $($feature.Desc)"
                     $alreadyOffCount++
@@ -3100,6 +3111,7 @@ function Invoke-WindowsFeaturesRemoval {
                     $disabledCount++
                     $script:TotalChanged++
                     $null = $script:UndoCommands.Add("Enable-WindowsOptionalFeature -Online -FeatureName '$($feature.Name)' -NoRestart -ErrorAction SilentlyContinue")
+                    $null = $script:UndoDescriptions.Add("Re-enable Windows feature: $($feature.Desc)")
                 } else {
                     Write-Step "Already disabled: $($feature.Desc)"
                     $alreadyOffCount++
@@ -3818,27 +3830,51 @@ try {
     if ($script:UndoCommands -and $script:UndoCommands.Count -gt 0) {
         $undoPath = Join-Path (Split-Path $PSCommandPath -Parent) "WinPostInstall-Undo.ps1"
         try {
-            # Separate AppX reinstall comments from actual undo commands
-            $appxReinstallLines = @()
-            $registryAndTaskLines = @()
-            foreach ($cmd in $script:UndoCommands) {
-                if ($cmd -match '^#\s*Re-install:\s*Add-AppxPackage') {
-                    $appxReinstallLines += $cmd
-                } else {
-                    $registryAndTaskLines += $cmd
+            # Build embedded data arrays for the self-contained undo script
+            $embeddedCmds = @()
+            $embeddedDescs = @()
+            $embeddedTypes = @()
+
+            for ($i = 0; $i -lt $script:UndoCommands.Count; $i++) {
+                $cmd = $script:UndoCommands[$i]
+                $desc = if ($i -lt $script:UndoDescriptions.Count) { $script:UndoDescriptions[$i] } else { "Unknown change" }
+
+                # Determine type from the command
+                $type = "Other"
+                if ($cmd -match 'Set-ItemProperty|Remove-ItemProperty|New-Item') {
+                    $type = "Registry"
+                } elseif ($cmd -match 'Enable-ScheduledTask') {
+                    $type = "Task"
+                } elseif ($cmd -match 'Add-AppxPackage|Re-install') {
+                    $type = "AppX"
+                } elseif ($cmd -match 'Enable-WindowsOptionalFeature') {
+                    $type = "Feature"
+                } elseif ($cmd -match 'Copy-Item.*hosts') {
+                    $type = "Hosts"
                 }
+
+                # Escape single quotes for embedding in PowerShell string literals
+                $escapedCmd = $cmd -replace "'", "''"
+                $escapedDesc = $desc -replace "'", "''"
+
+                $embeddedCmds += "    '$escapedCmd'"
+                $embeddedDescs += "    '$escapedDesc'"
+                $embeddedTypes += "    '$type'"
             }
 
-            $undoHeader = @(
+            $undoContent = @(
                 "<#",
                 ".SYNOPSIS",
                 "    Undo script for WinPostInstall v$ScriptVersion",
                 ".DESCRIPTION",
-                "    Generated automatically. Run this to revert registry and scheduled task changes.",
-                "    NOTE: AppX package removals cannot be fully automated for reinstall.",
-                "          The reinstall commands are listed below as comments — you must run",
-                "          them manually from an elevated PowerShell prompt.",
+                "    Generated automatically. Run without arguments for an interactive menu",
+                "    to select which changes to revert. Run with -Silent to revert all changes",
+                "    without prompts.",
+                ".PARAMETER Silent",
+                "    Revert all changes without showing the interactive menu.",
                 "#>",
+                "",
+                "param([switch]`$Silent)",
                 "",
                 "# Requires Administrator",
                 "if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {",
@@ -3846,42 +3882,156 @@ try {
                 "    exit 1",
                 "}",
                 "",
+                "# Data embedded by WinPostInstall v$ScriptVersion",
+                "`$undoCommands = @(",
+                ($embeddedCmds -join "`n"),
+                ")",
+                "",
+                "`$undoDescs = @(",
+                ($embeddedDescs -join "`n"),
+                ")",
+                "",
+                "`$undoTypes = @(",
+                ($embeddedTypes -join "`n"),
+                ")",
+                "",
+                "# === Silent mode: run all undo commands ===",
+                "if (`$Silent) {",
+                "    Write-Host '' -ForegroundColor White",
+                "    Write-Host '  WinPostInstall Undo Script v$ScriptVersion (Silent Mode)' -ForegroundColor Cyan",
+                "    Write-Host '  Reverting all changes...' -ForegroundColor White",
+                "    Write-Host '' -ForegroundColor White",
+                "    for (`$i = 0; `$i -lt `$undoCommands.Count; `$i++) {",
+                "        `$cmd = `$undoCommands[`$i]",
+                "        `$desc = `$undoDescs[`$i]",
+                "        if (`$cmd -match '^#\s*Re-install') {",
+                "            Write-Host `"  [AppX] `$desc (skipped — cannot auto-reinstall)`" -ForegroundColor DarkYellow",
+                "            continue",
+                "        }",
+                "        try {",
+                "            Write-Host `"  [`$(`$undoTypes[`$i])] `$desc`" -ForegroundColor White",
+                "            Invoke-Expression `$cmd",
+                "        } catch {",
+                "            Write-Host `"  FAILED: `$desc — `$_`" -ForegroundColor Red",
+                "        }",
+                "    }",
+                "    Write-Host '' -ForegroundColor White",
+                "    Write-Host '  All applicable changes have been reverted.' -ForegroundColor Green",
+                "    Write-Host '' -ForegroundColor White",
+                "    exit 0",
+                "}",
+                "",
+                "# === Interactive mode ===",
                 "Write-Host '' -ForegroundColor White",
                 "Write-Host '  WinPostInstall Undo Script v$ScriptVersion' -ForegroundColor Cyan",
-                "Write-Host '  Reverting registry and scheduled task changes...' -ForegroundColor White",
+                "Write-Host '  Select which changes to revert:' -ForegroundColor White",
                 "Write-Host '' -ForegroundColor White",
-                ""
+                "",
+                "# Separate AppX items for display grouping",
+                "`$appxIndices = @()",
+                "`$otherIndices = @()",
+                "for (`$i = 0; `$i -lt `$undoCommands.Count; `$i++) {",
+                "    if (`$undoTypes[`$i] -eq 'AppX') { `$appxIndices += `$i }",
+                "    else { `$otherIndices += `$i }",
+                "}",
+                "",
+                "# Display non-AppX items",
+                "Write-Host '  #   Type          Change' -ForegroundColor White",
+                "Write-Host '  --  -----------   ------' -ForegroundColor DarkGray",
+                "foreach (`$idx in `$otherIndices) {",
+                "    `$numStr = (`$idx + 1).ToString().PadLeft(3)",
+                "    `$typeStr = `$undoTypes[`$idx].PadRight(13)",
+                "    Write-Host \"  `$numStr  `$typeStr `$(`$undoDescs[`$idx])\" -ForegroundColor White",
+                "}",
+                "",
+                "# Display AppX items in a separate group",
+                "if (`$appxIndices.Count -gt 0) {",
+                "    Write-Host '' -ForegroundColor White",
+                "    Write-Host '  AppX packages that were removed (cannot be auto-reinstalled):' -ForegroundColor Yellow",
+                "    foreach (`$idx in `$appxIndices) {",
+                "        `$numStr = (`$idx + 1).ToString().PadLeft(3)",
+                "        `$typeStr = `$undoTypes[`$idx].PadRight(13)",
+                "        Write-Host \"  `$numStr  `$typeStr `$(`$undoDescs[`$idx])\" -ForegroundColor Yellow",
+                "    }",
+                "}",
+                "",
+                "Write-Host '' -ForegroundColor White",
+                "Write-Host '  A   Undo ALL changes' -ForegroundColor Green",
+                "Write-Host '  0   Exit without undoing anything' -ForegroundColor DarkGray",
+                "Write-Host '' -ForegroundColor White",
+                "",
+                "# Prompt for selection",
+                "`$menuInput = Read-Host '  Enter numbers (comma-separated), A for all, 0 to exit'",
+                "",
+                "if (`$menuInput -eq '0' -or `$menuInput -eq 'q') {",
+                "    Write-Host '  Exiting without undoing anything.' -ForegroundColor DarkGray",
+                "    exit 0",
+                "}",
+                "",
+                "# Parse selection",
+                "`$selectedIndices = @()",
+                "if (`$menuInput -eq 'A' -or `$menuInput -eq 'a') {",
+                "    `$selectedIndices = 0..(`$undoCommands.Count - 1)",
+                "} else {",
+                "    foreach (`$part in `$menuInput -split ',') {",
+                "        `$trimmed = `$part.Trim()",
+                "        if (`$trimmed -match '^\d+$') {",
+                "            `$num = [int]`$trimmed",
+                "            if (`$num -ge 1 -and `$num -le `$undoCommands.Count) {",
+                "                `$selectedIndices += `$num - 1",
+                "            }",
+                "        }",
+                "    }",
+                "}",
+                "",
+                "if (`$selectedIndices.Count -eq 0) {",
+                "    Write-Host '  No valid selection. Exiting.' -ForegroundColor DarkGray",
+                "    exit 0",
+                "}",
+                "",
+                "# Execute selected undo commands",
+                "Write-Host '' -ForegroundColor White",
+                "Write-Host '  Reverting selected changes...' -ForegroundColor Cyan",
+                "Write-Host '' -ForegroundColor White",
+                "",
+                "foreach (`$idx in `$selectedIndices) {",
+                "    `$cmd = `$undoCommands[`$idx]",
+                "    `$desc = `$undoDescs[`$idx]",
+                "    `$type = `$undoTypes[`$idx]",
+                "",
+                "    if (`$type -eq 'AppX') {",
+                "        # AppX reinstall: show the command but warn",
+                "        Write-Host \"  [AppX] `$desc\" -ForegroundColor Yellow",
+                "        if (`$cmd -match 'Add-AppxPackage\s+-Package\s+'(.+?)'') {",
+                "            Write-Host '        Command: Add-AppxPackage -Package' \"`$(`$Matches[1])\" -ForegroundColor DarkGray",
+                "        }",
+                "        Write-Host '        NOTE: May require Microsoft Store to reinstall.' -ForegroundColor DarkGray",
+                "        continue",
+                "    }",
+                "",
+                "    try {",
+                "        Write-Host \"  [`$type] `$desc\" -ForegroundColor White",
+                "        Invoke-Expression `$cmd",
+                "        Write-Host '        OK' -ForegroundColor Green",
+                "    } catch {",
+                "        Write-Host \"        FAILED: `$_\" -ForegroundColor Red",
+                "    }",
+                "}",
+                "",
+                "Write-Host '' -ForegroundColor White",
+                "Write-Host '  Selected changes have been reverted.' -ForegroundColor Green",
+                "Write-Host '' -ForegroundColor White"
             )
 
-            # Build AppX reinstall section with clear header
-            $appxSection = @()
-            if ($appxReinstallLines.Count -gt 0) {
-                $appxSection = @(
-                    "",
-                    "# ============================================================",
-                    "# AppX packages that were removed (reinstall from Microsoft Store or Add-AppxPackage):",
-                    "# ============================================================",
-                    ""
-                )
-                foreach ($line in $appxReinstallLines) {
-                    # Rewrite as cleaner Add-AppxPackage command comments
-                    if ($line -match 'Add-AppxPackage\s+-Package\s+''(.+?)''') {
-                        $pkgName = $Matches[1]
-                        $appxSection += "# Add-AppxPackage -Package \"$pkgName\""
-                    } else {
-                        $appxSection += "# $line"
-                    }
-                }
-                $appxSection += @(
-                    "",
-                    "# NOTE: These packages may need to be reinstalled from the Microsoft Store",
-                    "# if Add-AppxPackage fails (e.g. package not found in local cache).",
-                    ""
-                )
-            }
-
-            $undoContent = $undoHeader + $registryAndTaskLines + $appxSection
             Set-Content -Path $undoPath -Value $undoContent -Encoding UTF8 -Force
+
+            # Count AppX items for notification
+            $appxCount = 0
+            for ($i = 0; $i -lt $script:UndoCommands.Count; $i++) {
+                if ($script:UndoCommands[$i] -match '^#\s*Re-install:\s*Add-AppxPackage') {
+                    $appxCount++
+                }
+            }
 
             # Display prominent undo script notification
             Write-Host ""
@@ -3889,12 +4039,14 @@ try {
             Write-Host "  UNDO SCRIPT SAVED:" -ForegroundColor White
             Write-Host "  $undoPath" -ForegroundColor Cyan
             Write-Host ""
-            Write-Host "  To revert ALL changes, run:" -ForegroundColor White
-            Write-Host "      powershell -ExecutionPolicy Bypass -File \"$undoPath\"" -ForegroundColor Yellow
-            if ($appxReinstallLines.Count -gt 0) {
+            Write-Host "  To undo ALL changes:" -ForegroundColor White
+            Write-Host "      powershell -ExecutionPolicy Bypass -File `"WinPostInstall-Undo.ps1`" -Silent" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  To undo SELECTED changes (interactive menu):" -ForegroundColor White
+            Write-Host "      powershell -ExecutionPolicy Bypass -File `"WinPostInstall-Undo.ps1`"" -ForegroundColor Yellow
+            if ($appxCount -gt 0) {
                 Write-Host ""
-                Write-Host "  NOTE: $($appxReinstallLines.Count) AppX package(s) were removed." -ForegroundColor Yellow
-                Write-Host "  Reinstall commands are in the undo script as comments." -ForegroundColor Yellow
+                Write-Host "  NOTE: AppX reinstall commands are included — you can select which ones to run." -ForegroundColor Yellow
             }
             Write-Host "  ================================================================" -ForegroundColor Green
             Write-Host ""
