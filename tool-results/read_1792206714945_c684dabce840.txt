@@ -1,0 +1,1435 @@
+     1→# WinPostInstall GUI — Implementation Plan
+     2→
+     3→> **Version**: 1.0  
+     4→> **Date**: 2025-03-04  
+     5→> **Stack**: Next.js 16 · TypeScript · Tailwind CSS 4 · shadcn/ui  
+     6→> **Script**: WinPostInstall.ps1 v4.1.0 (4063 lines, 18 sections, 185 settings)
+     7→
+     8→---
+     9→
+    10→## Table of Contents
+    11→
+    12→1. [Architecture Overview](#1-architecture-overview)
+    13→2. [Competitive Advantage Matrix](#2-competitive-advantage-matrix)
+    14→3. [Data Model](#3-data-model)
+    15→4. [Page Structure & Navigation](#4-page-structure--navigation)
+    16→5. [Component Hierarchy](#5-component-hierarchy)
+    17→6. [File & Folder Structure](#6-file--folder-structure)
+    18→7. [PowerShell Integration](#7-powershell-integration)
+    19→8. [Key UI Screens](#8-key-ui-screens)
+    20→9. [State Management](#9-state-management)
+    21→10. [Implementation Phases](#10-implementation-phases)
+    22→
+    23→---
+    24→
+    25→## 1. Architecture Overview
+    26→
+    27→### High-Level Architecture
+    28→
+    29→```
+    30→┌─────────────────────────────────────────────────────────────┐
+    31→│                     Electron Shell (Tauri v2)               │
+    32→│  ┌───────────────────────────────────────────────────────┐  │
+    33→│  │              Next.js 16 App (SSR + Client)            │  │
+    34→│  │  ┌─────────────┐  ┌──────────────┐  ┌─────────────┐  │  │
+    35→│  │  │  Settings   │  │  Profiles    │  │  Execution  │  │  │
+    36→│  │  │  Engine     │  │  Manager     │  │  Engine     │  │  │
+    37→│  │  └──────┬──────┘  └──────┬───────┘  └──────┬──────┘  │  │
+    38→│  │         │                │                  │         │  │
+    39→│  │  ┌──────┴────────────────┴──────────────────┴──────┐  │  │
+    40→│  │  │              Zustand State Store                │  │  │
+    41→│  │  └─────────────────────┬─────────────────────────┘  │  │
+    42→│  └────────────────────────┼────────────────────────────┘  │
+    43→│                           │                                │
+    44→│  ┌────────────────────────┴────────────────────────────┐  │
+    45→│  │           PowerShell Bridge (IPC Layer)             │  │
+    46→│  │  • Script generation  • Execution  • Output capture │  │
+    47→│  └─────────────────────────────────────────────────────┘  │
+    48→└─────────────────────────────────────────────────────────────┘
+    49→```
+    50→
+    51→### Core Design Decisions
+    52→
+    53→| Decision | Choice | Rationale |
+    54→|----------|--------|-----------|
+    55→| **Framework** | Next.js 16 (App Router) | Modern React, SSR for fast initial load, API routes for PS bridge |
+    56→| **Desktop Shell** | Tauri v2 | Rust-based, ~3MB binary, native PS execution, no Chromium bundling like Electron |
+    57→| **State** | Zustand + persist middleware | Lightweight, no boilerplate, built-in persistence to localStorage/JSON |
+    58→| **UI Library** | shadcn/ui (Radix + Tailwind) | Accessible, composable, dark theme out of the box |
+    59→| **Styling** | Tailwind CSS 4 | Utility-first, design token support, CSS custom properties for theming |
+    60→| **Icons** | Lucide React | Consistent, tree-shakeable, 1500+ icons |
+    61→| **Data Source** | Static JSON catalog + script parser | Settings catalog is generated from PS1 at build time; runtime reads it |
+    62→| **Config Format** | JSON (compatible with PS1's -ConfigFile) | Direct interoperability with existing script |
+    63→
+    64→### Two Deployment Modes
+    65→
+    66→1. **Tauri Desktop App** (primary) — native Windows app with direct PowerShell execution
+    67→2. **Web App** (secondary) — runs in browser; generates scripts for download but cannot execute directly
+    68→
+    69→---
+    70→
+    71→## 2. Competitive Advantage Matrix
+    72→
+    73→### Feature Comparison — What We Have That Others Don't
+    74→
+    75→| Feature | Us | WinUtil | Win11Debloat | Winhance | WinScript | musman96 |
+    76→|---------|:--:|:-------:|:------------:|:--------:|:---------:|:--------:|
+    77→| **Per-setting granularity + tooltips** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    78→| **3-tier safety classification** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    79→| **Granular per-setting undo** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    80→| **Named profiles with descriptions** | ✅ | ❌ | ❌ | ✅* | ❌ | ❌ |
+    81→| **5-browser hardening** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    82→| **AI feature control (Copilot/Recall/ClickToDo/Paint/Notepad AI)** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+    83→| **Winget + Chocolatey** | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
+    84→| **3rd-party telemetry blocking** | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+    85→| **Real-time change preview** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    86→| **Cross-section search/filter** | ✅ | ✅* | ❌ | ❌ | ❌ | ❌ |
+    87→| **Modern web-based GUI** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    88→| **Hardware-aware (SSD/HDD, laptop/desktop, RAM)** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    89→| **Edge hardening (14+ policies)** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    90→| **DNS-over-HTTPS** | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+    91→| **Custom ISO creator** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+    92→| **Sysprep/deployment mode** | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+    93→| **Undo script generation** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    94→| **Idempotency (skip already-applied)** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    95→| **System Restore point** | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+    96→| **Registry backup** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    97→| **Before/after snapshots** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+    98→
+    99→\* Partial implementation
+   100→
+   101→### Our Unique Selling Points (no competitor has ALL of these)
+   102→
+   103→1. **Per-setting granularity with tooltips** — Every one of 185 settings can be individually toggled, each with a human-readable description, safety badge, and technical detail tooltip
+   104→2. **3-tier safety classification** — Visual badges (Safe=green, Moderate=amber, Risky=red) with risky defaults OFF
+   105→3. **Granular per-setting undo** — Not all-or-nothing. Undo specific changes from a selection list
+   106→4. **Named profiles** — Save/load named configurations with descriptions ("Gaming Rig", "Office Laptop", "Kiosk")
+   107→5. **Real-time change preview** — Before applying, see exactly what will change (registry paths, values, services) in a diff-like view
+   108→6. **5-browser hardening** — Chrome, Edge, Firefox, Brave, Opera with extension deployment + enterprise policies
+   109→7. **Hardware-aware execution** — SSD/HDD detection, laptop/desktop, RAM-aware settings (from the PS1 script)
+   110→8. **Modern web GUI** — Beautiful, responsive, dark-themed React app (competitors use WPF or console)
+   111→
+   112→---
+   113→
+   114→## 3. Data Model
+   115→
+   116→### Core Types
+   117→
+   118→```typescript
+   119→// ─── Safety Classification ───
+   120→type SafetyLevel = 'Safe' | 'Moderate' | 'Risky';
+   121→
+   122→// ─── Section Definition ───
+   123→interface Section {
+   124→  id: string;              // "Privacy", "Debloat", "EdgeHardening", etc.
+   125→  name: string;            // Display name: "Privacy and Telemetry"
+   126→  description: string;     // Section-level tooltip/description
+   127→  icon: string;            // Lucide icon name: "shield", "trash2", "globe", etc.
+   128→  order: number;           // Display order (1-18)
+   129→  category: SectionCategory;
+   130→  safetySummary: {
+   131→    safe: number;
+   132→    moderate: number;
+   133→    risky: number;
+   134→    total: number;
+   135→  };
+   136→  requiresReboot: boolean;
+   137→  requiresNetwork: boolean; // Needs internet (e.g., Winget, Office)
+   138→  win11Only?: boolean;
+   139→  win10Only?: boolean;
+   140→}
+   141→
+   142→type SectionCategory = 
+   143→  | 'privacy'      // Privacy, EdgeHardening, BrowserHardening
+   144→  | 'cleanup'      // Debloat, DiskCleanup, ScheduledTasks, WindowsFeatures
+   145→  | 'performance'  // Performance, ServiceStartup, Gaming
+   146→  | 'security'     // Security, Network, WindowsUpdate
+   147→  | 'customize'    // ExplorerUI, OneDrive, FinalTouches
+   148→  | 'install';     // Winget, OfficeActivation
+   149→
+   150→// ─── Individual Setting ───
+   151→interface Setting {
+   152→  id: string;              // "Privacy_AllowTelemetry", "Debloat_Copilot", etc.
+   153→  sectionId: string;       // Foreign key to Section.id
+   154→  name: string;            // Human-readable name
+   155→  description: string;     // Tooltip description (from PS1 -Description param)
+   156→  safetyLevel: SafetyLevel;
+   157→  type: SettingType;       // What kind of change this is
+   158→  action: string;          // Technical action: "HKLM\...\AllowTelemetry = 0"
+   159→  
+   160→  // State
+   161→  enabled: boolean;        // Whether this setting is toggled ON
+   162→  applied: boolean;        // Whether this has been applied to the system
+   163→  skipped: boolean;        // Whether it was skipped (already set / risky blocked)
+   164→  failed: boolean;         // Whether it failed to apply
+   165→  
+   166→  // Optional context
+   167→  registryPath?: string;   // For registry settings
+   168→  registryName?: string;
+   169→  registryValue?: string | number;
+   170→  registryType?: 'DWord' | 'QWord' | 'String' | 'ExpandString';
+   171→  taskPath?: string;       // For scheduled task settings
+   172→  taskName?: string;
+   173→  appxName?: string;       // For AppX bloatware
+   174→  featureName?: string;    // For Windows features
+   175→  wingetId?: string;       // For Winget packages
+   176→  serviceName?: string;   // For service settings
+   177→  
+   178→  // Undo
+   179→  undoCommand?: string;    // PowerShell command to revert
+   180→  undoDescription?: string;
+   181→}
+   182→
+   183→type SettingType = 
+   184→  | 'registry' 
+   185→  | 'scheduled-task' 
+   186→  | 'appx-package'
+   187→  | 'windows-feature'
+   188→  | 'winget-package'
+   189→  | 'chocolatey-package'
+   190→  | 'service'
+   191→  | 'hosts-entry'
+   192→  | 'dns-config'
+   193→  | 'power-plan'
+   194→  | 'browser-policy'
+   195→  | 'browser-extension'
+   196→  | 'custom';             // For anything else
+   197→
+   198→// ─── Profile (Saved Configuration) ───
+   199→interface Profile {
+   200→  id: string;              // UUID
+   201→  name: string;            // "Gaming Rig", "Office Laptop", "Kiosk Mode"
+   202→  description: string;     // "Optimized for gaming with privacy preserved"
+   203→  createdAt: string;       // ISO 8601
+   204→  updatedAt: string;
+   205→  isBuiltIn: boolean;      // true for factory presets
+   206→  
+   207→  // The actual configuration
+   208→  sections: {
+   209→    [sectionId: string]: {
+   210→      enabled: boolean;    // Is this section included?
+   211→      settings: {
+   212→        [settingId: string]: boolean;  // true = ON, false = toggled OFF
+   213→      };
+   214→    };
+   215→  };
+   216→  
+   217→  // Metadata
+   218→  tag?: string;            // Optional tag for filtering
+   219→  author?: string;
+   220→  version?: string;        // PS1 version this profile was created for
+   221→}
+   222→
+   223→// ─── Execution State ───
+   224→interface ExecutionState {
+   225→  status: 'idle' | 'preflight' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+   226→  currentSection: string | null;
+   227→  currentSetting: string | null;
+   228→  progress: {
+   229→    totalSettings: number;
+   230→    appliedSettings: number;
+   231→    skippedSettings: number;
+   232→    failedSettings: number;
+   233→    percentComplete: number;
+   234→  };
+   235→  logs: LogEntry[];
+   236→  startTime: string | null;
+   237→  endTime: string | null;
+   238→  sectionStats: {
+   239→    [sectionId: string]: {
+   240→      duration: number;    // milliseconds
+   241→      changed: number;
+   242→      skipped: number;
+   243→      failed: number;
+   244→    };
+   245→  };
+   246→}
+   247→
+   248→interface LogEntry {
+   249→  timestamp: string;
+   250→  level: 'info' | 'success' | 'warn' | 'error';
+   251→  section?: string;
+   252→  settingId?: string;
+   253→  message: string;
+   254→}
+   255→
+   256→// ─── Pre-flight Check Results ───
+   257→interface PreflightResult {
+   258→  isAdmin: boolean;
+   259→  osVersion: string;
+   260→  osBuild: number;
+   261→  isWin11: boolean;
+   262→  chassisType: 'Laptop' | 'Desktop' | 'Unknown';
+   263→  bootDriveType: 'SSD' | 'HDD' | 'Unknown';
+   264→  totalRamGB: number;
+   265→  internetConnected: boolean;
+   266→  freeDiskSpaceGB: number;
+   267→  pendingReboot: boolean;
+   268→  batteryLevel?: number;
+   269→  onAcPower?: boolean;
+   270→  defenderExcluded: boolean;
+   271→  restorePointEnabled: boolean;
+   272→}
+   273→
+   274→// ─── Undo Entry ───
+   275→interface UndoEntry {
+   276→  id: string;
+   277→  settingId: string;
+   278→  sectionId: string;
+   279→  description: string;
+   280→  undoCommand: string;
+   281→  type: SettingType;
+   282→  appliedAt: string;
+   283→  selected: boolean;      // For granular undo selection
+   284→}
+   285→
+   286→// ─── Search & Filter State ───
+   287→interface FilterState {
+   288→  searchQuery: string;
+   289→  safetyFilter: SafetyLevel | 'all';
+   290→  categoryFilter: SectionCategory | 'all';
+   291→  statusFilter: 'all' | 'enabled' | 'disabled' | 'applied' | 'risky';
+   292→  sectionFilter: string | 'all';  // Section ID or 'all'
+   293→}
+   294→```
+   295→
+   296→### Built-in Preset Profiles
+   297→
+   298→```typescript
+   299→const BUILTIN_PROFILES: Profile[] = [
+   300→  {
+   301→    id: 'recommended',
+   302→    name: 'Recommended',
+   303→    description: 'Safe + Moderate settings. Best for most users. Risky settings skipped.',
+   304→    isBuiltIn: true,
+   305→    // ... sections with Safe+Moderate ON, Risky OFF
+   306→  },
+   307→  {
+   308→    id: 'maximum-privacy',
+   309→    name: 'Maximum Privacy',
+   310→    description: 'All privacy and security settings enabled, including risky telemetry blocking.',
+   311→    isBuiltIn: true,
+   312→    // ... all privacy/security ON including risky
+   313→  },
+   314→  {
+   315→    id: 'gaming',
+   316→    name: 'Gaming Optimized',
+   317→    description: 'Performance + gaming settings. Keeps Xbox, Game Bar, and hardware acceleration.',
+   318→    isBuiltIn: true,
+   319→    // ... gaming-optimized selections
+   320→  },
+   321→  {
+   322→    id: 'office-laptop',
+   323→    name: 'Office Laptop',
+   324→    description: 'Conservative tweaks for work laptops. Preserves OneDrive, search, and enterprise features.',
+   325→    isBuiltIn: true,
+   326→    // ... conservative selections
+   327→  },
+   328→  {
+   329→    id: 'minimal',
+   330→    name: 'Minimal',
+   331→    description: 'Only the safest settings. Zero risk of breaking anything.',
+   332→    isBuiltIn: true,
+   333→    // ... only Safe settings ON
+   334→  },
+   335→  {
+   336→    id: 'kiosk',
+   337→    name: 'Kiosk / Deployment',
+   338→    description: 'Maximum lockdown for public or kiosk machines. Sysprep-compatible.',
+   339→    isBuiltIn: true,
+   340→    // ... maximum lockdown
+   341→  },
+   342→];
+   343→```
+   344→
+   345→---
+   346→
+   347→## 4. Page Structure & Navigation
+   348→
+   349→### Navigation Layout
+   350→
+   351→```
+   352→┌─────────────────────────────────────────────────────────────┐
+   353→│  [Logo] WinPostInstall    [Search ▼]    [Profile ▼]   [⚙️] │
+   354→├────────┬────────────────────────────────────────────────────┤
+   355→│        │                                                    │
+   356→│  📊    │              Main Content Area                     │
+   357→│ Home   │                                                    │
+   358→│        │                                                    │
+   359→│ 🔒     │   (varies by page — see below)                    │
+   360→│ Privacy│                                                    │
+   361→│        │                                                    │
+   362→│ 🗑️     │                                                    │
+   363→│ Debloat│                                                    │
+   364→│        │                                                    │
+   365→│ 🖥️     │                                                    │
+   366→│ UI     │                                                    │
+   367→│        │                                                    │
+   368→│ ⚡     │                                                    │
+   369→│ Perf   │                                                    │
+   370→│        │                                                    │
+   371→│ 🛡️     │                                                    │
+   372→│ Security│                                                   │
+   373→│        │                                                    │
+   374→│ ...    │                                                    │
+   375→│        │                                                    │
+   376→│ ────── │                                                    │
+   377→│ 📦     │                                                    │
+   378→│ Install│                                                    │
+   379→│        │                                                    │
+   380→│ 🔄     │                                                    │
+   381→│ Undo   │                                                    │
+   382→│        │                                                    │
+   383→│ 💾     │                                                    │
+   384→│ Profiles│                                                   │
+   385→│        │                                                    │
+   386→├────────┴────────────────────────────────────────────────────┤
+   387→│  [▶ Apply 18 sections (155 changes)]  [Preview]  [Export]  │
+   388→└─────────────────────────────────────────────────────────────┘
+   389→```
+   390→
+   391→### Page Map
+   392→
+   393→| Route | Page | Description |
+   394→|-------|------|-------------|
+   395→| `/` | **Dashboard** | System overview, pre-flight status, quick-start cards, recent profile |
+   396→| `/sections/[sectionId]` | **Section Detail** | All settings in a section with toggles, safety badges, tooltips |
+   397→| `/install` | **Software Install** | Winget + Chocolatey package browser with search, categories, multi-select |
+   398→| `/undo` | **Undo Center** | Granular undo — select individual changes to revert |
+   399→| `/profiles` | **Profile Manager** | Save/load/delete/export/import named profiles |
+   400→| `/preview` | **Change Preview** | Real-time preview of all pending changes before applying |
+   401→| `/execute` | **Execution View** | Live progress, streaming logs, section-by-section status |
+   402→| `/settings` | **App Settings** | Theme, PowerShell path, log location, defaults |
+   403→| `/about` | **About** | Version, changelog, credits, license |
+   404→
+   405→---
+   406→
+   407→## 5. Component Hierarchy
+   408→
+   409→### Component Tree
+   410→
+   411→```
+   412→App
+   413→├── Layout
+   414→│   ├── Sidebar
+   415→│   │   ├── SidebarHeader (Logo + Version)
+   416→│   │   ├── SidebarNav
+   417→│   │   │   ├── NavGroup ("Optimize")
+   418→│   │   │   │   └── NavItem × 18 (one per section)
+   419→│   │   │   ├── NavGroup ("Tools")
+   420→│   │   │   │   ├── NavItem (Software Install)
+   421→│   │   │   │   ├── NavItem (Undo Center)
+   422→│   │   │   │   └── NavItem (Profiles)
+   423→│   │   │   └── NavGroup ("System")
+   424→│   │   │       ├── NavItem (Change Preview)
+   425→│   │   │       └── NavItem (Settings)
+   426→│   │   └── SidebarFooter (Apply button)
+   427→│   ├── TopBar
+   428→│   │   ├── GlobalSearch (Cmd+K / Ctrl+K)
+   429→│   │   ├── ProfileSelector (dropdown)
+   430→│   │   └── SystemBadge (admin status, OS version)
+   431→│   └── MainContent (page router)
+   432→│
+   433→├── Pages
+   434→│   ├── DashboardPage
+   435→│   │   ├── PreflightCard (system check results)
+   436→│   │   ├── QuickStartCards (preset profile cards)
+   437→│   │   ├── SectionOverviewGrid (18 section cards with safety summary)
+   438→│   │   └── RecentActivity (last run summary)
+   439→│   │
+   440→│   ├── SectionDetailPage (per section)
+   441→│   │   ├── SectionHeader (name, icon, safety summary, select all/none)
+   442→│   │   ├── SectionFilterBar (safety filter, status filter, search)
+   443→│   │   └── SettingList
+   444→│   │       └── SettingRow × N
+   445→│   │           ├── SettingToggle (switch)
+   446→│   │           ├── SafetyBadge (Safe/Moderate/Risky)
+   447→│   │           ├── SettingName
+   448→│   │           ├── SettingTooltip (hover → description + technical detail)
+   449→│   │           ├── SettingStatus (applied/skipped/failed indicator)
+   450→│   │           └── SettingActions (undo button if applied)
+   451→│   │
+   452→│   ├── InstallPage
+   453→│   │   ├── PackageSourceTabs (Winget | Chocolatey)
+   454→│   │   ├── PackageSearchBar
+   455→│   │   ├── PackageCategoryFilter
+   456→│   │   └── PackageGrid
+   457→│   │       └── PackageCard × N
+   458→│   │           ├── PackageIcon
+   459→│   │           ├── PackageName + PackageID
+   460→│   │           ├── PackageDescription
+   461→│   │           ├── InstallToggle
+   462→│   │           └── PackageStatus (installed/pending/failed)
+   463→│   │
+   464→│   ├── UndoPage
+   465→│   │   ├── UndoFilterBar (by section, by type, by date)
+   466→│   │   ├── UndoSelectAll (checkbox)
+   467→│   │   └── UndoList
+   468→│   │       └── UndoRow × N
+   469→│   │           ├── UndoCheckbox
+   470→│   │           ├── UndoDescription
+   471→│   │           ├── UndoType (Registry/Task/AppX/Feature)
+   472→│   │           ├── UndoSection
+   473→│   │           └── UndoTimestamp
+   474→│   │
+   475→│   ├── ProfilesPage
+   476→│   │   ├── ProfileList
+   477→│   │   │   └── ProfileCard × N
+   478→│   │   │       ├── ProfileName + Description
+   479→│   │   │       ├── ProfileStats (sections, settings count)
+   480→│   │   │       ├── ProfileTimestamp
+   481→│   │   │       └── ProfileActions (Load, Duplicate, Export, Delete)
+   482→│   │   ├── CreateProfileDialog
+   483→│   │   └── ImportProfileDialog
+   484→│   │
+   485→│   ├── PreviewPage
+   486→│   │   ├── PreviewSummary (total changes by section, by safety level)
+   487→│   │   ├── PreviewDiffList
+   488→│   │   │   └── PreviewDiffItem × N
+   489→│   │   │       ├── DiffAction (registry set / task disable / app remove / etc.)
+   490→│   │   │       ├── DiffTarget (path/name)
+   491→│   │   │       ├── DiffValue (old → new)
+   492→│   │   │       └── DiffSafetyBadge
+   493→│   │   └── PreviewActions (Apply, Export Script, Cancel)
+   494→│   │
+   495→│   └── ExecutePage
+   496→│       ├── ExecuteProgress (overall progress bar + stats)
+   497→│       ├── ExecuteSectionList
+   498→│       │   └── ExecuteSectionRow × N
+   499→│       │       ├── SectionName
+   500→│       │       ├── SectionStatus (pending/running/completed/failed)
+   501→│       │       ├── SectionProgress (mini progress bar)
+   502→│       │       └── SectionStats (changed/skipped/failed)
+   503→│       ├── ExecuteLog (streaming terminal-like log)
+   504→│       │   └── LogLine × N (color-coded by level)
+   505→│       └── ExecuteActions (Pause, Cancel, Restart when done)
+   506→│
+   507→└── Shared Components
+   508→    ├── SafetyBadge
+   509→    │   ├── SafeBadge (green)
+   510→    │   ├── ModerateBadge (amber)
+   511→    │   └── RiskyBadge (red)
+   512→    ├── SearchDialog (Cmd+K global search)
+   513→    ├── ConfirmDialog (for risky operations)
+   514→    ├── Toast (notifications)
+   515→    ├── Badge
+   516→    ├── Tooltip
+   517→    └── ThemeProvider (dark/light)
+   518→```
+   519→
+   520→---
+   521→
+   522→## 6. File & Folder Structure
+   523→
+   524→```
+   525→winpostinstall-gui/
+   526→├── src/
+   527→│   ├── app/                          # Next.js App Router
+   528→│   │   ├── layout.tsx                # Root layout (sidebar, topbar, theming)
+   529→│   │   ├── page.tsx                  # Dashboard (/)
+   530→│   │   ├── globals.css               # Tailwind + custom CSS variables
+   531→│   │   │
+   532→│   │   ├── sections/
+   533→│   │   │   └── [sectionId]/
+   534→│   │   │       └── page.tsx          # Section detail page
+   535→│   │   │
+   536→│   │   ├── install/
+   537→│   │   │   └── page.tsx              # Software install page
+   538→│   │   │
+   539→│   │   ├── undo/
+   540→│   │   │   └── page.tsx              # Undo center page
+   541→│   │   │
+   542→│   │   ├── profiles/
+   543→│   │   │   └── page.tsx              # Profile manager page
+   544→│   │   │
+   545→│   │   ├── preview/
+   546→│   │   │   └── page.tsx              # Change preview page
+   547→│   │   │
+   548→│   │   ├── execute/
+   549→│   │   │   └── page.tsx              # Execution view page
+   550→│   │   │
+   551→│   │   ├── settings/
+   552→│   │   │   └── page.tsx              # App settings page
+   553→│   │   │
+   554→│   │   ├── about/
+   555→│   │   │   └── page.tsx              # About page
+   556→│   │   │
+   557→│   │   └── api/                      # API routes (PowerShell bridge)
+   558→│   │       ├── execute/
+   559→│   │       │   └── route.ts          # POST: Start execution
+   560→│   │       ├── execute/[id]/
+   561→│   │       │   └── route.ts          # GET: Stream execution output
+   562→│   │       ├── preflight/
+   563→│   │       │   └── route.ts          # GET: Run pre-flight checks
+   564→│   │       ├── generate-script/
+   565→│   │       │   └── route.ts          # POST: Generate PS1 from config
+   566→│   │       ├── undo/
+   567→│   │       │   └── route.ts          # POST: Execute undo commands
+   568→│   │       └── system-info/
+   569→│   │           └── route.ts          # GET: Get system information
+   570→│   │
+   571→│   ├── components/
+   572→│   │   ├── ui/                       # shadcn/ui primitives
+   573→│   │   │   ├── button.tsx
+   574→│   │   │   ├── switch.tsx
+   575→│   │   │   ├── badge.tsx
+   576→│   │   │   ├── dialog.tsx
+   577→│   │   │   ├── tooltip.tsx
+   578→│   │   │   ├── command.tsx           # Command palette (Cmd+K)
+   579→│   │   │   ├── card.tsx
+   580→│   │   │   ├── progress.tsx
+   581→│   │   │   ├── scroll-area.tsx
+   582→│   │   │   ├── separator.tsx
+   583→│   │   │   ├── tabs.tsx
+   584→│   │   │   ├── checkbox.tsx
+   585→│   │   │   ├── select.tsx
+   586→│   │   │   ├── input.tsx
+   587→│   │   │   ├── toast.tsx
+   588→│   │   │   ├── dropdown-menu.tsx
+   589→│   │   │   ├── accordion.tsx
+   590→│   │   │   ├── alert.tsx
+   591→│   │   │   ├── sheet.tsx             # Mobile sidebar
+   592→│   │   │   └── skeleton.tsx
+   593→│   │   │
+   594→│   │   ├── layout/
+   595→│   │   │   ├── sidebar.tsx
+   596→│   │   │   ├── sidebar-nav.tsx
+   597→│   │   │   ├── sidebar-header.tsx
+   598→│   │   │   ├── sidebar-footer.tsx
+   599→│   │   │   ├── topbar.tsx
+   600→│   │   │   ├── global-search.tsx
+   601→│   │   │   ├── profile-selector.tsx
+   602→│   │   │   └── system-badge.tsx
+   603→│   │   │
+   604→│   │   ├── settings/
+   605→│   │   │   ├── setting-row.tsx       # Single setting with toggle + tooltip
+   606→│   │   │   ├── setting-toggle.tsx    # Toggle switch with safety gate
+   607→│   │   │   ├── safety-badge.tsx      # Safe/Moderate/Risky badge
+   608→│   │   │   ├── setting-tooltip.tsx   # Rich tooltip with description + details
+   609→│   │   │   ├── setting-status.tsx    # Applied/Skipped/Failed indicator
+   610→│   │   │   ├── section-header.tsx    # Section name + safety summary
+   611→│   │   │   ├── section-filter-bar.tsx
+   612→│   │   │   └── setting-list.tsx      # Virtual list for performance
+   613→│   │   │
+   614→│   │   ├── install/
+   615→│   │   │   ├── package-card.tsx
+   616→│   │   │   ├── package-search.tsx
+   617→│   │   │   ├── package-source-tabs.tsx
+   618→│   │   │   └── package-grid.tsx
+   619→│   │   │
+   620→│   │   ├── undo/
+   621→│   │   │   ├── undo-row.tsx
+   622→│   │   │   ├── undo-list.tsx
+   623→│   │   │   └── undo-filter-bar.tsx
+   624→│   │   │
+   625→│   │   ├── profiles/
+   626→│   │   │   ├── profile-card.tsx
+   627→│   │   │   ├── create-profile-dialog.tsx
+   628→│   │   │   ├── import-profile-dialog.tsx
+   629→│   │   │   └── profile-list.tsx
+   630→│   │   │
+   631→│   │   ├── preview/
+   632→│   │   │   ├── preview-summary.tsx
+   633→│   │   │   ├── preview-diff-item.tsx
+   634→│   │   │   └── preview-diff-list.tsx
+   635→│   │   │
+   636→│   │   ├── execute/
+   637→│   │   │   ├── execute-progress.tsx
+   638→│   │   │   ├── execute-section-row.tsx
+   639→│   │   │   ├── execute-log.tsx       # Terminal-like streaming log
+   640→│   │   │   └── execute-actions.tsx
+   641→│   │   │
+   642→│   │   └── shared/
+   643→│   │       ├── confirm-dialog.tsx
+   644→│   │       ├── section-icon.tsx       # Maps section ID → Lucide icon
+   645→│   │       ├── empty-state.tsx
+   646→│   │       └── loading-skeleton.tsx
+   647→│   │
+   648→│   ├── data/
+   649→│   │   ├── sections.ts               # Section definitions (18 sections)
+   650→│   │   ├── settings-catalog.ts       # All 185 settings with metadata
+   651→│   │   ├── bloatware-list.ts         # AppX packages for debloat section
+   652→│   │   ├── winget-apps.ts            # Default Winget app catalog
+   653→│   │   ├── chocolatey-apps.ts        # Chocolatey app catalog
+   654→│   │   ├── browser-policies.ts       # Browser hardening policy definitions
+   655→│   │   ├── edge-policies.ts          # Edge-specific policies
+   656→│   │   ├── windows-features.ts       # Windows feature definitions
+   657→│   │   ├── default-profiles.ts       # Built-in preset profiles
+   658→│   │   └── icons.ts                  # Icon mapping
+   659→│   │
+   660→│   ├── lib/
+   661→│   │   ├── script-generator.ts       # Generate PS1 script from config
+   662→│   │   ├── config-generator.ts       # Generate JSON config from UI state
+   663→│   │   ├── ps-bridge.ts              # PowerShell execution bridge
+   664→│   │   ├── script-parser.ts          # Parse PS1 → settings catalog (build-time)
+   665→│   │   ├── preflight.ts              # Pre-flight check logic
+   666→│   │   ├── search.ts                 # Fuzzy search across all settings
+   667→│   │   ├── profile-io.ts             # Import/export profiles as JSON
+   668→│   │   ├── diff-engine.ts            # Compute before/after diff for preview
+   669→│   │   └── utils.ts                  # General utilities (cn, formatDate, etc.)
+   670→│   │
+   671→│   ├── stores/
+   672→│   │   ├── settings-store.ts         # Zustand: all setting toggles + section state
+   673→│   │   ├── profile-store.ts          # Zustand: active profile, saved profiles
+   674→│   │   ├── execution-store.ts        # Zustand: execution state, logs, progress
+   675→│   │   ├── filter-store.ts           # Zustand: search, safety filter, category filter
+   676→│   │   └── app-store.ts              # Zustand: theme, preferences, system info
+   677→│   │
+   678→│   ├── hooks/
+   679→│   │   ├── use-setting.ts            # Get/set individual setting state
+   680→│   │   ├── use-section.ts            # Get section with computed stats
+   681→│   │   ├── use-profile.ts            # Load/apply profile
+   682→│   │   ├── use-execute.ts            # Execute + stream output
+   683→│   │   ├── use-preflight.ts          # Run pre-flight checks
+   684→│   │   └── use-search.ts            # Global search hook
+   685→│   │
+   686→│   └── types/
+   687→│       ├── index.ts                  # All TypeScript interfaces (from Data Model)
+   688→│       ├── sections.ts               # Section-specific types
+   689→│       └── api.ts                    # API request/response types
+   690→│
+   691→├── scripts/
+   692→│   ├── parse-ps1-catalog.ts          # Build-time: extract settings from PS1 → JSON
+   693→│   ├── generate-settings-data.ts     # Build-time: generate settings-catalog.ts
+   694→│   └── validate-catalog.ts           # Validate catalog completeness
+   695→│
+   696→├── powershell/
+   697→│   ├── WinPostInstall.ps1            # The actual script (copied from scripts/)
+   698→│   ├── bridge.ps1                    # Helper: IPC bridge for execution
+   699→│   └── preflight.ps1                 # Helper: Pre-flight check script
+   700→│
+   701→├── public/
+   702→│   ├── icon.ico                      # App icon
+   703→│   └── fonts/                        # Inter font files
+   704→│
+   705→├── tauri/                            # Tauri configuration (desktop mode)
+   706→│   ├── src/
+   707→│   │   ├── main.rs                   # Tauri main
+   708→│   │   └── commands/
+   709→│   │       ├── execute_ps.rs         # Execute PowerShell commands
+   710→│   │       └── system_info.rs        # Get system info
+   711→│   ├── Cargo.toml
+   712→│   └── tauri.conf.json
+   713→│
+   714→├── next.config.ts
+   715→├── tailwind.config.ts
+   716→├── tsconfig.json
+   717→├── package.json
+   718→└── README.md
+   719→```
+   720→
+   721→---
+   722→
+   723→## 7. PowerShell Integration
+   724→
+   725→### Architecture: How the GUI Drives the Script
+   726→
+   727→The GUI does NOT modify the PS1 script directly. Instead, it generates a **JSON configuration file** that the existing `-ConfigFile` parameter consumes. The PS1 script is the single source of truth for all optimizations.
+   728→
+   729→```
+   730→┌──────────────┐     JSON Config      ┌──────────────────┐
+   731→│   Next.js    │ ──────────────────→  │  WinPostInstall  │
+   732→│   GUI        │                      │  .ps1 -ConfigFile │
+   733→│              │ ←──────────────────  │                  │
+   734→│              │   Streaming Output   │                  │
+   735→└──────────────┘                      └──────────────────┘
+   736→```
+   737→
+   738→### Flow: Configure → Preview → Generate → Execute
+   739→
+   740→#### Step 1: UI Configuration → JSON Config
+   741→
+   742→The UI state (Zustand stores) is converted to a JSON config file compatible with the PS1 script's `-ConfigFile` format:
+   743→
+   744→```typescript
+   745→// lib/config-generator.ts
+   746→function generateConfig(state: SettingsStoreState): WinPostInstallConfig {
+   747→  const config: WinPostInstallConfig = {
+   748→    Sections: [],
+   749→    AppList: [],
+   750→    BloatwareList: [],
+   751→    SettingOverrides: {},   // NEW: settings toggled OFF
+   752→    AllowRisky: false,
+   753→  };
+   754→
+   755→  // 1. Add sections that have any enabled settings
+   756→  for (const sectionId of ALL_SECTION_IDS) {
+   757→    const sectionSettings = state.settings.filter(
+   758→      s => s.sectionId === sectionId && s.enabled
+   759→    );
+   760→    if (sectionSettings.length > 0) {
+   761→      config.Sections.push(sectionId);
+   762→    }
+   763→  }
+   764→
+   765→  // 2. Add settings toggled OFF (to pass to PS1's SettingOverrides)
+   766→  for (const setting of state.settings) {
+   767→    if (!setting.enabled) {
+   768→      config.SettingOverrides[setting.id] = true;
+   769→    }
+   770→  }
+   771→
+   772→  // 3. Winget app list
+   773→  config.AppList = state.wingetApps
+   774→    .filter(a => a.selected)
+   775→    .map(a => ({ ID: a.id, Name: a.name }));
+   776→
+   777→  // 4. Bloatware list
+   778→  config.BloatwareList = state.bloatwareItems
+   779→    .filter(b => b.selected)
+   780→    .map(b => b.pattern);
+   781→
+   782→  // 5. Risky settings
+   783→  config.AllowRisky = state.allowRisky;
+   784→
+   785→  return config;
+   786→}
+   787→```
+   788→
+   789→#### Step 2: Script Generation (for Export/Preview)
+   790→
+   791→For users who want to download a standalone script:
+   792→
+   793→```typescript
+   794→// lib/script-generator.ts
+   795→function generateScript(config: WinPostInstallConfig): string {
+   796→  // Option A: Generate a wrapper .ps1 that calls WinPostInstall.ps1 with -ConfigFile
+   797→  // Option B: Generate a self-contained script with only selected settings inlined
+   798→  // Option A is preferred — keeps PS1 as single source of truth
+   799→  
+   800→  const configJson = JSON.stringify(config, null, 2);
+   801→  const configB64 = Buffer.from(configJson).toString('base64');
+   802→  
+   803→  return `
+   804→# WinPostInstall - Generated Configuration Wrapper
+   805→# Generated by WinPostInstall GUI on ${new Date().toISOString()}
+   806→$ConfigJson = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("${configB64}"))
+   807→$ConfigPath = "$env:TEMP\\WinPostInstall-Config.json"
+   808→$ConfigJson | Set-Content -Path $ConfigPath -Encoding UTF8
+   809→& "${PS1_SCRIPT_PATH}" -ConfigFile $ConfigPath
+   810→Remove-Item $ConfigPath -Force -ErrorAction SilentlyContinue
+   811→`.trim();
+   812→}
+   813→```
+   814→
+   815→#### Step 3: Execution (Tauri Desktop Mode)
+   816→
+   817→```typescript
+   818→// Tauri IPC: src-tauri/src/commands/execute_ps.rs
+   819→// Rust command that spawns PowerShell and streams output
+   820→
+   821→#[tauri::command]
+   822→async fn execute_powershell(
+   823→    script_path: String, 
+   824→    config_path: String,
+   825→    allow_risky: bool,
+   826→) -> Result<ExecutionHandle, String> {
+   827→    let mut cmd = Command::new("powershell.exe");
+   828→    cmd.args([
+   829→        "-NoProfile",
+   830→        "-ExecutionPolicy", "Bypass",
+   831→        "-File", &script_path,
+   832→        "-ConfigFile", &config_path,
+   833→    ]);
+   834→    if allow_risky {
+   835→        cmd.arg("-AllowRisky");
+   836→    }
+   837→    // Spawn and return handle for streaming output
+   838→    // ...
+   839→}
+   840→```
+   841→
+   842→#### Step 4: Execution (Web Mode — No Direct Execution)
+   843→
+   844→In web mode, the app can only:
+   845→1. Generate the config JSON for download
+   846→2. Generate a wrapper .bat + .ps1 for download
+   847→3. Show the user instructions to run it
+   848→
+   849→```typescript
+   850→// lib/bridge.ts — Web mode fallback
+   851→function downloadExecutionPackage(config: WinPostInstallConfig) {
+   852→  const files = {
+   853→    'WinPostInstall-Config.json': JSON.stringify(config, null, 2),
+   854→    'Run-WinPostInstall.bat': generateBatLauncher(),
+   855→    'WinPostInstall.ps1': PS1_SCRIPT_SOURCE,  // bundled
+   856→  };
+   857→  
+   858→  // Create ZIP and trigger download
+   859→  downloadZip(files, 'WinPostInstall-Package.zip');
+   860→}
+   861→```
+   862→
+   863→#### Step 5: Output Capture & Streaming
+   864→
+   865→The PowerShell bridge captures three streams:
+   866→- **stdout** → parsed into structured log entries
+   867→- **stderr** → error entries
+   868→- **exit code** → success/failure
+   869→
+   870→```typescript
+   871→// Parse PS1 output into structured entries
+   872→function parsePsOutput(line: string): LogEntry | null {
+   873→  // Match patterns from the PS1 script:
+   874→  // [OK] Registry: HKLM\...\AllowTelemetry = 0
+   875→  // [WARN] Something
+   876→  // [ERROR] Failed to set...
+   877→  // SKIPPED (risky): ...
+   878→  // SKIPPED (already set): ...
+   879→  
+   880→  if (line.includes('[OK]')) return { level: 'success', ... };
+   881→  if (line.includes('[WARN]')) return { level: 'warn', ... };
+   882→  if (line.includes('[ERROR]')) return { level: 'error', ... };
+   883→  if (line.includes('SKIPPED')) return { level: 'info', ... };
+   884→  return { level: 'info', message: line };
+   885→}
+   886→```
+   887→
+   888→### Build-Time: Settings Catalog Extraction
+   889→
+   890→A build-time script parses the PS1 to extract all settings metadata:
+   891→
+   892→```typescript
+   893→// scripts/parse-ps1-catalog.ts
+   894→interface ParsedSetting {
+   895→  settingId: string;
+   896→  section: string;
+   897→  safetyLevel: SafetyLevel;
+   898→  description: string;
+   899→  action: string;       // e.g., "HKLM\SOFTWARE\...\AllowTelemetry = 0"
+   900→  type: 'registry' | 'scheduled-task';
+   901→  registryPath?: string;
+   902→  registryName?: string;
+   903→  registryValue?: string;
+   904→}
+   905→
+   906→// Parse all Set-Registry calls:
+   907→// Set-Registry -Path "HKLM:\..." -Name "AllowTelemetry" -Value 0 
+   908→//   -Type DWord -SafetyLevel "Safe" 
+   909→//   -Description "Stops Windows telemetry" 
+   910→//   -SettingID "Privacy_AllowTelemetry"
+   911→//
+   912→// → Extract: { id, section, safety, desc, action, path, name, value }
+   913→
+   914→// Parse all Disable-AppTask calls similarly
+   915→```
+   916→
+   917→This runs at build time and generates `src/data/settings-catalog.ts`, which the UI imports as static data.
+   918→
+   919→---
+   920→
+   921→## 8. Key UI Screens
+   922→
+   923→### Screen 1: Dashboard
+   924→
+   925→```
+   926→┌──────────────────────────────────────────────────────────────┐
+   927→│  WinPostInstall v4.1.0                                      │
+   928→├──────────────────────────────────────────────────────────────┤
+   929→│                                                              │
+   930→│  ┌─ System Status ──────────────────────────────────────┐    │
+   931→│  │ ✅ Administrator  ✅ Windows 11 23H2  ✅ SSD         │    │
+   932→│  │ ✅ Internet OK    ✅ 245 GB Free     ⚠️ Pending Reboot│   │
+   933→│  └──────────────────────────────────────────────────────┘    │
+   934→│                                                              │
+   935→│  ┌─ Quick Start ────────────────────────────────────────┐    │
+   936→│  │  [🟢 Recommended]  [🔴 Max Privacy]  [🎮 Gaming]   │    │
+   937→│  │  [💼 Office]       [⚡ Minimal]      [🖥️ Kiosk]     │    │
+   938→│  └──────────────────────────────────────────────────────┘    │
+   939→│                                                              │
+   940→│  ┌─ All Sections ──────────────────────────────────────┐    │
+   941→│  │                                                      │    │
+   942→│  │  🔒 Privacy & Telemetry     [Safe]  24 items  [✓]  │    │
+   943→│  │  🗑️ Debloat                 [Mixed] 38 items  [✓]  │    │
+   944→│  │  🖥️ Explorer & UI           [Safe]  12 items  [✓]  │    │
+   945→│  │  ⚙️ Service & Startup       [Mixed] 15 items  [✓]  │    │
+   946→│  │  ⚡ Performance & Power     [Mixed] 18 items  [✓]  │    │
+   947→│  │  🛡️ Security               [Mixed] 22 items  [✓]  │    │
+   948→│  │  🌐 Network                [Safe]  10 items  [✓]  │    │
+   949→│  │  🔄 Windows Update         [Safe]   6 items  [✓]  │    │
+   950→│  │  🧹 Disk Cleanup           [Safe]   8 items  [✓]  │    │
+   951→│  │  📦 Software (Winget)      [Safe]   9 items  [✓]  │    │
+   952→│  │  📋 Office 365             [Safe]   3 items  [ ]  │    │
+   953→│  │  🌐 Edge Hardening         [Safe]  14 items  [✓]  │    │
+   954→│  │  ☁️ OneDrive               [Mixed]  5 items  [✓]  │    │
+   955→│  │  🎮 Gaming / DVR           [Safe]   6 items  [✓]  │    │
+   956→│  │  📅 Scheduled Tasks        [Safe]  12 items  [✓]  │    │
+   957→│  │  🌍 Browser Privacy        [Safe]  10 items  [✓]  │    │
+   958→│  │  ✨ Final Touches          [Safe]   8 items  [✓]  │    │
+   959→│  │  🪟 Windows Features       [Mixed] 11 items  [✓]  │    │
+   960→│  └──────────────────────────────────────────────────────┘    │
+   961→│                                                              │
+   962→│  ┌──────────────────────────────────────────────────────┐    │
+   963→│  │  [▶ Apply 18 sections (155 changes)]  [Preview]     │    │
+   964→│  └──────────────────────────────────────────────────────┘    │
+   965→└──────────────────────────────────────────────────────────────┘
+   966→```
+   967→
+   968→### Screen 2: Section Detail (Privacy & Telemetry)
+   969→
+   970→```
+   971→┌──────────────────────────────────────────────────────────────┐
+   972→│  ← Back    Privacy and Telemetry        [Safe] 24 items     │
+   973→│                                              [Select All]   │
+   974→├──────────────────────────────────────────────────────────────┤
+   975→│                                                              │
+   976→│  Filter: [All ▼] [Safety: All ▼] [Status: All ▼] [🔍 ...] │
+   977→│                                                              │
+   978→│  ┌──────────────────────────────────────────────────────┐    │
+   979→│  │ 🟢 [ON]  AllowTelemetry = 0                          │    │
+   980→│  │         Stops Windows from sending telemetry data     │    │
+   981→│  │         HKLM\SOFTWARE\Policies\...\AllowTelemetry     │    │
+   982→│  ├──────────────────────────────────────────────────────┤    │
+   983→│  │ 🟢 [ON]  NoFeedback = 1                             │    │
+   984→│  │         Removes Feedback Hub notifications            │    │
+   985→│  ├──────────────────────────────────────────────────────┤    │
+   986→│  │ 🟡 [ON]  DisableOneSettingsSync = 2                 │    │
+   987→│  │         Disables cloud sync of settings              │    │
+   988→│  │         ⚠️ Moderate: Some users rely on settings sync│    │
+   989→│  ├──────────────────────────────────────────────────────┤    │
+   990→│  │ 🔴 [OFF] DisableCortana = 1                        │    │
+   991→│  │         Disables Cortana digital assistant           │    │
+   992→│  │         ⛔ Risky: May break search integration       │    │
+   993→│  ├──────────────────────────────────────────────────────┤    │
+   994→│  │ ... (20 more settings)                              │    │
+   995→│  └──────────────────────────────────────────────────────┘    │
+   996→│                                                              │
+   997→│  Summary: 20 Safe · 3 Moderate · 1 Risky                    │
+   998→│           20 ON · 1 OFF (risky default) · 3 not applied     │
+   999→└──────────────────────────────────────────────────────────────┘
+  1000→```
+  1001→
+  1002→### Screen 3: Change Preview (Real-time Diff)
+  1003→
+  1004→```
+  1005→┌──────────────────────────────────────────────────────────────┐
+  1006→│  ← Back    Change Preview            155 changes across 18   │
+  1007→│                                             sections         │
+  1008→├──────────────────────────────────────────────────────────────┤
+  1009→│                                                              │
+  1010→│  ┌─ Summary ────────────────────────────────────────────┐    │
+  1011→│  │  🟢 132 Safe    🟡 18 Moderate    🔴 5 Risky         │    │
+  1012→│  │  📋 Registry: 120  Tasks: 18  AppX: 8  Features: 5  │    │
+  1013→│  │  ⚠️  5 risky settings will be SKIPPED (enable?)     │    │
+  1014→│  └──────────────────────────────────────────────────────┘    │
+  1015→│                                                              │
+  1016→│  ┌─ Privacy & Telemetry (24 changes) ──────────────────┐    │
+  1017→│  │  🟢 SET  HKLM\...\AllowTelemetry      1 → 0        │    │
+  1018→│  │  🟢 SET  HKLM\...\NoFeedback          0 → 1        │    │
+  1019→│  │  🟡 SET  HKCU\...\DisableSync         0 → 2        │    │
+  1020→│  │  ...                                                │    │
+  1021→│  ├─ Debloat (38 changes) ─────────────────────────────┤    │
+  1022→│  │  🟢 REMOVE  Microsoft.BingFinance                   │    │
+  1023→│  │  🟢 REMOVE  Microsoft.Getstarted                    │    │
+  1024→│  │  🔴 REMOVE  Microsoft.WindowsCamera  ⛔ SKIPPED     │    │
+  1025→│  │  ...                                                │    │
+  1026→│  └──────────────────────────────────────────────────────┘    │
+  1027→│                                                              │
+  1028→│  [✅ Apply All Safe+Moderate]  [⚠️ Apply Including Risky]   │
+  1029→│  [📥 Export Script]           [💾 Save as Profile]          │
+  1030→└──────────────────────────────────────────────────────────────┘
+  1031→```
+  1032→
+  1033→### Screen 4: Execution View (Live)
+  1034→
+  1035→```
+  1036→┌──────────────────────────────────────────────────────────────┐
+  1037→│  Executing...                           67% (104/155)        │
+  1038→│  ████████████████████████░░░░░░░░░░░                       │
+  1039→├──────────────────────────────────────────────────────────────┤
+  1040→│                                                              │
+  1041→│  ┌─ Sections ─────────────────────────────────────────┐     │
+  1042→│  │ ✅ Privacy & Telemetry       24/24  (0:32)         │     │
+  1043→│  │ ✅ Debloat                   38/38  (1:05)         │     │
+  1044→│  │ ✅ Explorer & UI             12/12  (0:08)         │     │
+  1045→│  │ ✅ Service & Startup         15/15  (0:21)         │     │
+  1046→│  │ 🔄 Performance & Power      8/18   (running...)   │     │
+  1047→│  │ ⏳ Security                  0/22   (pending)      │     │
+  1048→│  │ ⏳ Network                   0/10   (pending)      │     │
+  1049→│  │ ...                                                │     │
+  1050→│  └────────────────────────────────────────────────────┘     │
+  1051→│                                                              │
+  1052→│  ┌─ Live Output ──────────────────────────────────────┐     │
+  1053→│  │ [14:32:05] [OK] Registry: ...\AllowTelemetry = 0  │     │
+  1054→│  │ [14:32:05] [OK] Registry: ...\NoFeedback = 1      │     │
+  1055→│  │ [14:32:06] Already set: ...\DisableInventory = 1  │     │
+  1056→│  │ [14:32:07] [MODERATE] Disabling cloud sync...     │     │
+  1057→│  │ [14:32:07] [OK] Registry: ...\DisableSync = 2     │     │
+  1058→│  │ [14:32:08] [OK] Removed AppX: Microsoft.BingFinance│    │
+  1059→│  │ ...                                                │     │
+  1060→│  └────────────────────────────────────────────────────┘     │
+  1061→│                                                              │
+  1062→│  [⏸ Pause]  [⏹ Cancel]                                     │
+  1063→└──────────────────────────────────────────────────────────────┘
+  1064→```
+  1065→
+  1066→### Screen 5: Undo Center
+  1067→
+  1068→```
+  1069→┌──────────────────────────────────────────────────────────────┐
+  1070→│  Undo Center                    155 changes available        │
+  1071→│                                               to revert     │
+  1072→├──────────────────────────────────────────────────────────────┤
+  1073→│                                                              │
+  1074→│  Filter: [All Sections ▼]  [All Types ▼]  [🔍 ...]        │
+  1075→│  [☑ Select All]  [☐ Deselect All]                           │
+  1076→│                                                              │
+  1077→│  ┌──────────────────────────────────────────────────────┐    │
+  1078→│  │ ☑ 🟢 Privacy   AllowTelemetry = 0 → 1    10:32 AM  │    │
+  1079→│  │ ☑ 🟢 Privacy   NoFeedback = 1 → 0       10:32 AM  │    │
+  1080→│  │ ☐ 🟡 Privacy   DisableSync = 2 → 0      10:32 AM  │    │
+  1081→│  │ ☑ 🟢 Debloat   Removed Microsoft.BingFinance       10:33 AM  │    │
+  1082→│  │ ☑ 🔴 Service   Disabled WSearch              10:34 AM  │    │
+  1083→│  │ ...                                                 │    │
+  1084→│  └──────────────────────────────────────────────────────┘    │
+  1085→│                                                              │
+  1086→│  [↩ Undo 42 Selected Changes]  [↩ Undo All 155]           │
+  1087→│  ⚠️  A System Restore point was created before changes.     │
+  1088→└──────────────────────────────────────────────────────────────┘
+  1089→```
+  1090→
+  1091→### Screen 6: Profile Manager
+  1092→
+  1093→```
+  1094→┌──────────────────────────────────────────────────────────────┐
+  1095→│  Profile Manager                          [+ New Profile]    │
+  1096→│                                          [📥 Import]        │
+  1097→├──────────────────────────────────────────────────────────────┤
+  1098→│                                                              │
+  1099→│  ┌─ Built-in Presets ──────────────────────────────────┐    │
+  1100→│  │                                                     │    │
+  1101→│  │  🟢 Recommended        155 settings · 18 sections   │    │
+  1102→│  │     "Safe + Moderate. Best for most users."         │    │
+  1103→│  │     [Load]                                            │    │
+  1104→│  │                                                     │    │
+  1105→│  │  🔴 Maximum Privacy    160 settings · 18 sections   │    │
+  1106→│  │     "All privacy + security. Includes risky."       │    │
+  1107→│  │     [Load]                                            │    │
+  1108→│  │                                                     │    │
+  1109→│  │  🎮 Gaming Optimized   120 settings · 15 sections   │    │
+  1110→│  │     "Performance + gaming. Keeps Xbox."             │    │
+  1111→│  │     [Load]                                            │    │
+  1112→│  └─────────────────────────────────────────────────────┘    │
+  1113→│                                                              │
+  1114→│  ┌─ My Profiles ───────────────────────────────────────┐    │
+  1115→│  │                                                     │    │
+  1116→│  │  💼 Work Laptop        130 settings · 16 sections   │    │
+  1117→│  │     "Conservative. Keeps OneDrive + search."        │    │
+  1118→│  │     Created: 2025-02-28 · Updated: 2025-03-01      │    │
+  1119→│  │     [Load] [Duplicate] [📤 Export] [🗑 Delete]     │    │
+  1120→│  │                                                     │    │
+  1121→│  │  🖥️ Gaming Desktop     148 settings · 17 sections   │    │
+  1122→│  │     "Max performance. No Xbox/Game Bar."            │    │
+  1123→│  │     Created: 2025-03-02                             │    │
+  1124→│  │     [Load] [Duplicate] [📤 Export] [🗑 Delete]     │    │
+  1125→│  └─────────────────────────────────────────────────────┘    │
+  1126→└──────────────────────────────────────────────────────────────┘
+  1127→```
+  1128→
+  1129→---
+  1130→
+  1131→## 9. State Management
+  1132→
+  1133→### Zustand Stores
+  1134→
+  1135→#### Settings Store (Core State)
+  1136→
+  1137→```typescript
+  1138→// stores/settings-store.ts
+  1139→interface SettingsStore {
+  1140→  // All settings (loaded from catalog at startup)
+  1141→  settings: Map<string, Setting>;
+  1142→  
+  1143→  // Section-level toggle state
+  1144→  sections: Map<string, { enabled: boolean }>;
+  1145→  
+  1146→  // Risky settings gate
+  1147→  allowRisky: boolean;
+  1148→  
+  1149→  // Actions
+  1150→  toggleSetting: (id: string) => void;
+  1151→  toggleSection: (id: string) => void;
+  1152→  enableAllSafe: () => void;
+  1153→  enableAllSafeModerate: () => void;
+  1154→  enableAllIncludingRisky: () => void;
+  1155→  resetToDefaults: () => void;
+  1156→  applyProfile: (profile: Profile) => void;
+  1157→  
+  1158→  // Computed (via selectors)
+  1159→  getSettingsBySection: (sectionId: string) => Setting[];
+  1160→  getEnabledSettingsCount: () => number;
+  1161→  getSafetySummary: (sectionId: string) => { safe: number; moderate: number; risky: number };
+  1162→}
+  1163→```
+  1164→
+  1165→#### Profile Store
+  1166→
+  1167→```typescript
+  1168→// stores/profile-store.ts
+  1169→interface ProfileStore {
+  1170→  profiles: Profile[];
+  1171→  activeProfileId: string | null;
+  1172→  
+  1173→  // Actions
+  1174→  saveProfile: (name: string, description: string) => void;
+  1175→  loadProfile: (id: string) => void;
+  1176→  duplicateProfile: (id: string) => void;
+  1177→  deleteProfile: (id: string) => void;
+  1178→  exportProfile: (id: string) => string; // JSON string
+  1179→  importProfile: (json: string) => void;
+  1180→}
+  1181→```
+  1182→
+  1183→#### Execution Store
+  1184→
+  1185→```typescript
+  1186→// stores/execution-store.ts
+  1187→interface ExecutionStore {
+  1188→  state: ExecutionState;
+  1189→  
+  1190→  // Actions
+  1191→  startExecution: (config: WinPostInstallConfig) => Promise<void>;
+  1192→  pauseExecution: () => void;
+  1193→  cancelExecution: () => void;
+  1194→  appendLog: (entry: LogEntry) => void;
+  1195→  updateProgress: (update: Partial<ExecutionState['progress']>) => void;
+  1196→  completeSection: (sectionId: string, stats: SectionStats) => void;
+  1197→}
+  1198→```
+  1199→
+  1200→### Persistence
+  1201→
+  1202→- **Settings store**: Persisted to `localStorage` (auto-save on every toggle)
+  1203→- **Profile store**: Persisted to `localStorage` + exportable as JSON files
+  1204→- **Execution store**: NOT persisted (ephemeral, per-session)
+  1205→- **Tauri mode**: Can persist to `%APPDATA%\WinPostGUI\` instead of localStorage
+  1206→
+  1207→---
+  1208→
+  1209→## 10. Implementation Phases
+  1210→
+  1211→### Phase 1: Foundation (Week 1)
+  1212→
+  1213→**Goal**: Runnable Next.js app with settings catalog and toggle UI
+  1214→
+  1215→| Task | Details | Est. |
+  1216→|------|---------|------|
+  1217→| Project scaffold | Next.js 16 + TypeScript + Tailwind 4 + shadcn/ui | 2h |
+  1218→| Build-time catalog parser | Parse PS1 → `settings-catalog.ts` (185 settings) | 4h |
+  1219→| Section data definitions | 18 sections with icons, descriptions, categories | 2h |
+  1220→| Type definitions | All TypeScript interfaces from Data Model | 2h |
+  1221→| Zustand settings store | Toggle, section, safety state + persistence | 3h |
+  1222→| Layout shell | Sidebar + Topbar + responsive shell | 4h |
+  1223→| Dashboard page | System info cards + section overview grid | 4h |
+  1224→| Section detail page | Setting list with toggles + safety badges | 6h |
+  1225→| Setting row component | Toggle + tooltip + safety badge + status | 3h |
+  1226→
+  1227→**Deliverable**: App that displays all 18 sections and 185 settings with working toggles
+  1228→
+  1229→### Phase 2: Core Features (Week 2)
+  1230→
+  1231→**Goal**: Profiles, search, preview, and script generation
+  1232→
+  1233→| Task | Details | Est. |
+  1234→|------|---------|------|
+  1235→| Profile store + manager | Save/load/duplicate/delete/import/export | 6h |
+  1236→| Built-in preset profiles | 6 presets: Recommended, MaxPrivacy, Gaming, Office, Minimal, Kiosk | 3h |
+  1237→| Global search (Cmd+K) | Fuzzy search across all settings + sections | 4h |
+  1238→| Section filter bar | Safety filter, status filter, search within section | 3h |
+  1239→| Change preview page | Real-time diff of all pending changes | 6h |
+  1240→| Config generator | UI state → JSON config (compatible with PS1 -ConfigFile) | 3h |
+  1241→| Script generator | Config → downloadable .ps1/.bat wrapper | 3h |
+  1242→| Software install page | Winget package browser + search + multi-select | 6h |
+  1243→| Profile selector in topbar | Quick-switch between profiles | 2h |
+  1244→
+  1245→**Deliverable**: Full configuration experience with profiles, search, preview, and export
+  1246→
+  1247→### Phase 3: Execution Engine (Week 3)
+  1248→
+  1249→**Goal**: Live PowerShell execution with streaming output
+  1250→
+  1251→| Task | Details | Est. |
+  1252→|------|---------|------|
+  1253→| Tauri setup | Rust shell with PowerShell IPC commands | 8h |
+  1254→| Execute API routes | POST /execute, GET /execute/[id] (SSE streaming) | 4h |
+  1255→| Pre-flight check | System info collection via PowerShell | 3h |
+  1256→| Execution page | Live progress, section-by-section status | 6h |
+  1257→| Streaming log component | Terminal-like output with color-coded entries | 4h |
+  1258→| PS output parser | Parse PS1 console output into structured LogEntry | 3h |
+  1259→| Undo center page | Granular undo with per-setting selection | 6h |
+  1260→| Undo execution | Run selected undo commands via PowerShell | 3h |
+  1261→| Error handling + retry | Failed settings → retry, skip, or abort | 2h |
+  1262→
+  1263→**Deliverable**: Full execution pipeline with live feedback and granular undo
+  1264→
+  1265→### Phase 4: Polish & Distribution (Week 4)
+  1266→
+  1267→**Goal**: Production-ready desktop app
+  1268→
+  1269→| Task | Details | Est. |
+  1270→|------|---------|------|
+  1271→| Dark theme refinement | Color system, hover states, animations | 4h |
+  1272→| Responsive design | Mobile sidebar (sheet), responsive grids | 4h |
+  1273→| Loading skeletons | Skeleton loaders for all pages | 2h |
+  1274→| Empty states | Illustrated empty states for undo, profiles | 2h |
+  1275→| Keyboard shortcuts | Cmd+K search, Cmd+S save profile, etc. | 3h |
+  1276→| Auto-update | Tauri updater configuration | 3h |
+  1277→| System tray | Minimize to tray, background execution | 3h |
+  1278→| Chocolatey integration | Chocolatey package source tab | 4h |
+  1279→| Custom ISO creator | WinUtil-style ISO customization (stretch) | 8h |
+  1280→| Sysprep mode | Deployment mode for sysprep scenarios | 4h |
+  1281→| Installer | WiX/NSIS installer for distribution | 4h |
+  1282→| Documentation | README + user guide | 3h |
+  1283→
+  1284→**Deliverable**: Production-ready desktop app with installer
+  1285→
+  1286→### Total Estimate: ~4 weeks (160 hours)
+  1287→
+  1288→---
+  1289→
+  1290→## Appendix A: Section Mapping (18 Sections)
+  1291→
+  1292→| # | PS1 Key | Display Name | Category | Icon | Settings | Safety |
+  1293→|---|---------|-------------|----------|------|----------|--------|
+  1294→| 1 | Privacy | Privacy and Telemetry | privacy | Shield | 24 | Mixed |
+  1295→| 2 | Debloat | Debloat | cleanup | Trash2 | 38 | Mixed |
+  1296→| 3 | ExplorerUI | Explorer and UI | customize | Monitor | 12 | Safe |
+  1297→| 4 | ServiceStartup | Service and Startup | performance | Settings | 15 | Mixed |
+  1298→| 5 | Performance | Performance and Power | performance | Zap | 18 | Mixed |
+  1299→| 6 | Security | Security | security | ShieldCheck | 22 | Mixed |
+  1300→| 7 | Network | Network | security | Globe | 10 | Safe |
+  1301→| 8 | WindowsUpdate | Windows Update | security | RefreshCw | 6 | Safe |
+  1302→| 9 | DiskCleanup | Disk Cleanup | cleanup | HardDrive | 8 | Safe |
+  1303→| 10 | Winget | Software (Winget) | install | Package | 9 | Safe |
+  1304→| 11 | OfficeActivation | Office 365 | install | FileSpreadsheet | 3 | Safe |
+  1305→| 12 | EdgeHardening | Edge Hardening | privacy | Globe | 14 | Safe |
+  1306→| 13 | OneDrive | OneDrive | customize | Cloud | 5 | Mixed |
+  1307→| 14 | Gaming | Gaming / DVR | performance | Gamepad2 | 6 | Safe |
+  1308→| 15 | ScheduledTasks | Scheduled Tasks | cleanup | Calendar | 12 | Safe |
+  1309→| 16 | BrowserHardening | Browser Privacy | privacy | Lock | 10 | Safe |
+  1310→| 17 | FinalTouches | Final Touches | customize | Sparkles | 8 | Safe |
+  1311→| 18 | WindowsFeatures | Windows Features | cleanup | Box | 11 | Mixed |
+  1312→
+  1313→**Total: ~185 settings (155 Safe · 12 Moderate · 18 Risky)**
+  1314→
+  1315→---
+  1316→
+  1317→## Appendix B: Color System (Dark Theme)
+  1318→
+  1319→```css
+  1320→:root {
+  1321→  /* Base */
+  1322→  --background:       222 47% 11%;    /* Slate 900 */
+  1323→  --foreground:       210 40% 98%;    /* Slate 50 */
+  1324→  --card:             222 47% 14%;    /* Slate 800 */
+  1325→  --border:           217 33% 17%;    /* Slate 700 */
+  1326→  --muted:            217 33% 17%;
+  1327→  
+  1328→  /* Safety Colors */
+  1329→  --safe:             142 71% 45%;    /* Green 500 */
+  1330→  --safe-muted:       142 71% 45% / 0.15;
+  1331→  --moderate:         38 92% 50%;     /* Amber 500 */
+  1332→  --moderate-muted:   38 92% 50% / 0.15;
+  1333→  --risky:            0 84% 60%;      /* Red 500 */
+  1334→  --risky-muted:      0 84% 60% / 0.15;
+  1335→  
+  1336→  /* Accent */
+  1337→  --primary:          217 91% 60%;    /* Blue 500 */
+  1338→  --primary-hover:    217 91% 65%;
+  1339→  --accent:           262 83% 58%;    /* Purple 500 — for gaming */
+  1340→  
+  1341→  /* Status */
+  1342→  --success:          142 71% 45%;
+  1343→  --warning:          38 92% 50%;
+  1344→  --error:            0 84% 60%;
+  1345→  --info:             199 89% 48%;    /* Cyan 500 */
+  1346→}
+  1347→```
+  1348→
+  1349→---
+  1350→
+  1351→## Appendix C: Key shadcn/ui Components Needed
+  1352→
+  1353→| Component | Usage |
+  1354→|-----------|-------|
+  1355→| `Button` | Apply, Cancel, Save, Toggle actions |
+  1356→| `Switch` | Setting toggles |
+  1357→| `Badge` | Safety level badges (Safe/Moderate/Risky) |
+  1358→| `Card` | Section cards, profile cards, package cards |
+  1359→| `Command` | Cmd+K global search palette |
+  1360→| `Dialog` | Confirm dialogs, create profile, import profile |
+  1361→| `Tooltip` | Setting descriptions on hover |
+  1362→| `Progress` | Execution progress bars |
+  1363→| `Tabs` | Winget/Chocolatey, Safety level tabs |
+  1364→| `Checkbox` | Undo selection, section selection |
+  1365→| `Select` | Filter dropdowns |
+  1366→| `Input` | Search, profile name, description |
+  1367→| `ScrollArea` | Settings list, log output |
+  1368→| `Accordion` | Section groups in preview |
+  1369→| `Sheet` | Mobile sidebar |
+  1370→| `Toast` | Notifications (save, error, complete) |
+  1371→| `Alert` | Risky setting warnings, system warnings |
+  1372→| `Separator` | Dividers between sections |
+  1373→| `Skeleton` | Loading states |
+  1374→| `DropdownMenu` | Profile actions, settings menu |
+  1375→
+  1376→---
+  1377→
+  1378→## Appendix D: Extending the PS1 Script for GUI Support
+  1379→
+  1380→The existing PS1 script already supports `-ConfigFile` with JSON. To fully support the GUI, we need to add one enhancement:
+  1381→
+  1382→### New: `-SettingOverrides` support in config JSON
+  1383→
+  1384→Currently the PS1 script has `$script:SettingOverrides` populated only by the interactive menu. To support GUI-driven overrides via config file:
+  1385→
+  1386→```json
+  1387→{
+  1388→  "Sections": ["Privacy", "Debloat"],
+  1389→  "SettingOverrides": {
+  1390→    "Privacy_DisableCortana": true,
+  1391→    "Debloat_WindowsCamera": true
+  1392→  },
+  1393→  "AllowRisky": false,
+  1394→  "AppList": [...],
+  1395→  "BloatwareList": [...]
+  1396→}
+  1397→```
+  1398→
+  1399→This requires a small PS1 modification to read `SettingOverrides` from the config file:
+  1400→
+  1401→```powershell
+  1402→# In the -ConfigFile loading block, add:
+  1403→if ($config.SettingOverrides) {
+  1404→    foreach ($key in $config.SettingOverrides.PSObject.Properties) {
+  1405→        if ($key.Value -eq $true) {
+  1406→            $script:SettingOverrides[$key.Name] = $true
+  1407→        }
+  1408→    }
+  1409→}
+  1410→if ($config.AllowRisky -eq $true) {
+  1411→    $script:AllowRisky = $true
+  1412→}
+  1413→```
+  1414→
+  1415→This is a **15-line change** to the PS1 script and maintains full backward compatibility (existing config files without these fields still work).
+  1416→
+  1417→---
+  1418→
+  1419→## Appendix E: Web-Only Mode Fallback
+  1420→
+  1421→For users who can't install Tauri (e.g., running from a network share), the web app provides:
+  1422→
+  1423→1. **Configure** in browser → all toggle/preview/profile features work
+  1424→2. **Export Package** → downloads a ZIP containing:
+  1425→   - `WinPostInstall-Config.json` (the generated configuration)
+  1426→   - `WinPostInstall.ps1` (the full script)
+  1427→   - `Run-GUI-Config.bat` (launcher that runs PS1 with -ConfigFile)
+  1428→3. **One-click download** → user runs the .bat file
+  1429→
+  1430→This means the web app is useful even without direct PowerShell execution.
+  1431→
+  1432→---
+  1433→
+  1434→*End of Implementation Plan*
+  1435→

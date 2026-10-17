@@ -1,0 +1,218 @@
+     1→112:$script:SettingCatalog = @{}          # Dynamically populated: ID -> @{Section, Safety, Desc, Action}
+     2→696:        [string]$SafetyLevel = "Safe",
+     3→708:        $script:SettingCatalog[$SettingID] = @{
+     4→710:            Safety   = $SafetyLevel
+     5→718:    if ($SafetyLevel -eq "Risky" -and -not [string]::IsNullOrEmpty($Description)) {
+     6→730:    if ($SafetyLevel -eq "Risky" -and -not $script:AllowRisky) {
+     7→737:    if ($SafetyLevel -eq "Moderate") {
+     8→822:        [string]$SafetyLevel = "Safe",
+     9→834:        $script:SettingCatalog[$SettingID] = @{
+    10→836:            Safety   = $SafetyLevel
+    11→844:    if ($SafetyLevel -eq "Risky" -and -not [string]::IsNullOrEmpty($Description)) {
+    12→856:    if ($SafetyLevel -eq "Risky" -and -not $script:AllowRisky) {
+    13→863:    if ($SafetyLevel -eq "Moderate") {
+    14→898:function Invoke-PrivacyTweaks {
+    15→908:        -SafetyLevel "Safe" -Description "Stops Windows from sending telemetry and diagnostic data to Microsoft" -SettingID "Privacy_AllowTelemetry"
+    16→911:        -SafetyLevel "Safe" -Description "Reinforces telemetry block via secondary policy path" -SettingID "Privacy_AllowTelemetry2"
+    17→914:        -SafetyLevel "Safe" -Description "Removes Feedback Hub notifications and prompts" -SettingID "Privacy_NoFeedback"
+    18→917:        -SafetyLevel "Safe" -Description "Limits diagnostic log collection to critical events only" -SettingID "Privacy_LimitDiagLog"
+    19→920:        -SafetyLevel "Safe" -Description "Limits crash dump collection to reduce data sent to Microsoft" -SettingID "Privacy_LimitDump"
+    20→924:        -Name "AITEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Application Impact Telemetry — stops app compat data collection" -SettingID "Privacy_AITEnable"
+    21→926:        -Name "DisableInventory" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables app compatibility inventory — stops hardware/software inventory" -SettingID "Privacy_DisableInventory"
+    22→928:        -Name "DisableUAR" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables User App Compatibility Reporter — stops compat data uploads" -SettingID "Privacy_DisableUAR"
+    23→933:        Set-Registry -Path $p -Name "CEIPEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Customer Experience Improvement Program — stops CEIP data collection" -SettingID "Privacy_CEIPEnable"
+    24→938:        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables tailored experiences with diagnostic data — stops personalized ads/tips" -SettingID "Privacy_NoTailoredExp"
+    25→957:        -Name "Debugger" -Value "%windir%\System32\taskkill.exe" -Type String -SafetyLevel "Safe" -Description "Kills CompatTelRunner.exe via IFEO — blocks telemetry compatibility runner" -SettingID "Privacy_KillCompatTelRunner"
+    26→964:            -SafetyLevel "Safe" -Description "Disables activity history tracking — prevents Windows from recording user activity" -SettingID "Privacy_$($name)"
+    27→970:        -Name "Value" -Value "Deny" -Type String -SafetyLevel "Moderate" -Description "Disables geolocation service — breaks Find My Device and Maps location" -SettingID "Privacy_NoGeolocation"
+    28→972:        -Name "Status" -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables geolocation service — breaks Find My Device and Maps location" -SettingID "Privacy_NoGeolocation"
+    29→978:        -SafetyLevel "Safe" -Description "Removes the unique advertising ID assigned to this device" -SettingID "Privacy_AdvID_Policy"
+    30→981:        -SafetyLevel "Safe" -Description "Disables advertising ID in current user scope" -SettingID "Privacy_AdvID_User"
+    31→988:            -SafetyLevel "Safe" -Description "Disables Cortana digital assistant and web search in Start"
+    32→992:        -SafetyLevel "Safe" -Description "Stops Start menu from using Bing web search" -SettingID "Privacy_DisableWebSearch"
+    33→995:        -SafetyLevel "Safe" -Description "Blocks Cortana from using web for search results" -SettingID "Privacy_NoConnectedSearch"
+    34→997:        -Name "DisableWindowsStoreRealTimeConfig" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows Store real-time configuration — reduces Store telemetry" -SettingID "Privacy_NoStoreRealTime"
+    35→1002:        -Name "BingSearchEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Bing search in Start Menu — stops web search results" -SettingID "Privacy_NoBingSearch"
+    36→1004:        -Name "CortanaConsent" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Revokes Cortana consent — stops Cortana data collection" -SettingID "Privacy_NoCortanaConsent"
+    37→1010:        -SafetyLevel "Safe" -Description "Disables Windows Copilot AI assistant (machine policy)" -SettingID "Privacy_NoCopilot_Machine"
+    38→1013:        -SafetyLevel "Safe" -Description "Disables Windows Copilot AI assistant (user policy)" -SettingID "Privacy_NoCopilot_User"
+    39→1016:        -SafetyLevel "Safe" -Description "Hides Copilot button from taskbar" -SettingID "Privacy_HideCopilotBtn"
+    40→1022:        -SafetyLevel "Safe" -Description "Disables Windows Recall AI memory/timeline feature (machine)" -SettingID "Privacy_NoRecall_Machine"
+    41→1025:        -SafetyLevel "Safe" -Description "Disables Windows Recall AI memory/timeline feature (user)" -SettingID "Privacy_NoRecall_User"
+    42→1027:        -Name "DisableAIDataAnalysis" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables AI data analysis — stops AI telemetry collection" -SettingID "Privacy_NoAIDataAnalysis"
+    43→1033:            -Name $prop -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows AI feature — stops AI data collection" -SettingID "Privacy_AI_Privacy_AIFeature"
+    44→1040:            -Name $prop -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables AI feature in Paint — stops AI telemetry" -SettingID "Privacy_NoPaintAI_Privacy_PaintAI"
+    45→1047:        -SafetyLevel "Safe" -Description "Disables clipboard history (Win+V)" -SettingID "Privacy_NoClipHistory"
+    46→1050:        -SafetyLevel "Safe" -Description "Disables cloud clipboard sync across devices" -SettingID "Privacy_NoClipSync"
+    47→1055:        -Name "RestrictImplicitTextCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Restricts implicit text collection — stops typing telemetry" -SettingID "Privacy_NoImplicitText"
+    48→1057:        -Name "RestrictImplicitInkCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Restricts implicit ink collection — stops inking telemetry" -SettingID "Privacy_NoImplicitInk"
+    49→1059:        -Name "HarvestContacts" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables contact harvesting for typing suggestions — stops contact data collection" -SettingID "Privacy_NoHarvestContacts"
+    50→1064:        -Name "NumberOfSIUFInPeriod" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables feedback notifications — stops Feedback Hub prompts" -SettingID "Privacy_NoFeedbackNotif"
+    51→1069:        -Name "Start_TrackProgs" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables tracking of most-used programs in Start — stops usage telemetry" -SettingID "Privacy_NoTrackProgs"
+    52→1071:        -Name "Start_TrackDocs" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables tracking of recently opened documents in Start — stops usage telemetry" -SettingID "Privacy_NoTrackDocs"
+    53→1073:        -Name "DisableSoftLanding" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows soft landing tips — stops suggestion telemetry" -SettingID "Privacy_NoSoftLanding"
+    54→1075:        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows consumer features — stops Store suggestions/ads" -SettingID "Privacy_NoConsumerFeatures2"
+    55→1080:        -Name "Value" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Wi-Fi Sense — stops sharing Wi-Fi passwords with contacts" -SettingID "Privacy_NoWiFiSense_Privacy_WiFi"
+    56→1082:        -Name "Value" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Wi-Fi Sense — stops sharing Wi-Fi passwords with contacts" -SettingID "Privacy_NoWiFiSense_Privacy_WiFi_2"
+    57→1084:        -Name "AutoConnectAllowedOEM" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Wi-Fi Sense — stops sharing Wi-Fi passwords with contacts" -SettingID "Privacy_NoWiFiSense_Privacy_WiFi_3"
+    58→1090:        -SafetyLevel "Moderate" -Description "Stops Windows Error Reporting — makes troubleshooting harder" -SettingID "Privacy_NoWER"
+    59→1096:            -Name $prop -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Windows Insider experiments — stops A/B testing and flighting" -SettingID "Privacy_NoInsiderExperiments_Privacy_Insider"
+    60→1102:        -Name "DisableSettingSync" -Value 2 -Type DWord -SafetyLevel "Moderate" -Description "Disables Setting Sync — stops cloud settings sync" -SettingID "Privacy_NoSettingSync"
+    61→1104:        -Name "DisableSettingSyncUserOverride" -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Disables Setting Sync — stops cloud settings sync" -SettingID "Privacy_NoSettingSync"
+    62→1110:        -Name "AllowTelemetry" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Stops Windows from sending telemetry and diagnostic data to Microsoft" -SettingID "Privacy_AllowTelemetry3"
+    63→1113:        -Name "DisableTailoredExperiencesWithDiagnosticData" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables tailored experiences with diagnostic data — stops personalized ads/tips" -SettingID "Privacy_NoTailoredExp"
+    64→1116:        -Name "DoNotShowFeedbackNotifications" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Removes Feedback Hub notifications and prompts" -SettingID "Privacy_NoFeedback2"
+    65→1119:        -Name "EnableDiagnosticDataViewer" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Diagnostic Data Viewer — removes data viewer feature" -SettingID "Privacy_NoDiagDataViewer"
+    66→1122:        -Name "LimitDiagnosticLogCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Limits diagnostic log collection to critical events only" -SettingID "Privacy_LimitDiagLog2"
+    67→1125:        -Name "LimitDumpCollection" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Limits crash dump collection to reduce data sent to Microsoft" -SettingID "Privacy_LimitDump2"
+    68→1128:        -Name "AITEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Application Impact Telemetry — stops app compat data collection" -SettingID "Privacy_AITEnable"
+    69→1131:        -Name "DisableDeviceCensus" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Device Census — stops hardware inventory reporting to Microsoft" -SettingID "Privacy_NoDeviceCensus"
+    70→1135:        -SafetyLevel "Moderate" -Description "Stops Watson error reporting telemetry — makes troubleshooting harder" -SettingID "Privacy_NoWatson"
+    71→1138:        -Name "CEIPEnable" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Customer Experience Improvement Program — stops CEIP data collection" -SettingID "Privacy_CEIPEnable"
+    72→1141:        -Name "Disabled" -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Stops Windows Error Reporting — makes troubleshooting harder" -SettingID "Privacy_NoWER2"
+    73→1144:        -Name "DisablePCA" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Program Compatibility Assistant — stops compatibility telemetry" -SettingID "Privacy_DisablePCA"
+    74→1147:        -Name "EnableWebContentEvaluation" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables web content evaluation — stops app telemetry" -SettingID "Privacy_NoWebContentEval"
+    75→1151:        -SafetyLevel "Safe" -Description "Prevents Windows from tracking activity history" -SettingID "Privacy_NoPublishActivities"
+    76→1154:        -SafetyLevel "Safe" -Description "Prevents uploading activity history to Microsoft cloud" -SettingID "Privacy_NoUploadActivities"
+    77→1157:        -Name "FullTelemetryOnInstall" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables full telemetry on install — stops initial data collection burst" -SettingID "Privacy_NoFullTelemetryInstall"
+    78→1160:        -Name "AllowUpdateComplianceTelemetry" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Update Compliance telemetry — stops WU data reporting" -SettingID "Privacy_NoUpdateComplianceTelemetry"
+    79→1165:        -Name "GlobalUserDisabled" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables background app access globally — stops apps running in background" -SettingID "Privacy_NoBackgroundApps"
+    80→1168:        -Name "LetAppsGetDiagnosticInfo" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Denies apps access to diagnostic info — stops app diagnostics data sharing" -SettingID "Privacy_NoAppDiagInfo"
+    81→1171:        -Name "LetAppsAccessActivityHistory" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Denies apps access to activity history — stops app activity tracking" -SettingID "Privacy_NoAppActivityHist"
+    82→1176:        -Name "DisabledByGroupPolicy" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Removes advertising ID via group policy — stops targeted advertising" -SettingID "Privacy_AdvIDPolicy2"
+    83→1179:        -Name "DisableCloudOptimizedContent" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables cloud-optimized content — stops personalized suggestions" -SettingID "Privacy_NoCloudContent"
+    84→1182:        -Name "DisableThirdPartySuggestions" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables third-party suggestions in Windows — stops third-party ads" -SettingID "Privacy_No3rdPartySuggestions"
+    85→1185:        -Name "SubscribedContent-338389Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows Spotlight suggestions — stops lock screen tips/ads" -SettingID "Privacy_NoSpotlight338389"
+    86→1188:        -Name "SubscribedContent-310093Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables 'Get even more out of Windows' tips — stops suggestion prompts" -SettingID "Privacy_NoTips310093"
+    87→1194:        -Name "Start" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables AutoLogger DiagTrack listener — stops kernel telemetry logging" -SettingID "Privacy_NoDiagtrackListener"
+    88→1197:        -Name "NoActiveProbe" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables NCSI active probing — stops network connectivity telemetry" -SettingID "Privacy_NoNCSIProbe2"
+    89→1200:        -Name "DisableUserProfileTelemetry" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables User Profile service telemetry — stops profile data collection" -SettingID "Privacy_NoUserProfileTelemetry"
+    90→1207:        -Name "ContentDeliveryEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables content delivery — stops silent app installs and suggestions" -SettingID "Privacy_NoContentDelivery"
+    91→1209:        -Name "SubscribedContent-338387Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables suggested content in Settings — stops Settings suggestions" -SettingID "Privacy_NoSuggestedContent338387"
+    92→1211:        -Name "SubscribedContent-338388Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables suggested content (tips) — stops tips/suggestions" -SettingID "Privacy_NoSuggestedContent338388"
+    93→1213:        -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables rotating lock screen images — stops Windows Spotlight ads" -SettingID "Privacy_NoRotatingLockScreen2"
+    94→1215:        -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables lock screen overlay — stops Windows Spotlight tips/ads" -SettingID "Privacy_NoLockScreenOverlay2"
+    95→1220:        -Name "NOC_GLOBAL_SETTING_TOASTS_ENABLED" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables lock screen toast notifications — stops lock screen notification display" -SettingID "Privacy_NoLockScreenNotif"
+    96→1232:function Invoke-Debloat {
+    97→1423:function Invoke-ExplorerUI {
+    98→1432:        -Name "HideFileExt" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Shows file extensions — prevents accidental execution of disguised files" -SettingID "ExplorerUI_ShowFileExt"
+    99→1437:        -Name "Hidden" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Shows hidden files — improves visibility of system files" -SettingID "ExplorerUI_ShowHiddenFiles"
+   100→1443:            -Name "(Default)" -Value "" -Type String -SafetyLevel "Safe" -Description "Enables classic right-click context menu — removes Win11 simplified menu" -SettingID "ExplorerUI_ClassicContextMenu"
+   101→1462:            -SafetyLevel "Safe" -Description "Disables content delivery setting — stops suggestions/silent installs" -SettingID "ExplorerUI_CDM_$($key)"
+   102→1468:        -Name "ShowSyncProviderNotifications" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables File Explorer ads — removes OneDrive ads in Explorer" -SettingID "ExplorerUI_NoExplorerAds"
+   103→1473:        -Name "NoLockScreen" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Lock Screen — goes directly to login screen" -SettingID "ExplorerUI_NoLockScreen"
+   104→1474:    Set-Registry -Path $cdmPath -Name "RotatingLockScreenEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables rotating lock screen images — stops Windows Spotlight ads" -SettingID "ExplorerUI_NoRotatingLockScreen"
+   105→1475:    Set-Registry -Path $cdmPath -Name "RotatingLockScreenOverlayEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables lock screen overlay — stops Windows Spotlight tips/ads" -SettingID "ExplorerUI_NoLockScreenOverlay"
+   106→1479:        -Name "DisableWindowsConsumerFeatures" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Windows consumer features — stops Store suggestions/ads" -SettingID "ExplorerUI_NoConsumerFeatures2"
+   107→1484:        -Name "TaskbarMn" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Chat icon from Taskbar — hides Microsoft Chat/Teams" -SettingID "ExplorerUI_NoChatIcon"
+   108→1490:            -Name "TaskbarDa" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Widgets from Taskbar — hides news/weather widget" -SettingID "ExplorerUI_NoWidgets"
+   109→1497:            -Name "TaskbarSearchBox" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Search box from Taskbar — simplifies taskbar" -SettingID "ExplorerUI_NoSearchBox"
+   110→1504:            -Name "EnableSnapAssistFlyout" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Snap Layouts flyout — removes snap layout suggestions" -SettingID "ExplorerUI_NoSnapAssist"
+   111→1510:        -Name "TaskbarEndTask" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Enables 'End Task' in Taskbar right-click — adds quick task kill option" -SettingID "ExplorerUI_TaskbarEndTask"
+   112→1515:        -Name "LaunchTo" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Sets File Explorer to open This PC instead of Quick Access" -SettingID "ExplorerUI_OpenThisPC"
+   113→1529:            -Name "DragBetweenWindows" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Drag Tray — removes Win11 share/move files tray" -SettingID "ExplorerUI_NoDragTray"
+   114→1537:        -Name "ShowTaskViewButton" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Removes Task View button from Taskbar — hides virtual desktops UI" -SettingID "ExplorerUI_NoTaskView"
+   115→1542:        -Name "SearchboxTaskbarMode" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Sets Search bar to icon-only mode — simplifies taskbar" -SettingID "ExplorerUI_SearchIconOnly"
+   116→1547:        -Name "ShowCopilotButton" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Hides Copilot button from taskbar" -SettingID "ExplorerUI_HideCopilotBtn2"
+   117→1615:function Invoke-ServiceStartupOptimization {
+   118→1678:        -Name "StartupDelayInMSec" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables startup delay — speeds up boot by removing artificial delay" -SettingID "ServiceStartup_NoStartupDelay"
+   119→1690:function Invoke-PerformanceOptimization {
+   120→1727:        -SafetyLevel "Safe" -Description "Disables Fast Startup — prevents partial shutdown/driver issues" -SettingID "Perf_NoFastStartup"
+   121→1733:        -SafetyLevel "Safe" -Description "Disables Modern Standby network — prevents battery drain during sleep" -SettingID "Perf_NoModernSleep"
+   122→1775:        -SafetyLevel "Safe" -Description "Sets visual effects to Best Performance mode" -SettingID "Perf_VisualFX"
+   123→1784:        Set-Registry -Path "HKCU:\Control Panel\Desktop" -Name $key -Value $visualFx[$key] -Type DWord -SafetyLevel "Safe" -Description "Disables visual animation — improves performance" -SettingID "Performance_VisFX_Performance_VisFX"
+   124→1787:        -Name "EnableAeroPeek" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Aero Peek — removes desktop preview on taskbar hover" -SettingID "Performance_NoAeroPeek"
+   125→1806:            -SafetyLevel "Safe" -Description "Disables Prefetch on SSD — safe, reduces unnecessary disk I/O" -SettingID "Perf_NoPrefetch_SSD"
+   126→1809:            -SafetyLevel "Safe" -Description "Disables SuperFetch on SSD — safe, reduces unnecessary disk I/O" -SettingID "Perf_NoSuperfetch_SSD"
+   127→1816:                Disable-AppTask -TaskName "ScheduledDefrag" -ErrorAction SilentlyContinue -SafetyLevel "Safe" -Description "Disables scheduled defragmentation — SSD does not need defrag" -SettingID "Performance_NoScheduledDefrag"
+   128→1849:            -Name "AvgCPULoadFactor" -Value 25 -Type DWord -SafetyLevel "Safe" -Description "Limits Windows Defender CPU usage to 25% — reduces scan impact" -SettingID "Performance_DefenderCPULimit"
+   129→1872:        -Name "SvcHostSplitThresholdInKB" -Value 0x04000000 -Type DWord -SafetyLevel "Safe" -Description "Increases SvcHost split threshold — reduces svchost.exe proliferation" -SettingID "Performance_SvcHostSplit"
+   130→1887:            -SafetyLevel "Moderate" -Description "Sets page file to fixed 1GB — OK with 16GB+ RAM" -SettingID "Perf_FixedPageFile"
+   131→1912:function Invoke-SecurityHardening {
+   132→1931:                -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Ensures Defender real-time protection stays enabled — maintains security" -SettingID "Security_DefenderRT_$prop"
+   133→1938:        -Name "EnableAutoDoh" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS — encrypts DNS queries for privacy" -SettingID "Security_EnableDoH"
+   134→1943:        -Name "NoDriveTypeAutoRun" -Value 255 -Type DWord -SafetyLevel "Safe" -Description "Disables USB auto-run — prevents malware from auto-executing on USB" -SettingID "Security_NoAutoRun"
+   135→1948:        -Name "fDenyTSConnections" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Remote Desktop — reduces attack surface" -SettingID "Security_NoRDP"
+   136→1954:        -SafetyLevel "Safe" -Description "Disables SMBv1 — protects against WannaCry-like exploits" -SettingID "Sec_NoSMB1"
+   137→1981:        -Name "EnableLUA" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Ensures UAC is enabled — maintains admin consent prompts" -SettingID "Security_UAC_Enabled"
+   138→1983:        -Name "ConsentPromptBehaviorAdmin" -Value 5 -Type DWord -SafetyLevel "Safe" -Description "Sets UAC to prompt for consent — secure admin elevation behavior" -SettingID "Security_UAC_Consent"
+   139→1988:        -Name "DisablePasswordReveal" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables password reveal button — prevents password visibility" -SettingID "Security_NoPasswordReveal"
+   140→2000:function Invoke-NetworkOptimizations {
+   141→2022:        -Name "NetworkThrottlingIndex" -Value 0xffffffff -Type DWord -SafetyLevel "Safe" -Description "Disables network throttling — improves network throughput for gaming/streams" -SettingID "Network_NoNetThrottle"
+   142→2024:        -Name "NoLazyMode" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables network lazy mode — reduces latency" -SettingID "Network_NoLazyMode"
+   143→2033:                -SafetyLevel "Safe" -Description "Disables Nagle Algorithm on network interface — reduces latency" -SettingID "Network_NoNagle_$($param)_$($iface.PSPath.GetHashCode())"
+   144→2040:        -Name "NoActiveProbe" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables NCSI active probing — stops network connectivity telemetry" -SettingID "Network_NoNCSIProbe2"
+   145→2045:        -Name "Teredo_State" -Value "Disabled" -Type String -SafetyLevel "Safe" -Description "Disables Teredo IPv6 transition — reduces attack surface" -SettingID "Network_NoTeredo"
+   146→2068:        -Name "EnableAutoDoh" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS — encrypts DNS queries for privacy" -SettingID "Network_EnableDoH2"
+   147→2071:        -Name "EnableDOH" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS via policy — encrypts DNS queries" -SettingID "Network_EnableDoH_Policy"
+   148→2145:function Invoke-WindowsUpdateConfig {
+   149→2152:        -Name "AUOptions" -Value 4 -Type DWord -SafetyLevel "Safe" -Description "Sets WU to auto-download and notify — prevents automatic install" -SettingID "WindowsUpdate_WU_NotifyOnly"
+   150→2157:        -Name "NoAutoRebootWithLoggedOnUsers" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Prevents auto-reboot after updates when users are logged in" -SettingID "WindowsUpdate_WU_NoAutoReboot"
+   151→2162:        -Name "DODownloadMode" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Delivery Optimization — stops peer-to-peer update sharing" -SettingID "WindowsUpdate_NoDeliveryOpt"
+   152→2167:        -Name "ExcludeWUDriversInQualityUpdate" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Excludes drivers from quality updates — prevents driver issues" -SettingID "WindowsUpdate_WU_NoDriverUpdates"
+   153→2172:        -Name "ActiveHoursStart" -Value 9 -Type DWord -SafetyLevel "Safe" -Description "Sets active hours start to 09:00 — prevents reboots during work" -SettingID "WindowsUpdate_WU_ActiveHrsStart"
+   154→2174:        -Name "ActiveHoursEnd" -Value 21 -Type DWord -SafetyLevel "Safe" -Description "Sets active hours end to 21:00 — prevents reboots during work" -SettingID "WindowsUpdate_WU_ActiveHrsEnd"
+   155→2179:        -Name "DoNotConnectToWindowsUpdateInternetLocations" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Configures WU internet locations — standard WU policy" -SettingID "WindowsUpdate_WU_InternetConfig"
+   156→2181:        -Name "SearchOrderConfig" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Prevents automatic driver search via Windows Update" -SettingID "WindowsUpdate_WU_NoAutoDriverSearch"
+   157→2193:function Invoke-DiskCleanup {
+   158→2201:            -Name "StateFlags0001" -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Configures Disk Cleanup state flags — enables automated cleanup" -SettingID "DiskCleanup_DiskCleanupFlags_DiskCleanup_DC"
+   159→2220:        -Name "AllowStorageSenseGlobal" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Storage Sense — prevents automatic file deletion" -SettingID "DiskCleanup_NoStorageSense"
+   160→2232:function Invoke-WingetInstall {
+   161→2301:function Invoke-OfficeActivation {
+   162→2460:        Set-Registry -Path $item.Path -Name $item.Name -Value $item.Value -Type DWord -SafetyLevel "Safe" -Description "Disables Office telemetry/data collection — stops Office data sharing with Microsoft" -SettingID "OfficeActivation_Office_OfficeActivation_Office"
+   163→2475:function Invoke-EdgeHardening {
+   164→2502:            -SafetyLevel "Safe" -Description "Hardens Edge browser privacy/security — reduces Edge data collection" -SettingID "EdgeHardening_$($prop)"
+   165→2508:        -Name "AllowPrelaunch" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge prelaunch — prevents Edge running in background at startup" -SettingID "EdgeHardening_NoEdgePrelaunch"
+   166→2510:        -Name "AllowTabPreloading" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge tab preloading — reduces background resource usage" -SettingID "EdgeHardening_NoEdgeTabPreload"
+   167→2515:        -Name "DisallowFirstRun" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge first-run experience — prevents Edge welcome screen" -SettingID "EdgeHardening_NoEdgeFirstRun2"
+   168→2527:function Invoke-OneDriveManagement {
+   169→2534:        -Name "DisableFileSyncNGSC" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables OneDrive file sync via Group Policy — prevents OneDrive integration" -SettingID "OneDrive_DisableOneDrive"
+   170→2541:        Set-Registry -Path $path -Name "System.IsPinnedToNameSpaceTree" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Hides OneDrive from File Explorer navigation pane" -SettingID "OneDrive_HideOneDriveNav"
+   171→2565:function Invoke-GamingDisable {
+   172→2572:        -Name "AllowgameDVR" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR via policy — stops game clip recording" -SettingID "Gaming_NoGameDVR"
+   173→2578:            -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR/Game Bar setting — stops game recording" -SettingID "Gaming_GameDVR_Gaming_GVR"
+   174→2580:            -Name $prop -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR/Game Bar setting — stops game recording" -SettingID "Gaming_GameDVR_Gaming_GVR_2"
+   175→2586:        -Name "GameDVR_Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR — stops game recording and broadcasting" -SettingID "Gaming_GameDVR_Off"
+   176→2588:        -Name "GameDVR_Enabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables GameDVR — stops game recording and broadcasting" -SettingID "Gaming_GameDVR_Off"
+   177→2600:function Invoke-ScheduledTasksCleanup {
+   178→2638:        Disable-AppTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task"
+   179→2652:        Disable-AppTask -TaskPath $task.Path -TaskName $task.Name -SafetyLevel "Safe" -Description "Disables telemetry/diagnostics scheduled task — stops background data collection" -SettingID "ScheduledTasks_TelemetryTask_ScheduledTasks_Task_2"
+   180→2666:function Invoke-BrowserHardening {
+   181→2858:            -SafetyLevel "Safe" -Description "Applies Chrome privacy policy — reduces Chrome data collection" -SettingID "BrowserHardening_Chrome_$($prop)"
+   182→2882:            -SafetyLevel "Safe" -Description "Applies Brave privacy policy — hardens Brave browser" -SettingID "BrowserHardening_Brave_$($prop)"
+   183→2898:            -SafetyLevel "Safe" -Description "Applies Opera privacy policy — reduces Opera data collection" -SettingID "BrowserHardening_Opera_$($prop)"
+   184→2905:        -SafetyLevel "Safe" -Description "Disables Firefox telemetry — stops Firefox data collection" -SettingID "BrowserHardening_FF_NoTelemetry"
+   185→2907:        -SafetyLevel "Safe" -Description "Disables Firefox Studies — stops Firefox A/B experiments" -SettingID "BrowserHardening_FF_NoStudies"
+   186→2909:        -SafetyLevel "Safe" -Description "Disables Pocket integration — stops Pocket data collection" -SettingID "BrowserHardening_FF_NoPocket"
+   187→2911:        -SafetyLevel "Safe" -Description "Disables form history — stops autofill data collection" -SettingID "BrowserHardening_FF_NoFormHist"
+   188→2913:        -SafetyLevel "Safe" -Description "Disables login save offers — prevents credential storage in browser" -SettingID "BrowserHardening_FF_NoSaveLogins"
+   189→2915:        -SafetyLevel "Safe" -Description "Disables Firefox password manager — prevents credential storage in browser" -SettingID "BrowserHardening_FF_NoPasswordMgr"
+   190→2917:        -SafetyLevel "Safe" -Description "Enables sanitize on shutdown — clears browsing data on exit" -SettingID "BrowserHardening_FF_SanitizeOnShutdown"
+   191→2919:        -SafetyLevel "Safe" -Description "Disables default browser check — reduces startup prompts" -SettingID "BrowserHardening_FF_NoDefaultCheck"
+   192→2925:        -SafetyLevel "Safe" -Description "Enables strict tracking protection in Firefox" -SettingID "BrowserHardening_FF_TrackingProt"
+   193→2927:        -SafetyLevel "Safe" -Description "Blocks cryptomining in Firefox — stops coin miner scripts" -SettingID "BrowserHardening_FF_NoCryptomining"
+   194→2929:        -SafetyLevel "Safe" -Description "Blocks fingerprinting in Firefox — stops browser fingerprint tracking" -SettingID "BrowserHardening_FF_NoFingerprinting"
+   195→2930:    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS" -Name "Enabled" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Enables DNS-over-HTTPS in Firefox — encrypts DNS queries" -SettingID "BrowserHardening_FF_DoH"
+   196→2969:function Invoke-FinalTouches {
+   197→2976:        -Name "DisableFirstRunSettings" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge first-run experience — prevents Edge welcome screen" -SettingID "FinalTouches_NoEdgeFirstRun"
+   198→2981:        -Name "HideInsiderPage" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Hides Windows Insider page from Settings — removes insider enrollment UI" -SettingID "FinalTouches_HideInsiderPage"
+   199→2986:        -Name "(Default)" -Value ".None" -Type String -SafetyLevel "Safe" -Description "Sets sound scheme to No Sounds — disables all system sounds" -SettingID "FinalTouches_NoSounds"
+   200→2991:        -Name "InitialKeyboardIndicators" -Value "0" -Type String -SafetyLevel "Safe" -Description "Sets NumLock state at startup" -SettingID "FinalTouches_NumLockStartup"
+   201→2996:        -Name "MouseSpeed" -Value 1 -Type String -SafetyLevel "Safe" -Description "Disables mouse acceleration — improves pointer precision for gamers" -SettingID "FinalTouches_NoMouseAccel"
+   202→2998:        -Name "MouseThreshold1" -Value 0 -Type String -SafetyLevel "Safe" -Description "Disables mouse acceleration threshold 1 — improves pointer precision" -SettingID "FinalTouches_MouseThreshold1"
+   203→3000:        -Name "MouseThreshold2" -Value 0 -Type String -SafetyLevel "Safe" -Description "Disables mouse acceleration threshold 2 — improves pointer precision" -SettingID "FinalTouches_MouseThreshold2"
+   204→3005:        -Name "Flags" -Value 506 -Type String -SafetyLevel "Safe" -Description "Disables Sticky Keys accessibility feature — prevents accidental activation" -SettingID "FinalTouches_NoStickyKeys"
+   205→3026:function Invoke-WindowsFeaturesRemoval {
+   206→3228:function Show-DetailedMenu {
+   207→3310:    # Section key -> display name mapping (same as Show-DetailedMenu)
+   208→3335:        foreach ($key in $script:SettingCatalog.Keys) {
+   209→3336:            if ($script:SettingCatalog[$key].Section -eq $section) {
+   210→3348:        $sectionSettings = $sectionSettings | Sort-Object { $safetyOrder[$script:SettingCatalog[$_].Safety] }, { $script:SettingCatalog[$_].Desc }
+   211→3367:                $catEntry = $script:SettingCatalog[$settingID]
+   212→3407:                    $detailEntry = $script:SettingCatalog[$detailID]
+   213→3451:                        $desc = $script:SettingCatalog[$toggleID].Desc
+   214→3456:                        $desc = $script:SettingCatalog[$toggleID].Desc
+   215→3471:function Get-DetailedUserSelection {
+   216→3473:    Show-DetailedMenu
+   217→3581:                $catEntry = $script:SettingCatalog[$key]
+   218→3701:            $selectedSections = Get-DetailedUserSelection

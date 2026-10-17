@@ -1,0 +1,633 @@
+     1→#!/usr/bin/env python3
+     2→"""
+     3→Annotate all Set-Registry and Disable-ScheduledTask calls in WinPostInstall.ps1
+     4→that are missing -SafetyLevel, -Description, -SettingID parameters.
+     5→"""
+     6→
+     7→import re
+     8→import sys
+     9→
+    10→INPUT_FILE = "/home/z/my-project/scripts/WinPostInstall.ps1"
+    11→OUTPUT_FILE = "/home/z/my-project/scripts/WinPostInstall_annotated.ps1"
+    12→
+    13→# Read the file
+    14→with open(INPUT_FILE, 'r', encoding='utf-8') as f:
+    15→    lines = f.readlines()
+    16→
+    17→# We'll process the file line by line, joining continuation lines (backtick at end)
+    18→# and then splitting them back after annotation.
+    19→
+    20→# First, let's join continuation lines into logical lines
+    21→# Each logical line may span multiple physical lines connected by backtick
+    22→
+    23→class LogicalLine:
+    24→    def __init__(self, start_line, end_line, content):
+    25→        self.start_line = start_line  # 0-based
+    26→        self.end_line = end_line      # 0-based, inclusive
+    27→        self.content = content        # joined content (backticks removed)
+    28→        self.physical_lines = []      # original physical lines
+    29→
+    30→# Join continuation lines
+    31→logical_lines = []
+    32→i = 0
+    33→while i < len(lines):
+    34→    line = lines[i].rstrip('\n')
+    35→    start = i
+    36→    content_parts = []
+    37→    physical = [lines[i]]
+    38→    
+    39→    while True:
+    40→        stripped = line.rstrip()
+    41→        if stripped.endswith('`'):
+    42→            # Continuation line - remove backtick and join
+    43→            content_parts.append(stripped[:-1])
+    44→            i += 1
+    45→            if i >= len(lines):
+    46→                break
+    47→            line = lines[i].rstrip('\n')
+    48→            physical.append(lines[i])
+    49→        else:
+    50→            content_parts.append(stripped)
+    51→            break
+    52→    
+    53→    content = ' '.join(content_parts)
+    54→    ll = LogicalLine(start, i, content)
+    55→    ll.physical_lines = physical
+    56→    logical_lines.append(ll)
+    57→    i += 1
+    58→
+    59→# Now we need to identify Set-Registry and Disable-ScheduledTask calls
+    60→# and annotate the ones missing -SafetyLevel
+    61→
+    62→# Track which section we're in
+    63→current_section = ""
+    64→
+    65→# For each logical line containing Set-Registry or Disable-ScheduledTask without -SafetyLevel,
+    66→# we need to generate the annotation and modify the line
+    67→
+    68→annotated_count = 0
+    69→skip_count = 0
+    70→
+    71→# We'll rebuild the output as physical lines
+    72→output_lines = list(lines)  # start with a copy
+    73→
+    74→# Process in reverse order so line numbers don't shift
+    75→# First, collect all the edits we need to make
+    76→edits = []  # list of (start_line, end_line, new_content)
+    77→
+    78→for ll in logical_lines:
+    79→    content = ll.content
+    80→    
+    81→    # Track section
+    82→    section_match = re.search(r'\$script:CurrentSection\s*=\s*"(\w+)"', content)
+    83→    if section_match:
+    84→        current_section = section_match.group(1)
+    85→    
+    86→    # Check for Set-Registry without -SafetyLevel
+    87→    if 'Set-Registry' in content and '-SafetyLevel' not in content:
+    88→        # Extract parameters
+    89→        path_match = re.search(r'-Path\s+"([^"]+)"', content)
+    90→        name_match = re.search(r'-Name\s+"([^"]+)"', content)
+    91→        value_match = re.search(r'-Value\s+(\S+)', content)
+    92→        
+    93→        if not path_match or not name_match:
+    94→            continue
+    95→        
+    96→        path = path_match.group(1)
+    97→        name = name_match.group(1)
+    98→        value = value_match.group(1) if value_match else ""
+    99→        
+   100→        # Determine safety level, description, setting ID
+   101→        safety, desc, setting_id = classify_set_registry(current_section, path, name, value)
+   102→        
+   103→        if safety is None:
+   104→            skip_count += 1
+   105→            continue
+   106→        
+   107→        # Build annotation string
+   108→        annotation = f' -SafetyLevel "{safety}" -Description "{desc}" -SettingID "{setting_id}"'
+   109→        
+   110→        # Find where to insert the annotation - after the last parameter of the Set-Registry call
+   111→        # We need to insert it on the last physical line of the logical line
+   112→        # The annotation should go after the last -Type parameter or last parameter
+   113→        
+   114→        edits.append((ll.start_line, ll.end_line, ll.physical_lines, annotation, 'Set-Registry'))
+   115→        annotated_count += 1
+   116→    
+   117→    # Check for Disable-ScheduledTask without -SafetyLevel
+   118→    elif 'Disable-ScheduledTask' in content and '-SafetyLevel' not in content:
+   119→        # Skip if this is the built-in Disable-ScheduledTask function definition
+   120→        if 'function Disable-ScheduledTask' in content:
+   121→            continue
+   122→        # Skip if it's the internal call inside the Disable-ScheduledTask function itself
+   123→        if ll.start_line >= 813 and ll.start_line <= 886:
+   124→            continue
+   125→        
+   126→        taskpath_match = re.search(r'-TaskPath\s+"([^"]+)"', content)
+   127→        taskname_match = re.search(r'-TaskName\s+"([^"]+)"', content)
+   128→        
+   129→        taskpath = taskpath_match.group(1) if taskpath_match else ""
+   130→        taskname = taskname_match.group(1) if taskname_match else ""
+   131→        
+   132→        safety, desc, setting_id = classify_disable_task(current_section, taskpath, taskname)
+   133→        
+   134→        if safety is None:
+   135→            skip_count += 1
+   136→            continue
+   137→        
+   138→        annotation = f' -SafetyLevel "{safety}" -Description "{desc}" -SettingID "{setting_id}"'
+   139→        edits.append((ll.start_line, ll.end_line, ll.physical_lines, annotation, 'Disable-ScheduledTask'))
+   140→        annotated_count += 1
+   141→
+   142→print(f"Found {annotated_count} calls to annotate, {skip_count} skipped")
+   143→print(f"Total edits: {len(edits)}")
+   144→
+   145→
+   146→def classify_set_registry(section, path, name, value):
+   147→    """Classify a Set-Registry call and return (SafetyLevel, Description, SettingID)"""
+   148→    
+   149→    # Build a short section prefix for SettingID
+   150→    sec = section if section else "Unknown"
+   151→    
+   152→    # Normalize path for matching
+   153→    pl = path.lower()
+   154→    nl = name.lower()
+   155→    
+   156→    # =========================================================
+   157→    # PRIVACY SECTION
+   158→    # =========================================================
+   159→    if 'appcompat' in pl:
+   160→        if 'aitenable' in nl:
+   161→            return ("Safe", "Disables Application Impact Telemetry — stops app compat data collection", f"{sec}_AITEnable")
+   162→        if 'disableinventory' in nl:
+   163→            return ("Safe", "Disables app compatibility inventory — stops hardware/software inventory", f"{sec}_DisableInventory")
+   164→        if 'disableuar' in nl:
+   165→            return ("Safe", "Disables User App Compatibility Reporter — stops compat data uploads", f"{sec}_DisableUAR")
+   166→        if 'disablepca' in nl:
+   167→            return ("Safe", "Disables Program Compatibility Assistant — stops compatibility telemetry", f"{sec}_DisablePCA")
+   168→    
+   169→    if 'ceipenable' in nl:
+   170→        return ("Safe", "Disables Customer Experience Improvement Program — stops CEIP data collection", f"{sec}_CEIPEnable")
+   171→    
+   172→    if 'disabletailoredexperiences' in nl:
+   173→        return ("Safe", "Disables tailored experiences with diagnostic data — stops personalized ads/tips", f"{sec}_NoTailoredExp")
+   174→    
+   175→    if 'compatelrunner' in pl or 'image file execution options' in pl:
+   176→        return ("Safe", "Kills CompatTelRunner.exe via IFEO — blocks telemetry compatibility runner", f"{sec}_KillCompatTelRunner")
+   177→    
+   178→    if 'enableactivityfeed' in nl or 'publishuseractivities' in nl or 'uploaduseractivities' in nl:
+   179→        desc_map = {
+   180→            'enableactivityfeed': "Disables Activity Feed — stops Windows from tracking activity history",
+   181→            'publishuseractivities': "Prevents publishing user activities to Microsoft cloud",
+   182→            'uploaduseractivities': "Prevents uploading activity history to Microsoft cloud",
+   183→        }
+   184→        d = desc_map.get(nl, "Disables activity history tracking")
+   185→        return ("Safe", d, f"{sec}_{name}")
+   186→    
+   187→    if 'consentstore\\location' in pl or 'lfsvc' in pl:
+   188→        return ("Moderate", "Disables geolocation service — breaks Find My Device and Maps location", f"{sec}_NoGeolocation")
+   189→    
+   190→    if 'advertisinginfo' in pl:
+   191→        if 'disabledbygrouppolicy' in nl:
+   192→            return ("Safe", "Removes advertising ID via group policy — stops targeted advertising", f"{sec}_AdvIDPolicy")
+   193→        if 'enabled' in nl:
+   194→            return ("Safe", "Disables advertising ID in current user scope", f"{sec}_AdvIDUser")
+   195→    
+   196→    if 'windows search' in pl and 'policies' in pl:
+   197→        if 'allowcortana' in nl:
+   198→            return ("Safe", "Disables Cortana digital assistant and web search in Start", f"{sec}_NoCortana")
+   199→        if 'allowsearchtouselocation' in nl:
+   200→            return ("Safe", "Prevents search from using location data", f"{sec}_NoSearchLocation")
+   201→        if 'allowcloudsearch' in nl:
+   202→            return ("Safe", "Disables cloud search integration", f"{sec}_NoCloudSearch")
+   203→        if 'disablewebsearch' in nl:
+   204→            return ("Safe", "Stops Start menu from using Bing web search", f"{sec}_DisableWebSearch")
+   205→        if 'connectedsearchuseweb' in nl:
+   206→            return ("Safe", "Blocks Cortana from using web for search results", f"{sec}_NoConnectedSearch")
+   207→    
+   208→    if 'windowsstore' in pl and 'disablewindowsstorerealtimeconfig' in nl:
+   209→        return ("Safe", "Disables Windows Store real-time configuration — reduces Store telemetry", f"{sec}_NoStoreRealTime")
+   210→    
+   211→    if 'bingsearchenabled' in nl:
+   212→        return ("Safe", "Disables Bing search in Start Menu — stops web search results", f"{sec}_NoBingSearch")
+   213→    if 'cortanaconsent' in nl:
+   214→        return ("Safe", "Revokes Cortana consent — stops Cortana data collection", f"{sec}_NoCortanaConsent")
+   215→    
+   216→    if 'windowscopilot' in pl:
+   217→        return ("Safe", "Disables Windows Copilot AI assistant", f"{sec}_NoCopilot")
+   218→    if 'showcopilotbutton' in nl:
+   219→        return ("Safe", "Hides Copilot button from taskbar", f"{sec}_HideCopilotBtn")
+   220→    
+   221→    if 'windowsai' in pl:
+   222→        if 'allowrecallenablement' in nl:
+   223→            return ("Safe", "Disables Windows Recall AI memory/timeline feature", f"{sec}_NoRecall")
+   224→        if 'disableaidataanalysis' in nl:
+   225→            return ("Safe", "Disables AI data analysis — stops AI telemetry collection", f"{sec}_NoAIDataAnalysis")
+   226→        if 'disableclicktodo' in nl:
+   227→            return ("Safe", "Disables Click-to-Do AI feature — stops AI suggestions", f"{sec}_NoClickToDo")
+   228→        if 'disableimagecreator' in nl:
+   229→            return ("Safe", "Disables AI Image Creator — stops AI image generation telemetry", f"{sec}_NoImageCreator")
+   230→        if 'disablecocreator' in nl:
+   231→            return ("Safe", "Disables AI Cocreator — stops AI co-creation telemetry", f"{sec}_NoCocreator")
+   232→        if 'disablegenerativefill' in nl:
+   233→            return ("Safe", "Disables AI Generative Fill — stops AI fill telemetry", f"{sec}_NoGenerativeFill")
+   234→    
+   235→    if 'paintstudio' in pl:
+   236→        return ("Safe", "Disables AI feature in Paint — stops AI telemetry", f"{sec}_NoPaintAI")
+   237→    
+   238→    if 'allowclipboardhistory' in nl:
+   239→        return ("Safe", "Disables clipboard history (Win+V)", f"{sec}_NoClipHistory")
+   240→    if 'allowcrossdeviceclipboard' in nl:
+   241→        return ("Safe", "Disables cloud clipboard sync across devices", f"{sec}_NoClipSync")
+   242→    
+   243→    if 'restrictimplicittextcollection' in nl:
+   244→        return ("Safe", "Restricts implicit text collection — stops typing telemetry", f"{sec}_NoImplicitText")
+   245→    if 'restrictimplicitinkcollection' in nl:
+   246→        return ("Safe", "Restricts implicit ink collection — stops inking telemetry", f"{sec}_NoImplicitInk")
+   247→    if 'harvestcontacts' in nl:
+   248→        return ("Safe", "Disables contact harvesting for typing suggestions — stops contact data collection", f"{sec}_NoHarvestContacts")
+   249→    
+   250→    if 'numberofsiufinperiod' in nl:
+   251→        return ("Safe", "Disables feedback notifications — stops Feedback Hub prompts", f"{sec}_NoFeedbackNotif")
+   252→    
+   253→    if 'start_trackprogs' in nl:
+   254→        return ("Safe", "Disables tracking of most-used programs in Start — stops usage telemetry", f"{sec}_NoTrackProgs")
+   255→    if 'start_trackdocs' in nl:
+   256→        return ("Safe", "Disables tracking of recently opened documents in Start — stops usage telemetry", f"{sec}_NoTrackDocs")
+   257→    if 'disablesoftlanding' in nl:
+   258→        return ("Safe", "Disables Windows soft landing tips — stops suggestion telemetry", f"{sec}_NoSoftLanding")
+   259→    if 'disablewindowsconsumerfeatures' in nl:
+   260→        return ("Safe", "Disables Windows consumer features — stops Store suggestions/ads", f"{sec}_NoConsumerFeatures")
+   261→    
+   262→    if 'wifi' in pl or 'wifinetworkmanager' in pl or 'wcmvc' in pl:
+   263→        return ("Safe", "Disables Wi-Fi Sense — stops sharing Wi-Fi passwords with contacts", f"{sec}_NoWiFiSense")
+   264→    
+   265→    if 'windows error reporting' in pl and 'policies' in pl:
+   266→        if 'disabled' in nl:
+   267→            return ("Moderate", "Stops Windows Error Reporting — makes troubleshooting harder", f"{sec}_NoWER")
+   268→    
+   269→    if 'previewbuilds' in pl:
+   270→        return ("Moderate", "Disables Windows Insider experiments — stops A/B testing and flighting", f"{sec}_NoInsiderExperiments")
+   271→    
+   272→    if 'settingsync' in pl:
+   273→        return ("Moderate", "Disables Setting Sync / Windows Backup — stops cloud settings sync", f"{sec}_NoSettingSync")
+   274→    
+   275→    if 'fulltelemetryoninstall' in nl:
+   276→        return ("Safe", "Disables full telemetry on install — stops initial data collection burst", f"{sec}_NoFullTelemetryInstall")
+   277→    if 'allowupdatecompliancetelemetry' in nl:
+   278→        return ("Safe", "Disables Update Compliance telemetry — stops WU data reporting", f"{sec}_NoUpdateComplianceTelemetry")
+   279→    if 'enablediagnosticdataviewer' in nl:
+   280→        return ("Safe", "Disables Diagnostic Data Viewer — removes data viewer feature", f"{sec}_NoDiagDataViewer")
+   281→    if 'disabledevicecensus' in nl:
+   282→        return ("Safe", "Disables Device Census — stops hardware inventory reporting to Microsoft", f"{sec}_NoDeviceCensus")
+   283→    
+   284→    if 'apphost' in pl and 'enablewebcontentevaluation' in nl:
+   285→        return ("Safe", "Disables web content evaluation — stops app telemetry", f"{sec}_NoWebContentEval")
+   286→    
+   287→    if 'globaluserdisabled' in nl:
+   288→        return ("Safe", "Disables background app access globally — stops apps running in background", f"{sec}_NoBackgroundApps")
+   289→    if 'letappsgetdiagnosticinfo' in nl:
+   290→        return ("Safe", "Denies apps access to diagnostic info — stops app diagnostics data sharing", f"{sec}_NoAppDiagInfo")
+   291→    if 'letappsaccessactivityhistory' in nl:
+   292→        return ("Safe", "Denies apps access to activity history — stops app activity tracking", f"{sec}_NoAppActivityHist")
+   293→    
+   294→    if 'disablecloudoptimizedcontent' in nl:
+   295→        return ("Safe", "Disables cloud-optimized content — stops personalized suggestions", f"{sec}_NoCloudContent")
+   296→    if 'disablethirdpartysuggestions' in nl:
+   297→        return ("Safe", "Disables third-party suggestions in Windows — stops third-party ads", f"{sec}_No3rdPartySuggestions")
+   298→    
+   299→    if 'contentdeliverymanager' in pl:
+   300→        if 'subscribedcontent-338389' in nl:
+   301→            return ("Safe", "Disables Windows Spotlight suggestions — stops lock screen tips/ads", f"{sec}_NoSpotlight338389")
+   302→        if 'subscribedcontent-310093' in nl:
+   303→            return ("Safe", "Disables 'Get even more out of Windows' tips — stops suggestion prompts", f"{sec}_NoTips310093")
+   304→        if 'contentdeliveryenabled' in nl:
+   305→            return ("Safe", "Disables content delivery — stops silent app installs and suggestions", f"{sec}_NoContentDelivery")
+   306→        if 'subscribedcontent-338387' in nl:
+   307→            return ("Safe", "Disables suggested content in Settings — stops Settings suggestions", f"{sec}_NoSuggestedContent338387")
+   308→        if 'subscribedcontent-338388' in nl:
+   309→            return ("Safe", "Disables suggested content (tips) — stops tips/suggestions", f"{sec}_NoSuggestedContent338388")
+   310→        if 'rotatinglockscreenenabled' in nl:
+   311→            return ("Safe", "Disables rotating lock screen images — stops Windows Spotlight ads", f"{sec}_NoRotatingLockScreen")
+   312→        if 'rotatinglockscre-overlayenabled' in nl:
+   313→            return ("Safe", "Disables lock screen overlay — stops Windows Spotlight tips/ads", f"{sec}_NoLockScreenOverlay")
+   314→        # Generic CDM key
+   315→        return ("Safe", "Disables content delivery manager setting — stops suggestions/silent installs", f"{sec}_CDM_{name}")
+   316→    
+   317→    if 'autologger-diagtrack' in pl:
+   318→        return ("Safe", "Disables AutoLogger DiagTrack listener — stops kernel telemetry logging", f"{sec}_NoDiagtrackListener")
+   319→    
+   320→    if 'networkconnectivitystatusindicator' in pl and 'noactiveprobe' in nl:
+   321→        return ("Safe", "Disables NCSI active probing — stops network connectivity telemetry", f"{sec}_NoNCSIProbe")
+   322→    
+   323→    if 'userprofile' in pl and 'disableuserprofiletelemetry' in nl:
+   324→        return ("Safe", "Disables User Profile service telemetry — stops profile data collection", f"{sec}_NoUserProfileTelemetry")
+   325→    
+   326→    if 'notifications\\settings' in pl:
+   327→        return ("Safe", "Disables lock screen toast notifications — stops lock screen notification display", f"{sec}_NoLockScreenNotif")
+   328→    
+   329→    # =========================================================
+   330→    # EXPLORER UI SECTION
+   331→    # =========================================================
+   332→    if 'hidefileext' in nl:
+   333→        return ("Safe", "Shows file extensions — prevents accidental execution of disguised files", f"{sec}_ShowFileExt")
+   334→    if nl == 'hidden' or nl == '"hidden"':
+   335→        return ("Safe", "Shows hidden files — improves visibility of system files", f"{sec}_ShowHiddenFiles")
+   336→    if '(default)' in nl or '"(default)"' in nl:
+   337→        if 'inprocserver32' in pl:
+   338→            return ("Safe", "Enables classic right-click context menu — removes Win11 simplified menu", f"{sec}_ClassicContextMenu")
+   339→    if 'showsyncprovidernotifications' in nl:
+   340→        return ("Safe", "Disables File Explorer ads — removes OneDrive ads in Explorer", f"{sec}_NoExplorerAds")
+   341→    if 'nolockscreen' in nl:
+   342→        return ("Safe", "Disables Lock Screen — goes directly to login screen", f"{sec}_NoLockScreen")
+   343→    if 'taskbarmn' in nl:
+   344→        return ("Safe", "Removes Chat icon from Taskbar — hides Microsoft Chat/Teams", f"{sec}_NoChatIcon")
+   345→    if 'taskbarda' in nl:
+   346→        return ("Safe", "Removes Widgets from Taskbar — hides news/weather widget", f"{sec}_NoWidgets")
+   347→    if 'taskbarsearchbox' in nl:
+   348→        return ("Safe", "Removes Search box from Taskbar — simplifies taskbar", f"{sec}_NoSearchBox")
+   349→    if 'enablesnapassistflyout' in nl:
+   350→        return ("Safe", "Disables Snap Layouts flyout — removes snap layout suggestions", f"{sec}_NoSnapAssist")
+   351→    if 'taskbarendtask' in nl:
+   352→        return ("Safe", "Enables 'End Task' in Taskbar right-click — adds quick task kill option", f"{sec}_TaskbarEndTask")
+   353→    if 'launchto' in nl:
+   354→        return ("Safe", "Sets File Explorer to open This PC instead of Quick Access", f"{sec}_OpenThisPC")
+   355→    if 'dragbetweenwindows' in nl:
+   356→        return ("Safe", "Disables Drag Tray — removes Win11 share/move files tray", f"{sec}_NoDragTray")
+   357→    if 'showtaskviewbutton' in nl:
+   358→        return ("Safe", "Removes Task View button from Taskbar — hides virtual desktops UI", f"{sec}_NoTaskView")
+   359→    if 'searchboxtaskbarmode' in nl:
+   360→        return ("Safe", "Sets Search bar to icon-only mode — simplifies taskbar", f"{sec}_SearchIconOnly")
+   361→    if 'showcopilotbutton' in nl:
+   362→        return ("Safe", "Hides Copilot button from Taskbar", f"{sec}_HideCopilotBtn")
+   363→    
+   364→    # =========================================================
+   365→    # SERVICE STARTUP SECTION
+   366→    # =========================================================
+   367→    if 'startupdelayinmsec' in nl:
+   368→        return ("Safe", "Disables startup delay — speeds up boot by removing artificial delay", f"{sec}_NoStartupDelay")
+   369→    
+   370→    # =========================================================
+   371→    # PERFORMANCE SECTION
+   372→    # =========================================================
+   373→    if 'hiberbootenabled' in nl:
+   374→        return ("Safe", "Disables Fast Startup — prevents partial shutdown/driver issues", f"{sec}_NoFastStartup")
+   375→    if 'modernsleep' in nl:
+   376→        return ("Safe", "Disables Modern Standby network — prevents battery drain during sleep", f"{sec}_NoModernSleep")
+   377→    if 'visualfxsetting' in nl:
+   378→        return ("Safe", "Sets visual effects to Best Performance mode", f"{sec}_VisualFX")
+   379→    if 'animateMinMaxMenus'.lower() in nl or 'comboboxanimation' in nl or 'cursorshadow' in nl:
+   380→        return ("Safe", "Disables visual animation — improves performance", f"{sec}_DisableAnim_{name}")
+   381→    if 'enableaeropeek' in nl:
+   382→        return ("Safe", "Disables Aero Peek — removes desktop preview on taskbar hover", f"{sec}_NoAeroPeek")
+   383→    if 'enableprefetcher' in nl:
+   384→        return ("Safe", "Disables Prefetch on SSD — safe, reduces unnecessary disk I/O", f"{sec}_NoPrefetch_SSD")
+   385→    if 'enablesuperfetch' in nl:
+   386→        return ("Safe", "Disables SuperFetch on SSD — safe, reduces unnecessary disk I/O", f"{sec}_NoSuperfetch_SSD")
+   387→    if 'excludedprocesses' in nl:
+   388→        return ("Safe", "Clears Defender excluded processes — maintains scan coverage", f"{sec}_DefenderNoExclusions")
+   389→    if 'avgcpuloadfactor' in nl:
+   390→        return ("Safe", "Limits Windows Defender CPU usage to 25% — reduces scan impact", f"{sec}_DefenderCPULimit")
+   391→    if 'svchostsplitthresholdinkb' in nl:
+   392→        return ("Safe", "Increases SvcHost split threshold — reduces svchost.exe proliferation", f"{sec}_SvcHostSplit")
+   393→    if 'pagingfiles' in nl:
+   394→        return ("Moderate", "Sets page file to fixed 1GB — OK with 16GB+ RAM", f"{sec}_FixedPageFile")
+   395→    
+   396→    # =========================================================
+   397→    # SECURITY SECTION
+   398→    # =========================================================
+   399→    if 'disablerealtime' in nl or 'disablebehavior' in nl or 'disableonaccess' in nl or 'disablescanonrealtime' in nl:
+   400→        return ("Safe", "Ensures Defender real-time protection stays enabled — maintains security", f"{sec}_DefenderRT_{name}")
+   401→    if 'enableautodoh' in nl:
+   402→        return ("Safe", "Enables DNS-over-HTTPS — encrypts DNS queries for privacy", f"{sec}_EnableDoH")
+   403→    if 'nodrivetypeautorun' in nl:
+   404→        return ("Safe", "Disables USB auto-run — prevents malware from auto-executing on USB", f"{sec}_NoAutoRun")
+   405→    if 'fdenytsconnections' in nl:
+   406→        return ("Safe", "Disables Remote Desktop — reduces attack surface", f"{sec}_NoRDP")
+   407→    if 'smb1' in nl:
+   408→        return ("Safe", "Disables SMBv1 — protects against WannaCry-like exploits", f"{sec}_NoSMB1")
+   409→    if 'enablelua' in nl:
+   410→        return ("Safe", "Ensures UAC is enabled — maintains admin consent prompts", f"{sec}_UAC_Enabled")
+   411→    if 'consentpromptbehavioradmin' in nl:
+   412→        return ("Safe", "Sets UAC to prompt for consent — secure admin elevation behavior", f"{sec}_UAC_Consent")
+   413→    if 'disablepasswordreveal' in nl:
+   414→        return ("Safe", "Disables password reveal button — prevents password visibility", f"{sec}_NoPasswordReveal")
+   415→    
+   416→    # =========================================================
+   417→    # NETWORK SECTION
+   418→    # =========================================================
+   419→    if 'networkthrottlingindex' in nl:
+   420→        return ("Safe", "Disables network throttling — improves network throughput for gaming/streams", f"{sec}_NoNetThrottle")
+   421→    if 'nolazymode' in nl:
+   422→        return ("Safe", "Disables network lazy mode — reduces latency", f"{sec}_NoLazyMode")
+   423→    if 'tcpackfrequency' in nl:
+   424→        return ("Safe", "Disables Nagle Algorithm — reduces TCP latency for gaming", f"{sec}_NoNagle")
+   425→    if 'tcpnodelay' in nl:
+   426→        return ("Safe", "Disables Nagle Algorithm — reduces TCP latency for gaming", f"{sec}_TcpNoDelay")
+   427→    if 'teredo_state' in nl:
+   428→        return ("Safe", "Disables Teredo IPv6 transition — reduces attack surface", f"{sec}_NoTeredo")
+   429→    if 'enabledoh' in nl:
+   430→        return ("Safe", "Enables DNS-over-HTTPS via policy — encrypts DNS queries", f"{sec}_EnableDoH_Policy")
+   431→    
+   432→    # =========================================================
+   433→    # WINDOWS UPDATE SECTION
+   434→    # =========================================================
+   435→    if 'auoptions' in nl:
+   436→        return ("Safe", "Sets WU to auto-download and notify — prevents automatic install", f"{sec}_WU_NotifyOnly")
+   437→    if 'noautorebootwithloggedonusers' in nl:
+   438→        return ("Safe", "Prevents auto-reboot after updates when users are logged in", f"{sec}_WU_NoAutoReboot")
+   439→    if 'dodownloadmode' in nl:
+   440→        return ("Safe", "Disables Delivery Optimization — stops peer-to-peer update sharing", f"{sec}_NoDeliveryOpt")
+   441→    if 'excludewudriversinqualityupdate' in nl:
+   442→        return ("Safe", "Excludes drivers from quality updates — prevents driver issues", f"{sec}_WU_NoDriverUpdates")
+   443→    if 'activehoursstart' in nl:
+   444→        return ("Safe", "Sets active hours start to 09:00 — prevents reboots during work", f"{sec}_WU_ActiveHrsStart")
+   445→    if 'activehoursend' in nl:
+   446→        return ("Safe", "Sets active hours end to 21:00 — prevents reboots during work", f"{sec}_WU_ActiveHrsEnd")
+   447→    if 'donotconnecttowindowsupdateinternetlocations' in nl:
+   448→        return ("Safe", "Configures WU internet locations — standard WU policy", f"{sec}_WU_InternetConfig")
+   449→    if 'searchorderconfig' in nl:
+   450→        return ("Safe", "Prevents automatic driver search via Windows Update", f"{sec}_WU_NoAutoDriverSearch")
+   451→    
+   452→    # =========================================================
+   453→    # DISK CLEANUP SECTION
+   454→    # =========================================================
+   455→    if 'stateflags0001' in nl:
+   456→        return ("Safe", "Configures Disk Cleanup state flags — enables automated cleanup", f"{sec}_DiskCleanupFlags")
+   457→    if 'allowstoragesenseglobal' in nl:
+   458→        return ("Safe", "Disables Storage Sense — prevents automatic file deletion", f"{sec}_NoStorageSense")
+   459→    
+   460→    # =========================================================
+   461→    # OFFICE ACTIVATION SECTION (Office telemetry)
+   462→    # =========================================================
+   463→    if 'office' in pl.lower() or 'office' in sec.lower():
+   464→        return ("Safe", "Disables Office telemetry/data collection — stops Office data sharing with Microsoft", f"{sec}_Office_{name}")
+   465→    
+   466→    # =========================================================
+   467→    # EDGE HARDENING SECTION
+   468→    # =========================================================
+   469→    if 'edge' in pl.lower() or 'microsoftedge' in pl.lower():
+   470→        return ("Safe", "Hardens Edge browser privacy/security — reduces Edge data collection", f"{sec}_Edge_{name}")
+   471→    
+   472→    # =========================================================
+   473→    # ONEDRIVE SECTION
+   474→    # =========================================================
+   475→    if 'disablefilesyncngsc' in nl:
+   476→        return ("Safe", "Disables OneDrive file sync via Group Policy — prevents OneDrive integration", f"{sec}_DisableOneDrive")
+   477→    if 'system.ispinnedtonamespacetree' in nl:
+   478→        return ("Safe", "Hides OneDrive from File Explorer navigation pane", f"{sec}_HideOneDriveNav")
+   479→    
+   480→    # =========================================================
+   481→    # GAMING SECTION
+   482→    # =========================================================
+   483→    if 'allowgamedvr' in nl:
+   484→        return ("Safe", "Disables GameDVR via policy — stops game clip recording", f"{sec}_NoGameDVR")
+   485→    if 'appcaptureenabled' in nl:
+   486→        return ("Safe", "Disables Game Bar capture — stops background game recording", f"{sec}_NoGameBarCapture")
+   487→    if 'historicalcaptureenabled' in nl:
+   488→        return ("Safe", "Disables Game Bar historical capture — stops background recording", f"{sec}_NoHistoricalCapture")
+   489→    if 'gamedvr_enabled' in nl:
+   490→        return ("Safe", "Disables GameDVR — stops game recording and broadcasting", f"{sec}_GameDVR_Off")
+   491→    
+   492→    # =========================================================
+   493→    # BROWSER HARDENING SECTION
+   494→    # =========================================================
+   495→    if 'google\\chrome' in pl.lower():
+   496→        return ("Safe", "Applies Chrome privacy policy — reduces Chrome data collection", f"{sec}_Chrome_{name}")
+   497→    if 'brave' in pl.lower():
+   498→        return ("Safe", "Applies Brave privacy policy — hardens Brave browser", f"{sec}_Brave_{name}")
+   499→    if 'opera' in pl.lower():
+   500→        return ("Safe", "Applies Opera privacy policy — reduces Opera data collection", f"{sec}_Opera_{name}")
+   501→    if 'mozilla\\firefox' in pl.lower():
+   502→        return ("Safe", "Applies Firefox privacy policy — reduces Firefox data collection", f"{sec}_Firefox_{name}")
+   503→    
+   504→    # =========================================================
+   505→    # FINAL TOUCHES SECTION
+   506→    # =========================================================
+   507→    if 'disablefirstrunsettings' in nl:
+   508→        return ("Safe", "Disables Edge first-run experience — prevents Edge welcome screen", f"{sec}_NoEdgeFirstRun")
+   509→    if 'hideinsiderpage' in nl:
+   510→        return ("Safe", "Hides Windows Insider page from Settings — removes insider enrollment UI", f"{sec}_HideInsiderPage")
+   511→    if '(default)' in nl and 'appevents' in pl:
+   512→        return ("Safe", "Sets sound scheme to No Sounds — disables all system sounds", f"{sec}_NoSounds")
+   513→    if 'initialkeyboardindicators' in nl:
+   514→        return ("Safe", "Sets NumLock state at startup", f"{sec}_NumLockStartup")
+   515→    if 'mousespeed' in nl:
+   516→        return ("Safe", "Disables mouse acceleration — improves pointer precision for gamers", f"{sec}_NoMouseAccel")
+   517→    if 'mousethreshold1' in nl:
+   518→        return ("Safe", "Disables mouse acceleration threshold 1 — improves pointer precision", f"{sec}_MouseThreshold1")
+   519→    if 'mousethreshold2' in nl:
+   520→        return ("Safe", "Disables mouse acceleration threshold 2 — improves pointer precision", f"{sec}_MouseThreshold2")
+   521→    if 'flags' in nl and 'accessibility\\stickykeys' in pl:
+   522→        return ("Safe", "Disables Sticky Keys accessibility feature — prevents accidental activation", f"{sec}_NoStickyKeys")
+   523→    
+   524→    # =========================================================
+   525→    # Generic fallback based on section
+   526→    # =========================================================
+   527→    # Visual FX in Control Panel\Desktop
+   528→    if 'control panel\\desktop' in pl:
+   529→        return ("Safe", "Disables visual animation — improves performance", f"{sec}_VisFX_{name}")
+   530→    
+   531→    # Generic CDM path
+   532→    if 'contentdeliverymanager' in pl:
+   533→        return ("Safe", "Disables content delivery setting — stops suggestions/ads", f"{sec}_CDM_{name}")
+   534→    
+   535→    # Fallback: we can't classify, return None to skip
+   536→    return None
+   537→
+   538→
+   539→def classify_disable_task(section, taskpath, taskname):
+   540→    """Classify a Disable-ScheduledTask call and return (SafetyLevel, Description, SettingID)"""
+   541→    
+   542→    sec = section if section else "ScheduledTasks"
+   543→    tp = taskpath.lower()
+   544→    tn = taskname.lower()
+   545→    
+   546→    # Telemetry/CEIP/diagnostics tasks = Safe
+   547→    if 'application experience' in tp:
+   548→        return ("Safe", f"Disables scheduled task {taskname} — stops app compatibility telemetry", f"{sec}_AppExp_{taskname.replace(' ','')}")
+   549→    if 'customer experience' in tp:
+   550→        return ("Safe", f"Disables scheduled task {taskname} — stops CEIP data collection", f"{sec}_CEIP_{taskname.replace(' ','')}")
+   551→    if 'device information' in tp:
+   552→        return ("Safe", f"Disables scheduled task {taskname} — stops device info telemetry", f"{sec}_DevInfo_{taskname.replace(' ','')}")
+   553→    if 'errordetails' in tp:
+   554→        return ("Safe", f"Disables scheduled task {taskname} — stops error detail reporting", f"{sec}_ErrDetails_{taskname.replace(' ','')}")
+   555→    if 'windows error reporting' in tp:
+   556→        return ("Safe", f"Disables scheduled task {taskname} — stops Windows Error Reporting", f"{sec}_WER_{taskname.replace(' ','')}")
+   557→    if 'feedback' in tp:
+   558→        return ("Safe", f"Disables scheduled task {taskname} — stops feedback/diagnostic data collection", f"{sec}_Feedback_{taskname.replace(' ','')}")
+   559→    if 'maps' in tp:
+   560→        return ("Safe", f"Disables scheduled task {taskname} — stops Maps auto-update", f"{sec}_Maps_{taskname.replace(' ','')}")
+   561→    if 'maintenance' in tp:
+   562→        return ("Safe", f"Disables scheduled task {taskname} — stops automatic WinSAT performance assessment", f"{sec}_WinSAT_{taskname.replace(' ','')}")
+   563→    if 'shell' in tp and 'familysafety' in tn:
+   564→        return ("Safe", f"Disables scheduled task {taskname} — stops parental controls monitoring", f"{sec}_FamilySafety_{taskname.replace(' ','')}")
+   565→    if 'power efficiency' in tp:
+   566→        return ("Safe", f"Disables scheduled task {taskname} — stops power efficiency diagnostics", f"{sec}_PowerDiag_{taskname.replace(' ','')}")
+   567→    if 'pi' in tp:
+   568→        return ("Safe", f"Disables scheduled task {taskname} — stops SQM/PI telemetry", f"{sec}_PI_{taskname.replace(' ','')}")
+   569→    if 'nettrace' in tp:
+   570→        return ("Safe", f"Disables scheduled task {taskname} — stops network trace data collection", f"{sec}_NetTrace_{taskname.replace(' ','')}")
+   571→    if 'xblgamesave' in tp:
+   572→        return ("Safe", f"Disables scheduled task {taskname} — stops Xbox Game Save sync", f"{sec}_XblGameSave_{taskname.replace(' ','')}")
+   573→    if 'windowsupdate' in tp:
+   574→        return ("Safe", f"Disables scheduled task {taskname} — stops automatic app updates via Store", f"{sec}_WU_{taskname.replace(' ','')}")
+   575→    if 'diskdiagnostic' in tp:
+   576→        return ("Safe", f"Disables scheduled task {taskname} — stops disk diagnostic data collection", f"{sec}_DiskDiag_{taskname.replace(' ','')}")
+   577→    if 'diskfootprint' in tp:
+   578→        return ("Safe", f"Disables scheduled task {taskname} — stops disk footprint diagnostics", f"{sec}_DiskFootprint_{taskname.replace(' ','')}")
+   579→    if 'license manager' in tp:
+   580→        return ("Safe", f"Disables scheduled task {taskname} — stops license exchange telemetry", f"{sec}_LicenseMgr_{taskname.replace(' ','')}")
+   581→    if 'subscription' in tp:
+   582→        return ("Safe", f"Disables scheduled task {taskname} — stops subscription license acquisition", f"{sec}_Subscription_{taskname.replace(' ','')}")
+   583→    if 'office' in tp:
+   584→        return ("Safe", f"Disables scheduled task {taskname} — stops Office telemetry data collection", f"{sec}_Office_{taskname.replace(' ','')}")
+   585→    if 'scheduleddefrag' in tn:
+   586→        return ("Safe", f"Disables scheduled defragmentation — SSD does not need defrag", f"{sec}_NoScheduledDefrag")
+   587→    
+   588→    # Fallback
+   589→    return ("Safe", f"Disables scheduled task {taskname} — stops background telemetry/data collection", f"{sec}_{taskname.replace(' ','')}")
+   590→
+   591→
+   592→# Now apply edits
+   593→# We need to be careful about where to insert the annotation text.
+   594→# For multi-line calls, we append to the last physical line.
+   595→# For single-line calls, we append to the line.
+   596→
+   597→# Sort edits by start_line in reverse order to avoid line number shifting
+   598→edits.sort(key=lambda x: x[0], reverse=True)
+   599→
+   600→total_annotated = 0
+   601→
+   602→for start_line, end_line, physical_lines, annotation, call_type in edits:
+   603→    # Modify the last physical line to append the annotation
+   604→    last_line = physical_lines[-1]
+   605→    
+   606→    # The last line may end with a newline
+   607→    if last_line.endswith('\n'):
+   608→        last_line_stripped = last_line.rstrip('\n')
+   609→        # Append annotation before the newline
+   610→        # If the line has a backtick continuation, insert after the backtick content
+   611→        # Actually, for single-line calls, just append
+   612→        # For multi-line calls (backtick-continued), the last line doesn't have a backtick
+   613→        
+   614→        # Just append the annotation at the end of the last physical line
+   615→        new_last_line = last_line_stripped + annotation + '\n'
+   616→    else:
+   617→        new_last_line = last_line + annotation
+   618→    
+   619→    physical_lines[-1] = new_last_line
+   620→    
+   621→    # Replace the physical lines in output_lines
+   622→    output_lines[start_line:end_line+1] = physical_lines
+   623→    
+   624→    total_annotated += 1
+   625→
+   626→print(f"Total annotations applied: {total_annotated}")
+   627→
+   628→# Write output
+   629→with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+   630→    f.writelines(output_lines)
+   631→
+   632→print(f"Written to {OUTPUT_FILE}")
+   633→
