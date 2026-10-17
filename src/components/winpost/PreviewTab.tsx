@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Download, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Download, AlertTriangle, CheckCircle2, Shield, ShieldAlert, ShieldX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,6 +30,7 @@ export function PreviewTab() {
   }).filter((s) => s.hasChanges);
 
   const totalEnabled = changeSummary.reduce((sum, s) => sum + s.enabledSettings.length, 0);
+  const totalSafe = changeSummary.reduce((sum, s) => sum + s.safetyBreakdown.Safe, 0);
   const totalModerate = changeSummary.reduce((sum, s) => sum + s.safetyBreakdown.Moderate, 0);
   const totalRisky = changeSummary.reduce((sum, s) => sum + s.safetyBreakdown.Risky, 0);
   const hasWarnings = totalModerate > 0 || totalRisky > 0;
@@ -59,6 +60,41 @@ export function PreviewTab() {
           </Button>
         </div>
       </div>
+
+      {/* Safety summary cards */}
+      {totalEnabled > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/5 p-3 text-center"
+          >
+            <Shield className="h-5 w-5 text-[#22c55e] mx-auto mb-1" />
+            <p className="text-lg font-bold text-[#22c55e]">{totalSafe}</p>
+            <p className="text-[10px] text-[#22c55e]/70">Safe Changes</p>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.05 }}
+            className="rounded-xl border border-[#eab308]/20 bg-[#eab308]/5 p-3 text-center"
+          >
+            <ShieldAlert className="h-5 w-5 text-[#eab308] mx-auto mb-1" />
+            <p className="text-lg font-bold text-[#eab308]">{totalModerate}</p>
+            <p className="text-[10px] text-[#eab308]/70">Moderate Changes</p>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.1 }}
+            className="rounded-xl border border-[#ef4444]/20 bg-[#ef4444]/5 p-3 text-center"
+          >
+            <ShieldX className="h-5 w-5 text-[#ef4444] mx-auto mb-1" />
+            <p className="text-lg font-bold text-[#ef4444]">{totalRisky}</p>
+            <p className="text-[10px] text-[#ef4444]/70">Risky Changes</p>
+          </motion.div>
+        </div>
+      )}
 
       {/* Safety warnings */}
       {hasWarnings && (
@@ -94,7 +130,7 @@ export function PreviewTab() {
           <p className="text-xs text-[#8888a0]/50">Toggle settings to see them here</p>
         </motion.div>
       ) : (
-        <ScrollArea className="max-h-[calc(100vh-320px)]">
+        <ScrollArea className="max-h-[calc(100vh-400px)]">
           <div className="space-y-4 p-1">
             {changeSummary.map(({ section, enabledSettings, safetyBreakdown }, index) => (
               <motion.div

@@ -9,9 +9,16 @@ import {
   Sparkles, Puzzle,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { sections, type Section } from "@/data/settings";
 import { useAppStore } from "@/store/useAppStore";
 import { SafetyBadge } from "./SafetyBadge";
+import { QuickSelectBar } from "./QuickSelectBar";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Shield, Trash2, FolderOpen, Settings, Zap, Lock,
@@ -32,7 +39,7 @@ interface DashboardTabProps {
 }
 
 export function DashboardTab({ onSectionClick }: DashboardTabProps) {
-  const { settings, searchQuery, toggleSectionAll, getEnabledCount, getTotalCount } = useAppStore();
+  const { settings, searchQuery, toggleSectionAll, getEnabledCount, getTotalCount, getSectionSafetyCounts, getSectionEnabledSafetyCounts } = useAppStore();
 
   const filteredSections = sections.filter((section) => {
     if (!searchQuery) return true;
@@ -46,89 +53,162 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
   });
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-1">
-      {filteredSections.map((section, index) => {
-        const Icon = iconMap[section.icon] || Settings;
-        const enabled = getEnabledCount(section.id);
-        const total = getTotalCount(section.id);
-        const allEnabled = enabled === total;
-        const safety = getSectionSafety(section);
-        const isFiltered = !!searchQuery;
+    <div className="space-y-4">
+      {/* Quick Select Bar */}
+      <QuickSelectBar />
 
-        // Count filtered settings for search
-        const matchingSettings = isFiltered
-          ? section.settings.filter(
-              (s) =>
-                s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                s.desc.toLowerCase().includes(searchQuery.toLowerCase())
-            )
-          : section.settings;
+      {/* Section Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-1">
+        {filteredSections.map((section, index) => {
+          const Icon = iconMap[section.icon] || Settings;
+          const enabled = getEnabledCount(section.id);
+          const total = getTotalCount(section.id);
+          const allEnabled = enabled === total;
+          const safety = getSectionSafety(section);
+          const isFiltered = !!searchQuery;
 
-        return (
-          <motion.div
-            key={section.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.03, duration: 0.3 }}
-            onClick={() => onSectionClick(section.id)}
-            className="group relative cursor-pointer rounded-xl border border-[#2a2a3e] bg-[#1a1a2e] p-4 transition-all duration-200 hover:border-[#00d4ff]/30 hover:bg-[#1a1a2e]/80 hover:shadow-[0_0_30px_rgba(0,212,255,0.05)]"
-          >
-            {/* Glow effect on hover */}
-            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#00d4ff]/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+          // Safety breakdown for this section
+          const sCounts = getSectionSafetyCounts(section.id);
+          const eCounts = getSectionEnabledSafetyCounts(section.id);
 
-            <div className="relative flex items-start gap-3">
-              {/* Icon */}
-              <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${allEnabled ? "bg-[#00d4ff]/15 border border-[#00d4ff]/30" : "bg-[#12121a] border border-[#2a2a3e]"} transition-colors`}>
-                <Icon className={`h-5 w-5 ${allEnabled ? "text-[#00d4ff]" : "text-[#8888a0]"}`} />
-              </div>
+          // Count filtered settings for search
+          const matchingSettings = isFiltered
+            ? section.settings.filter(
+                (s) =>
+                  s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  s.desc.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+            : section.settings;
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="text-sm font-semibold text-[#e0e0e0] truncate">
-                    {section.name}
-                  </h3>
-                  <SafetyBadge safety={safety} compact />
+          return (
+            <motion.div
+              key={section.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.03, duration: 0.3 }}
+              onClick={() => onSectionClick(section.id)}
+              className="group relative cursor-pointer rounded-xl border border-[#2a2a3e] bg-[#1a1a2e] p-4 transition-all duration-200 hover:border-[#00d4ff]/30 hover:bg-[#1a1a2e]/80 hover:shadow-[0_0_30px_rgba(0,212,255,0.05)]"
+            >
+              {/* Glow effect on hover */}
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#00d4ff]/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+
+              <div className="relative flex items-start gap-3">
+                {/* Icon */}
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${allEnabled ? "bg-[#00d4ff]/15 border border-[#00d4ff]/30" : "bg-[#12121a] border border-[#2a2a3e]"} transition-colors`}>
+                  <Icon className={`h-5 w-5 ${allEnabled ? "text-[#00d4ff]" : "text-[#8888a0]"}`} />
                 </div>
 
-                <p className="text-xs text-[#8888a0] mb-2 line-clamp-1">
-                  {section.description}
-                </p>
-
-                {/* Progress bar */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 rounded-full bg-[#12121a] overflow-hidden">
-                    <motion.div
-                      className="h-full rounded-full bg-[#00d4ff]"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${total > 0 ? (enabled / total) * 100 : 0}%` }}
-                      transition={{ duration: 0.5 }}
-                    />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-sm font-semibold text-[#e0e0e0] truncate">
+                      {section.name}
+                    </h3>
+                    <SafetyBadge safety={safety} compact />
                   </div>
-                  <span className="text-[10px] text-[#8888a0] tabular-nums">
-                    {enabled}/{total}
-                  </span>
+
+                  <p className="text-xs text-[#8888a0] mb-2 line-clamp-1">
+                    {section.description}
+                  </p>
+
+                  {/* Segmented progress bar with safety colors */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-[#12121a] overflow-hidden">
+                      <div className="flex h-full">
+                        <motion.div
+                          className="bg-[#22c55e]"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${total > 0 ? (eCounts.Safe / total) * 100 : 0}%` }}
+                          transition={{ duration: 0.5 }}
+                        />
+                        <motion.div
+                          className="bg-[#eab308]"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${total > 0 ? (eCounts.Moderate / total) * 100 : 0}%` }}
+                          transition={{ duration: 0.5 }}
+                        />
+                        <motion.div
+                          className="bg-[#ef4444]"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${total > 0 ? (eCounts.Risky / total) * 100 : 0}%` }}
+                          transition={{ duration: 0.5 }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-[#8888a0] tabular-nums">
+                      {enabled}/{total}
+                    </span>
+                  </div>
+
+                  {/* Safety breakdown labels */}
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    {sCounts.Safe > 0 && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-0.5 cursor-default">
+                              <div className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
+                              <span className="text-[9px] text-[#8888a0] tabular-nums">{eCounts.Safe}/{sCounts.Safe}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+                            {eCounts.Safe} of {sCounts.Safe} Safe settings enabled
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {sCounts.Moderate > 0 && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-0.5 cursor-default">
+                              <div className="h-1.5 w-1.5 rounded-full bg-[#eab308]" />
+                              <span className="text-[9px] text-[#8888a0] tabular-nums">{eCounts.Moderate}/{sCounts.Moderate}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+                            {eCounts.Moderate} of {sCounts.Moderate} Moderate settings enabled
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    {sCounts.Risky > 0 && (
+                      <TooltipProvider delayDuration={200}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <div className="flex items-center gap-0.5 cursor-default">
+                              <div className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" />
+                              <span className="text-[9px] text-[#8888a0] tabular-nums">{eCounts.Risky}/{sCounts.Risky}</span>
+                            </div>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+                            {eCounts.Risky} of {sCounts.Risky} Risky settings enabled
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+
+                  {/* Search match count */}
+                  {isFiltered && matchingSettings.length < total && (
+                    <p className="text-[10px] text-[#00d4ff] mt-1">
+                      {matchingSettings.length} matching
+                    </p>
+                  )}
                 </div>
 
-                {/* Search match count */}
-                {isFiltered && matchingSettings.length < total && (
-                  <p className="text-[10px] text-[#00d4ff] mt-1">
-                    {matchingSettings.length} matching
-                  </p>
-                )}
+                {/* Toggle all switch */}
+                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={allEnabled}
+                    onCheckedChange={(checked) => toggleSectionAll(section.id, checked)}
+                    className="data-[state=checked]:bg-[#00d4ff] data-[state=unchecked]:bg-[#2a2a3e]"
+                  />
+                </div>
               </div>
-
-              {/* Toggle all switch */}
-              <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                <Switch
-                  checked={allEnabled}
-                  onCheckedChange={(checked) => toggleSectionAll(section.id, checked)}
-                  className="data-[state=checked]:bg-[#00d4ff] data-[state=unchecked]:bg-[#2a2a3e]"
-                />
-              </div>
-            </div>
-          </motion.div>
-        );
-      })}
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, Package, Users, Undo2, Eye,
@@ -16,7 +16,7 @@ import { UndoCenterTab } from "@/components/winpost/UndoCenterTab";
 import { PreviewTab } from "@/components/winpost/PreviewTab";
 
 export default function WinPostInstallPage() {
-  const { setActiveSectionId, applyChanges, hydrate, hydrated } = useAppStore();
+  const { setActiveSectionId, applyChanges, hydrate, hydrated, toggleBySafety, toggleAllSettings } = useAppStore();
   const [activeTab, setActiveTab] = useState("dashboard");
 
   useEffect(() => {
@@ -38,6 +38,59 @@ export default function WinPostInstallPage() {
   const handlePreview = () => {
     setActiveTab("preview");
   };
+
+  // Keyboard shortcuts
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // Only trigger if no input/textarea is focused
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+    const ctrlOrMeta = e.ctrlKey || e.metaKey;
+
+    if (ctrlOrMeta && e.shiftKey && e.key === "a") {
+      // Ctrl+Shift+A → Select All (including risky)
+      e.preventDefault();
+      toggleAllSettings(true);
+    } else if (ctrlOrMeta && e.key === "a") {
+      // Ctrl+A → Select All Safe
+      e.preventDefault();
+      toggleBySafety(["Safe", "Moderate", "Risky"], false);
+      toggleBySafety(["Safe"], true);
+    } else if (ctrlOrMeta && e.key === "m") {
+      // Ctrl+M → Select Safe + Moderate
+      e.preventDefault();
+      toggleBySafety(["Safe", "Moderate", "Risky"], false);
+      toggleBySafety(["Safe", "Moderate"], true);
+    } else if (ctrlOrMeta && e.key === "d") {
+      // Ctrl+D → Deselect All
+      e.preventDefault();
+      toggleAllSettings(false);
+    } else if (ctrlOrMeta && e.key === "p") {
+      // Ctrl+P → Preview
+      e.preventDefault();
+      setActiveTab("preview");
+    } else if (e.key === "1" && ctrlOrMeta) {
+      e.preventDefault();
+      setActiveTab("dashboard");
+    } else if (e.key === "2" && ctrlOrMeta) {
+      e.preventDefault();
+      setActiveTab("software");
+    } else if (e.key === "3" && ctrlOrMeta) {
+      e.preventDefault();
+      setActiveTab("profiles");
+    } else if (e.key === "4" && ctrlOrMeta) {
+      e.preventDefault();
+      setActiveTab("undo");
+    } else if (e.key === "5" && ctrlOrMeta) {
+      e.preventDefault();
+      setActiveTab("preview");
+    }
+  }, [toggleBySafety, toggleAllSettings]);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] text-[#e0e0e0] flex flex-col">
@@ -113,15 +166,30 @@ export default function WinPostInstallPage() {
         </Tabs>
       </main>
 
-      {/* Footer */}
+      {/* Footer with keyboard shortcut hints */}
       <footer className="border-t border-[#2a2a3e] bg-[#0a0a0f] mt-auto">
-        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between">
+        <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between flex-wrap gap-2">
           <p className="text-[10px] text-[#8888a0]/50">
             WinPostInstall v4.1.0 • GUI Optimizer
           </p>
-          <p className="text-[10px] text-[#8888a0]/50">
-            Compatible with WinPostInstall.ps1
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-[9px] text-[#8888a0]/40">
+              <kbd className="px-1 py-0.5 rounded bg-[#12121a] border border-[#2a2a3e] text-[8px]">Ctrl+A</kbd>
+              <span>All Safe</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[9px] text-[#8888a0]/40">
+              <kbd className="px-1 py-0.5 rounded bg-[#12121a] border border-[#2a2a3e] text-[8px]">Ctrl+M</kbd>
+              <span>Safe+Mod</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-[9px] text-[#8888a0]/40">
+              <kbd className="px-1 py-0.5 rounded bg-[#12121a] border border-[#2a2a3e] text-[8px]">Ctrl+D</kbd>
+              <span>None</span>
+            </div>
+            <div className="h-3 w-px bg-[#2a2a3e]/50" />
+            <p className="text-[10px] text-[#8888a0]/50">
+              Compatible with WinPostInstall.ps1
+            </p>
+          </div>
         </div>
       </footer>
 

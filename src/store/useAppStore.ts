@@ -10,6 +10,12 @@ interface UndoEntry {
   action: "enabled" | "disabled";
 }
 
+interface SafetyCounts {
+  Safe: number;
+  Moderate: number;
+  Risky: number;
+}
+
 interface AppState {
   // Hydration flag
   hydrated: boolean;
@@ -31,6 +37,9 @@ interface AppState {
   hydrate: () => void;
   toggleSetting: (settingId: string) => void;
   toggleSectionAll: (sectionId: string, enabled: boolean) => void;
+  toggleBySafety: (safetyLevels: Array<"Safe" | "Moderate" | "Risky">, enabled: boolean) => void;
+  toggleSectionBySafety: (sectionId: string, safetyLevels: Array<"Safe" | "Moderate" | "Risky">, enabled: boolean) => void;
+  toggleAllSettings: (enabled: boolean) => void;
   toggleSoftware: (softwareId: string) => void;
   setSearchQuery: (query: string) => void;
   setActiveSectionId: (sectionId: string | null) => void;
@@ -44,6 +53,10 @@ interface AppState {
   undoAll: () => void;
   getEnabledCount: (sectionId: string) => number;
   getTotalCount: (sectionId: string) => number;
+  getGlobalSafetyCounts: () => SafetyCounts;
+  getGlobalEnabledSafetyCounts: () => SafetyCounts;
+  getSectionSafetyCounts: (sectionId: string) => SafetyCounts;
+  getSectionEnabledSafetyCounts: (sectionId: string) => SafetyCounts;
   generateConfig: () => object;
 }
 
@@ -148,6 +161,49 @@ export const useAppStore = create<AppState>((set, get) => ({
       const newSettings = { ...state.settings };
       section.settings.forEach((s) => {
         newSettings[s.id] = enabled;
+      });
+      saveToStorage(SETTINGS_KEY, newSettings);
+      return { settings: newSettings };
+    });
+  },
+
+  toggleBySafety: (safetyLevels: Array<"Safe" | "Moderate" | "Risky">, enabled: boolean) => {
+    set((state) => {
+      const newSettings = { ...state.settings };
+      sections.forEach((section) => {
+        section.settings.forEach((s) => {
+          if (safetyLevels.includes(s.safety)) {
+            newSettings[s.id] = enabled;
+          }
+        });
+      });
+      saveToStorage(SETTINGS_KEY, newSettings);
+      return { settings: newSettings };
+    });
+  },
+
+  toggleSectionBySafety: (sectionId: string, safetyLevels: Array<"Safe" | "Moderate" | "Risky">, enabled: boolean) => {
+    set((state) => {
+      const section = sections.find((s) => s.id === sectionId);
+      if (!section) return state;
+      const newSettings = { ...state.settings };
+      section.settings.forEach((s) => {
+        if (safetyLevels.includes(s.safety)) {
+          newSettings[s.id] = enabled;
+        }
+      });
+      saveToStorage(SETTINGS_KEY, newSettings);
+      return { settings: newSettings };
+    });
+  },
+
+  toggleAllSettings: (enabled: boolean) => {
+    set((state) => {
+      const newSettings = { ...state.settings };
+      sections.forEach((section) => {
+        section.settings.forEach((s) => {
+          newSettings[s.id] = enabled;
+        });
       });
       saveToStorage(SETTINGS_KEY, newSettings);
       return { settings: newSettings };
@@ -300,6 +356,48 @@ export const useAppStore = create<AppState>((set, get) => ({
   getTotalCount: (sectionId: string) => {
     const section = sections.find((s) => s.id === sectionId);
     return section?.settings.length ?? 0;
+  },
+
+  getGlobalSafetyCounts: () => {
+    const counts: SafetyCounts = { Safe: 0, Moderate: 0, Risky: 0 };
+    sections.forEach((section) => {
+      section.settings.forEach((s) => {
+        counts[s.safety]++;
+      });
+    });
+    return counts;
+  },
+
+  getGlobalEnabledSafetyCounts: () => {
+    const state = get();
+    const counts: SafetyCounts = { Safe: 0, Moderate: 0, Risky: 0 };
+    sections.forEach((section) => {
+      section.settings.forEach((s) => {
+        if (state.settings[s.id]) counts[s.safety]++;
+      });
+    });
+    return counts;
+  },
+
+  getSectionSafetyCounts: (sectionId: string) => {
+    const section = sections.find((s) => s.id === sectionId);
+    const counts: SafetyCounts = { Safe: 0, Moderate: 0, Risky: 0 };
+    if (section) {
+      section.settings.forEach((s) => counts[s.safety]++);
+    }
+    return counts;
+  },
+
+  getSectionEnabledSafetyCounts: (sectionId: string) => {
+    const state = get();
+    const section = sections.find((s) => s.id === sectionId);
+    const counts: SafetyCounts = { Safe: 0, Moderate: 0, Risky: 0 };
+    if (section) {
+      section.settings.forEach((s) => {
+        if (state.settings[s.id]) counts[s.safety]++;
+      });
+    }
+    return counts;
   },
 
   generateConfig: () => {
