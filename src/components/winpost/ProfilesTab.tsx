@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import {
   Save, Download, Upload, Trash2, User, Check,
-  Shield, Monitor, Minimize2, Eye, Code2,
+  Shield, Monitor, Minimize2, Eye, Code2, GitCompare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/store/useAppStore";
+import { ProfileComparison } from "./ProfileComparison";
 
 const profileIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   gaming: Shield,
@@ -48,6 +49,9 @@ export function ProfilesTab() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState(false);
+  const [compareDialogOpen, setCompareDialogOpen] = useState(false);
+  const [compareA, setCompareA] = useState<string | null>(null);
+  const [compareB, setCompareB] = useState<string | null>(null);
 
   const enabledCount = Object.values(settings).filter(Boolean).length;
 
@@ -79,6 +83,15 @@ export function ProfilesTab() {
     }
   };
 
+  const openCompare = (idA: string, idB: string) => {
+    setCompareA(idA);
+    setCompareB(idB);
+    setCompareDialogOpen(true);
+  };
+
+  const profileA = compareA ? profiles.find((p) => p.id === compareA) : null;
+  const profileB = compareB ? profiles.find((p) => p.id === compareB) : null;
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -86,7 +99,7 @@ export function ProfilesTab() {
         <div>
           <h2 className="text-base font-semibold text-[#e0e0e0]">Profiles</h2>
           <p className="text-xs text-[#8888a0]">
-            Save, load, and manage configuration profiles
+            Save, load, compare, and manage configuration profiles
           </p>
         </div>
         <div className="flex gap-2">
@@ -257,6 +270,19 @@ export function ProfilesTab() {
                     <Download className="h-3 w-3" />
                     Export
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      // Compare with the next different profile, or first profile
+                      const other = profiles.find((p) => p.id !== profile.id);
+                      if (other) openCompare(profile.id, other.id);
+                    }}
+                    className="h-7 gap-1 text-[10px] bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:text-[#00d4ff] hover:border-[#00d4ff]/30"
+                  >
+                    <GitCompare className="h-3 w-3" />
+                    Compare
+                  </Button>
                   {!profile.isBuiltin && (
                     <Button
                       size="sm"
@@ -274,6 +300,45 @@ export function ProfilesTab() {
           })}
         </div>
       </ScrollArea>
+
+      {/* Compare Dialog */}
+      <Dialog open={compareDialogOpen} onOpenChange={setCompareDialogOpen}>
+        <DialogContent className="bg-[#0a0a0f] border-[#2a2a3e] text-[#e0e0e0] max-w-2xl max-h-[80vh]">
+          {profileA && profileB ? (
+            <ProfileComparison profileA={profileA} profileB={profileB} />
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-sm text-[#8888a0]">Select two profiles to compare</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs text-[#8888a0] mb-2">Profile A:</p>
+                  <select
+                    value={compareA ?? ""}
+                    onChange={(e) => setCompareA(e.target.value)}
+                    className="w-full rounded-lg bg-[#12121a] border border-[#2a2a3e] text-[#e0e0e0] p-2 text-xs"
+                  >
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <p className="text-xs text-[#8888a0] mb-2">Profile B:</p>
+                  <select
+                    value={compareB ?? ""}
+                    onChange={(e) => setCompareB(e.target.value)}
+                    className="w-full rounded-lg bg-[#12121a] border border-[#2a2a3e] text-[#e0e0e0] p-2 text-xs"
+                  >
+                    {profiles.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
-  LayoutDashboard, Package, Users, Undo2, Eye,
+  LayoutDashboard, Package, Users, Undo2, Eye, Scan, Disc3,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/store/useAppStore";
@@ -14,6 +14,8 @@ import { SoftwareInstallTab } from "@/components/winpost/SoftwareInstallTab";
 import { ProfilesTab } from "@/components/winpost/ProfilesTab";
 import { UndoCenterTab } from "@/components/winpost/UndoCenterTab";
 import { PreviewTab } from "@/components/winpost/PreviewTab";
+import { RegistryScanTab } from "@/components/winpost/RegistryScanTab";
+import { ISOBuilderTab } from "@/components/winpost/ISOBuilderTab";
 
 export default function WinPostInstallPage() {
   const { setActiveSectionId, applyChanges, hydrate, hydrated, toggleBySafety, toggleAllSettings } = useAppStore();
@@ -84,6 +86,12 @@ export default function WinPostInstallPage() {
     } else if (e.key === "5" && ctrlOrMeta) {
       e.preventDefault();
       setActiveTab("preview");
+    } else if (e.key === "6" && ctrlOrMeta) {
+      e.preventDefault();
+      setActiveTab("scanner");
+    } else if (e.key === "7" && ctrlOrMeta) {
+      e.preventDefault();
+      setActiveTab("iso");
     }
   }, [toggleBySafety, toggleAllSettings]);
 
@@ -135,6 +143,20 @@ export default function WinPostInstallPage() {
               <Eye className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Preview</span>
             </TabsTrigger>
+            <TabsTrigger
+              value="scanner"
+              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+            >
+              <Scan className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Scanner</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="iso"
+              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+            >
+              <Disc3 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">ISO</span>
+            </TabsTrigger>
           </TabsList>
 
           <motion.div
@@ -161,6 +183,14 @@ export default function WinPostInstallPage() {
 
             <TabsContent value="preview" className="mt-0">
               <PreviewTab />
+            </TabsContent>
+
+            <TabsContent value="scanner" className="mt-0">
+              <RegistryScanTab />
+            </TabsContent>
+
+            <TabsContent value="iso" className="mt-0">
+              <ISOBuilderTab />
             </TabsContent>
           </motion.div>
         </Tabs>

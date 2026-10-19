@@ -26,7 +26,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { sections, type SafetyLevel } from "@/data/settings";
+import { sections, type SafetyLevel, settingDependencies, checkSettingConflicts } from "@/data/settings";
 import { useAppStore } from "@/store/useAppStore";
 import { SafetyBadge } from "./SafetyBadge";
 
@@ -299,30 +299,58 @@ export function SectionDetailPanel() {
               <div className="p-4 space-y-2">
                 {filteredSettings.map((setting, index) => {
                   const isEnabled = settings[setting.id] ?? false;
+                  const conflicts = isEnabled ? checkSettingConflicts(setting.id, settings) : [];
+                  const hasConflicts = conflicts.length > 0;
+                  const hasDeps = !!settingDependencies[setting.id];
                   return (
                     <motion.div
                       key={setting.id}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.02 }}
-                      className={`group flex items-center gap-3 rounded-lg p-3 transition-colors ${
-                        isEnabled
-                          ? "bg-[#00d4ff]/5 border border-[#00d4ff]/10"
-                          : "bg-[#12121a] border border-[#2a2a3e] hover:border-[#2a2a3e]/80"
+                      className={`group flex items-start gap-3 rounded-lg p-3 transition-colors ${
+                        hasConflicts
+                          ? "bg-[#ef4444]/5 border border-[#ef4444]/20"
+                          : isEnabled
+                            ? "bg-[#00d4ff]/5 border border-[#00d4ff]/10"
+                            : "bg-[#12121a] border border-[#2a2a3e] hover:border-[#2a2a3e]/80"
                       }`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className={`text-sm font-medium ${isEnabled ? "text-[#e0e0e0]" : "text-[#8888a0]"}`}>
+                          <span className={`text-sm font-medium ${hasConflicts ? "text-[#ef4444]" : isEnabled ? "text-[#e0e0e0]" : "text-[#8888a0]"}`}>
                             {setting.name}
                           </span>
                           <SafetyBadge safety={setting.safety} compact />
+                          {hasDeps && !hasConflicts && (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="h-3 w-3 rounded-full bg-[#eab308]/20 border border-[#eab308]/30 flex items-center justify-center cursor-help">
+                                    <span className="text-[7px] text-[#eab308]">!</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs max-w-xs">
+                                  This setting has dependency rules. Conflicts may appear when other related settings are enabled.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </div>
+                        {hasConflicts && (
+                          <div className="mb-1 flex flex-wrap gap-1">
+                            {conflicts.map((c, ci) => (
+                              <Badge key={ci} variant="outline" className="h-4 text-[9px] bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]">
+                                {c.type === "conflict" ? "Conflicts" : "Requires"}: {c.settingName}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <p className="text-[11px] text-[#8888a0]/70 line-clamp-1 cursor-help">
-                                {setting.desc}
+                              <p className={`text-[11px] line-clamp-1 cursor-help ${hasConflicts ? "text-[#ef4444]/70" : "text-[#8888a0]/70"}`}>
+                                {hasConflicts ? conflicts[0].message : setting.desc}
                               </p>
                             </TooltipTrigger>
                             <TooltipContent

@@ -51,6 +51,7 @@ interface AppState {
   applyChanges: () => void;
   undoChange: (undoId: string) => void;
   undoAll: () => void;
+  undoBySafety: (safetyLevels: Array<"Safe" | "Moderate" | "Risky">) => void;
   getEnabledCount: (sectionId: string) => number;
   getTotalCount: (sectionId: string) => number;
   getGlobalSafetyCounts: () => SafetyCounts;
@@ -344,6 +345,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     saveToStorage(UNDO_KEY, []);
     saveToStorage(SOFTWARE_KEY, []);
     set({ settings: newSettings, undoLog: [], selectedSoftware: [] });
+  },
+
+  undoBySafety: (safetyLevels: Array<"Safe" | "Moderate" | "Risky">) => {
+    set((state) => {
+      const newSettings = { ...state.settings };
+      sections.forEach((section) => {
+        section.settings.forEach((s) => {
+          if (safetyLevels.includes(s.safety) && newSettings[s.id]) {
+            newSettings[s.id] = false;
+          }
+        });
+      });
+      saveToStorage(SETTINGS_KEY, newSettings);
+      return { settings: newSettings };
+    });
   },
 
   getEnabledCount: (sectionId: string) => {

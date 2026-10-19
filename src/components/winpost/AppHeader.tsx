@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Search, Download, Undo2, Terminal, ChevronDown } from "lucide-react";
+import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useAppStore } from "@/store/useAppStore";
+import { useTheme } from "./ThemeProvider";
+import { useI18n, localeNames, type Locale } from "@/lib/i18n";
 
 interface AppHeaderProps {
   onApply: () => void;
@@ -23,6 +25,8 @@ interface AppHeaderProps {
 
 export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
   const { searchQuery, setSearchQuery, profiles, activeProfileId, loadProfile } = useAppStore();
+  const { theme, toggleTheme } = useTheme();
+  const { locale, setLocale, t } = useI18n();
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
 
@@ -43,7 +47,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
               <h1 className="text-lg font-bold text-[#e0e0e0] leading-none">
                 Win<span className="text-[#00d4ff]">PostInstall</span>
               </h1>
-              <p className="text-[10px] text-[#8888a0] leading-none mt-0.5">v4.1.0 Optimizer</p>
+              <p className="text-[10px] text-[#8888a0] leading-none mt-0.5">{t.appVersion}</p>
             </div>
           </div>
 
@@ -105,6 +109,48 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Locale selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 w-9 p-0 bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:text-[#e0e0e0] hover:border-[#2a2a3e] text-xs"
+              >
+                <Globe className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="bg-[#12121a] border-[#2a2a3e] text-[#e0e0e0] min-w-[120px]"
+            >
+              {Object.entries(localeNames).map(([key, name]) => (
+                <DropdownMenuItem
+                  key={key}
+                  onClick={() => setLocale(key as Locale)}
+                  className={`text-sm cursor-pointer ${locale === key ? "focus:bg-[#00d4ff]/10 focus:text-[#00d4ff]" : "focus:bg-[#1a1a2e] focus:text-[#e0e0e0]"}`}
+                >
+                  <span className="flex-1">{name}</span>
+                  {locale === key && (
+                    <Badge variant="secondary" className="h-4 px-1 text-[10px] bg-[#00d4ff]/10 text-[#00d4ff]">
+                      Active
+                    </Badge>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Theme toggle */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={toggleTheme}
+            className="h-9 w-9 p-0 bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:text-[#eab308] hover:border-[#eab308]/30 text-xs"
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+
           {/* Action buttons */}
           <div className="flex items-center gap-2 shrink-0">
             <Button
@@ -113,7 +159,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
               onClick={onPreview}
               className="h-9 gap-1.5 bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:text-[#e0e0e0] hover:border-[#2a2a3e] text-xs"
             >
-              Preview
+              {t.tabPreview}
             </Button>
             <Button
               variant="outline"
@@ -122,7 +168,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
               className="h-9 gap-1.5 bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:text-[#eab308] hover:border-[#eab308]/30 text-xs"
             >
               <Undo2 className="h-3.5 w-3.5" />
-              Undo
+              {t.tabUndo}
             </Button>
             <Button
               size="sm"

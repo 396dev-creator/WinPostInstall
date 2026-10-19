@@ -1,10 +1,21 @@
 export type SafetyLevel = "Safe" | "Moderate" | "Risky";
 
+export interface SettingDependency {
+  /** Setting IDs that this setting requires to be enabled */
+  requires?: string[];
+  /** Setting IDs that conflict with this setting (cannot both be enabled) */
+  conflicts?: string[];
+  /** Human-readable conflict message */
+  conflictMessage?: string;
+}
+
 export interface Setting {
   id: string;
   name: string;
   safety: SafetyLevel;
   desc: string;
+  /** Dependencies and conflicts with other settings */
+  deps?: SettingDependency;
 }
 
 export interface Section {
@@ -403,6 +414,172 @@ export interface Profile {
   isBuiltin: boolean;
   settings: Record<string, boolean>;
   software: string[];
+}
+
+/**
+ * Setting dependency and conflict definitions
+ * Maps setting ID to its dependencies/conflicts
+ */
+export const settingDependencies: Record<string, SettingDependency> = {
+  // Privacy
+  Priv_7: { conflicts: ["Sec_8"], conflictMessage: "Disabling Error Reporting conflicts with Security Audit Logging. Both monitor system issues." },
+  Priv_4: { conflicts: ["Gaming_3"], conflictMessage: "Disabling Location Tracking may break Game DVR location features." },
+
+  // Debloat
+  Deb_6: { conflicts: ["OD_1"], conflictMessage: "Removing OneDrive app conflicts with OneDrive settings. Disable OneDrive instead of removing it." },
+  Deb_7: { conflicts: ["Office_1"], conflictMessage: "Removing Microsoft Office apps will conflict with Office 365 activation." },
+
+  // Explorer/UI
+  Exp_5: { requires: ["Exp_1"], conflictMessage: "Classic context menu requires Show file extensions to be enabled." },
+  Exp_6: { requires: ["Exp_1"], conflictMessage: "Classic File Explorer requires Show file extensions to be enabled." },
+
+  // Services
+  Svc_1: { conflicts: ["Svc_2"], conflictMessage: "Disabling Windows Search conflicts with disabling Superfetch. Both affect search performance." },
+  Svc_3: { conflicts: ["Perf_5"], conflictMessage: "Disabling Print Spooler conflicts with Performance power plan if you need printing." },
+
+  // Performance
+  Perf_1: { conflicts: ["Gaming_1"], conflictMessage: "Ultimate Performance plan may conflict with Game Mode power settings." },
+  Perf_5: { conflicts: ["Svc_3"], conflictMessage: "High Performance power plan conflicts with disabling Print Spooler." },
+
+  // Network
+  Net_4: { conflicts: ["Net_7"], conflictMessage: "Disabling IPv6 may conflict with DNS-over-HTTPS which can use IPv6 resolvers." },
+  Net_5: { conflicts: ["Net_8"], conflictMessage: "Disabling Network Throttling conflicts with QoS bandwidth reserve. Both manage network bandwidth." },
+
+  // Gaming
+  Gaming_1: { conflicts: ["Perf_1"], conflictMessage: "Game Mode conflicts with Ultimate Performance plan." },
+  Gaming_3: { conflicts: ["Priv_4"], conflictMessage: "Game DVR features conflict with disabling Location Tracking." },
+
+  // OneDrive
+  OD_1: { conflicts: ["Deb_6"], conflictMessage: "Disabling OneDrive conflicts with removing OneDrive app. Choose one approach." },
+  OD_2: { conflicts: ["Deb_6"], conflictMessage: "Preventing OneDrive auto-start conflicts with removing OneDrive. Choose one approach." },
+
+  // Office
+  Office_1: { conflicts: ["Deb_7"], conflictMessage: "Office 365 activation conflicts with removing Microsoft Office apps." },
+
+  // Edge
+  Edge_5: { conflicts: ["Edge_1"], conflictMessage: "Enabling Edge Superfetch conflicts with disabling Edge background processes." },
+
+  // Browser
+  BH_3: { requires: ["BH_1"], conflictMessage: "Strict tracking protection requires telemetry blocking to be effective." },
+};
+
+/**
+ * Check for conflicts and unsatisfied dependencies given current settings state
+ */
+export function checkSettingConflicts(
+  settingId: string,
+  settingsState: Record<string, boolean>
+): { type: "conflict" | "unmet_require"; settingId: string; settingName: string; message: string }[] {
+  const warnings: { type: "conflict" | "unmet_require"; settingId: string; settingName: string; message: string }[] = [];
+  const deps = settingDependencies[settingId];
+  if (!deps) return warnings;
+
+  // Check conflicts
+  if (deps.conflicts) {
+    for (const conflictId of deps.conflicts) {
+      if (settingsState[conflictId]) {
+        // Find the name of the conflicting setting
+        let conflictName = conflictId;
+        for (const section of sections) {
+          const found = section.settings.find((s) => s.id === conflictId);
+          if (found) { conflictName = found.name; break; }
+        }
+        warnings.push({
+          type: "conflict",
+          settingId: conflictId,
+          settingName: conflictName,
+          message: deps.conflictMessage || `${settingId} conflicts with ${conflictName}`,
+        });
+      }
+    }
+  }
+
+  // Check unmet requirements (only warn when this setting is being enabled)
+  if (deps.requires && settingsState[settingId]) {
+    for (const reqId of deps.requires) {
+      if (!settingsState[reqId]) {
+        let reqName = reqId;
+        for (const section of sections) {
+          const found = section.settings.find((s) => s.id === reqId);
+          if (found) { reqName = found.name; break; }
+        }
+        warnings.push({
+          type: "unmet_require",
+          settingId: reqId,
+          settingName: reqName,
+          message: deps.conflictMessage || `${settingId} requires ${reqName} to be enabled`,
+        });
+      }
+    }
+  }
+
+  return warnings;
+}
+
+/**
+ * Get all conflicts for all currently enabled settings
+ */
+export function getAllConflicts(
+  settingsState: Record<string, boolean>
+): { settingId: string; settingName: string; type: "conflict" | "unmet_require"; targetId: string; targetName: string; message: string }[] {
+  const allWarnings: { settingId: string; settingName: string; type: "conflict" | "unmet_require"; targetId: string; targetName: string; message: string }[] = [];
+  const seen = new Set<string>();
+
+  for (const section of sections) {
+    for (const setting of section.settings) {
+      if (!settingsState[setting.id]) continue;
+      const deps = settingDependencies[setting.id];
+      if (!deps) continue;
+
+      if (deps.conflicts) {
+        for (const conflictId of deps.conflicts) {
+          if (settingsState[conflictId]) {
+            const key = [setting.id, conflictId].sort().join("|");
+            if (seen.has(key)) continue;
+            seen.add(key);
+            let conflictName = conflictId;
+            for (const s2 of sections) {
+              const found = s2.settings.find((s) => s.id === conflictId);
+              if (found) { conflictName = found.name; break; }
+            }
+            allWarnings.push({
+              settingId: setting.id,
+              settingName: setting.name,
+              type: "conflict",
+              targetId: conflictId,
+              targetName: conflictName,
+              message: deps.conflictMessage || `${setting.name} conflicts with ${conflictName}`,
+            });
+          }
+        }
+      }
+
+      if (deps.requires) {
+        for (const reqId of deps.requires) {
+          if (!settingsState[reqId]) {
+            const key = `${setting.id}|req|${reqId}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            let reqName = reqId;
+            for (const s2 of sections) {
+              const found = s2.settings.find((s) => s.id === reqId);
+              if (found) { reqName = found.name; break; }
+            }
+            allWarnings.push({
+              settingId: setting.id,
+              settingName: setting.name,
+              type: "unmet_require",
+              targetId: reqId,
+              targetName: reqName,
+              message: deps.conflictMessage || `${setting.name} requires ${reqName}`,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return allWarnings;
 }
 
 export const builtinProfiles: Profile[] = [

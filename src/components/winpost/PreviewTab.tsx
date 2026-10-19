@@ -2,16 +2,18 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Download, AlertTriangle, CheckCircle2, Shield, ShieldAlert, ShieldX } from "lucide-react";
+import { Download, AlertTriangle, CheckCircle2, Shield, ShieldAlert, ShieldX, AlertCircle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { sections } from "@/data/settings";
+import { Checkbox } from "@/components/ui/checkbox";
+import { sections, getAllConflicts } from "@/data/settings";
 import { useAppStore } from "@/store/useAppStore";
 import { SafetyBadge } from "./SafetyBadge";
 
 export function PreviewTab() {
   const { settings, selectedSoftware, applyChanges, generateConfig } = useAppStore();
+  const [createRestorePoint, setCreateRestorePoint] = React.useState(true);
 
   // Build change summary
   const changeSummary = sections.map((section) => {
@@ -35,6 +37,10 @@ export function PreviewTab() {
   const totalRisky = changeSummary.reduce((sum, s) => sum + s.safetyBreakdown.Risky, 0);
   const hasWarnings = totalModerate > 0 || totalRisky > 0;
 
+  // Check for setting conflicts
+  const allConflicts = getAllConflicts(settings);
+  const hasConflicts = allConflicts.length > 0;
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -51,7 +57,18 @@ export function PreviewTab() {
           </Badge>
           <Button
             size="sm"
-            onClick={applyChanges}
+            onClick={() => {
+              // Generate config with restore point option
+              const config = generateConfig();
+              const fullConfig = { ...config, createRestorePoint };
+              const blob = new Blob([JSON.stringify(fullConfig, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "WinPostInstall-Config.json";
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
             disabled={totalEnabled === 0}
             className="h-8 gap-1.5 bg-[#00d4ff] hover:bg-[#00d4ff]/90 text-[#0a0a0f] font-semibold text-xs shadow-[0_0_20px_rgba(0,212,255,0.15)]"
           >
@@ -60,6 +77,31 @@ export function PreviewTab() {
           </Button>
         </div>
       </div>
+
+      {/* Restore Point Option */}
+      {totalEnabled > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 rounded-lg border border-[#2a2a3e] bg-[#12121a] p-3"
+        >
+          <Checkbox
+            id="restore-point"
+            checked={createRestorePoint}
+            onCheckedChange={(checked) => setCreateRestorePoint(checked === true)}
+            className="border-[#00d4ff]/30 data-[state=checked]:bg-[#00d4ff] data-[state=checked]:border-[#00d4ff]"
+          />
+          <div className="flex-1">
+            <label htmlFor="restore-point" className="text-xs font-medium text-[#e0e0e0] cursor-pointer flex items-center gap-1.5">
+              <RotateCcw className="h-3.5 w-3.5 text-[#00d4ff]" />
+              Create System Restore Point before applying
+            </label>
+            <p className="text-[10px] text-[#8888a0] mt-0.5">
+              Recommended. Creates a restore point so you can roll back if anything goes wrong.
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       {/* Safety summary cards */}
       {totalEnabled > 0 && (
@@ -112,6 +154,32 @@ export function PreviewTab() {
                 {totalRisky > 0 && `${totalRisky} Risky changes could cause significant issues. `}
                 Please review carefully before applying.
               </p>
+            </div>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Setting conflicts */}
+      {hasConflicts && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-[#ef4444]/20 bg-[#ef4444]/5 p-4"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 text-[#ef4444] shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-[#ef4444] mb-2">Setting Conflicts ({allConflicts.length})</h3>
+              <div className="space-y-2">
+                {allConflicts.map((c, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-[#ef4444]/80">
+                    <Badge variant="outline" className="h-4 shrink-0 text-[9px] bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]">
+                      {c.type === "conflict" ? "Conflict" : "Missing Dep"}
+                    </Badge>
+                    <span>{c.settingName} ↔ {c.targetName}: {c.message}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </motion.div>
