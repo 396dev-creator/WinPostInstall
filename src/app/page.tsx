@@ -101,58 +101,58 @@ export default function WinPostInstallPage() {
   }, [handleKeyDown]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f] text-[#e0e0e0] flex flex-col">
+    <div className="min-h-screen bg-[var(--wpi-bg)] text-[var(--wpi-text)] flex flex-col">
       <AppHeader onApply={handleApply} onUndo={handleUndo} onPreview={handlePreview} />
 
       {/* Main content */}
       <main className="flex-1 mx-auto w-full max-w-7xl px-4 py-4">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-4">
-          <TabsList className="bg-[#12121a] border border-[#2a2a3e] w-fit h-10 p-1 rounded-lg">
+          <TabsList className="bg-[var(--wpi-deep)] border border-[var(--wpi-border)] w-fit h-10 p-1 rounded-lg">
             <TabsTrigger
               value="dashboard"
-              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+              className="data-[state=active]:bg-[var(--wpi-card)] data-[state=active]:text-[var(--wpi-accent)] data-[state=active]:shadow-sm text-[var(--wpi-muted)] gap-1.5 px-3 text-xs rounded-md"
             >
               <LayoutDashboard className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Dashboard</span>
             </TabsTrigger>
             <TabsTrigger
               value="software"
-              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+              className="data-[state=active]:bg-[var(--wpi-card)] data-[state=active]:text-[var(--wpi-accent)] data-[state=active]:shadow-sm text-[var(--wpi-muted)] gap-1.5 px-3 text-xs rounded-md"
             >
               <Package className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Software</span>
             </TabsTrigger>
             <TabsTrigger
               value="profiles"
-              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+              className="data-[state=active]:bg-[var(--wpi-card)] data-[state=active]:text-[var(--wpi-accent)] data-[state=active]:shadow-sm text-[var(--wpi-muted)] gap-1.5 px-3 text-xs rounded-md"
             >
               <Users className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Profiles</span>
             </TabsTrigger>
             <TabsTrigger
               value="undo"
-              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+              className="data-[state=active]:bg-[var(--wpi-card)] data-[state=active]:text-[var(--wpi-accent)] data-[state=active]:shadow-sm text-[var(--wpi-muted)] gap-1.5 px-3 text-xs rounded-md"
             >
               <Undo2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Undo</span>
             </TabsTrigger>
             <TabsTrigger
               value="preview"
-              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+              className="data-[state=active]:bg-[var(--wpi-card)] data-[state=active]:text-[var(--wpi-accent)] data-[state=active]:shadow-sm text-[var(--wpi-muted)] gap-1.5 px-3 text-xs rounded-md"
             >
               <Eye className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Preview</span>
             </TabsTrigger>
             <TabsTrigger
               value="scanner"
-              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+              className="data-[state=active]:bg-[var(--wpi-card)] data-[state=active]:text-[var(--wpi-accent)] data-[state=active]:shadow-sm text-[var(--wpi-muted)] gap-1.5 px-3 text-xs rounded-md"
             >
               <Scan className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Scanner</span>
             </TabsTrigger>
             <TabsTrigger
               value="iso"
-              className="data-[state=active]:bg-[#1a1a2e] data-[state=active]:text-[#00d4ff] data-[state=active]:shadow-sm text-[#8888a0] gap-1.5 px-3 text-xs rounded-md"
+              className="data-[state=active]:bg-[var(--wpi-card)] data-[state=active]:text-[var(--wpi-accent)] data-[state=active]:shadow-sm text-[var(--wpi-muted)] gap-1.5 px-3 text-xs rounded-md"
             >
               <Disc3 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">ISO</span>
@@ -197,26 +197,26 @@ export default function WinPostInstallPage() {
       </main>
 
       {/* Footer with keyboard shortcut hints */}
-      <footer className="border-t border-[#2a2a3e] bg-[#0a0a0f] mt-auto">
+      <footer className="border-t border-[var(--wpi-border)] bg-[var(--wpi-bg)] mt-auto">
         <div className="mx-auto max-w-7xl px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-          <p className="text-[10px] text-[#8888a0]/50">
+          <p className="text-[10px] text-[var(--wpi-muted)]/50">
             WinPostInstall v4.1.0 • GUI Optimizer
           </p>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5 text-[9px] text-[#8888a0]/40">
-              <kbd className="px-1 py-0.5 rounded bg-[#12121a] border border-[#2a2a3e] text-[8px]">Ctrl+A</kbd>
+            <div className="flex items-center gap-1.5 text-[9px] text-[var(--wpi-muted)]/40">
+              <kbd className="px-1 py-0.5 rounded bg-[var(--wpi-deep)] border border-[var(--wpi-border)] text-[8px]">Ctrl+A</kbd>
               <span>All Safe</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[9px] text-[#8888a0]/40">
-              <kbd className="px-1 py-0.5 rounded bg-[#12121a] border border-[#2a2a3e] text-[8px]">Ctrl+M</kbd>
+            <div className="flex items-center gap-1.5 text-[9px] text-[var(--wpi-muted)]/40">
+              <kbd className="px-1 py-0.5 rounded bg-[var(--wpi-deep)] border border-[var(--wpi-border)] text-[8px]">Ctrl+M</kbd>
               <span>Safe+Mod</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[9px] text-[#8888a0]/40">
-              <kbd className="px-1 py-0.5 rounded bg-[#12121a] border border-[#2a2a3e] text-[8px]">Ctrl+D</kbd>
+            <div className="flex items-center gap-1.5 text-[9px] text-[var(--wpi-muted)]/40">
+              <kbd className="px-1 py-0.5 rounded bg-[var(--wpi-deep)] border border-[var(--wpi-border)] text-[8px]">Ctrl+D</kbd>
               <span>None</span>
             </div>
-            <div className="h-3 w-px bg-[#2a2a3e]/50" />
-            <p className="text-[10px] text-[#8888a0]/50">
+            <div className="h-3 w-px bg-[var(--wpi-border)]/50" />
+            <p className="text-[10px] text-[var(--wpi-muted)]/50">
               Compatible with WinPostInstall.ps1
             </p>
           </div>

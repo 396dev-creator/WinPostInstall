@@ -179,3 +179,25 @@ Stage Summary:
 - Every registry setting and scheduled task now has a safety classification and human-readable description
 - Interactive menu shows safety badges and risky item warnings
 - Risky settings are blocked by default — user must explicitly opt in
+---
+Task ID: 1
+Agent: main
+Task: Make Dark/Light theme toggle functional + Add two new client-focused built-in profiles
+
+Work Log:
+- Analyzed all 15 component files — found all use hardcoded hex colors (#0a0a0f, #12121a, #1a1a2e, #2a2a3e, #00d4ff, #e0e0e0, #8888a0, #0ea5e9)
+- Created CSS custom property system in globals.css with dark + light theme definitions
+- Wrote and ran bulk replacement script (apply-theme-variables.js) — 566 replacements across 13 files
+- Rewrote ThemeProvider.tsx to properly set data-theme attribute + sync Tailwind dark class + localStorage persistence
+- Updated layout.tsx to include data-theme="dark" default on <html>
+- Added "Privacy & Security Only" profile (id: privacysecurity) — 38 settings, no debloat, keeps all default Windows apps
+- Added "App Setup" profile (id: appsetup) — 7 settings + 10 software installs, minimal system changes
+- Updated ProfilesTab with ShieldCheck and Package icons for new profiles
+- Build verified clean
+
+Stage Summary:
+- Theme toggle now actually works: Sun/Moon button switches between dark tech (#0a0a0f) and clean light (#f0f2f5) themes
+- CSS variables: --wpi-bg, --wpi-deep, --wpi-card, --wpi-border, --wpi-accent, --wpi-text, --wpi-muted, --wpi-info
+- New "Privacy & Security Only" profile for clients who want hardened privacy without removing apps
+- New "App Setup" profile for clients who just need software installed with minimal system changes
+- All 7 built-in profiles now available: Gaming, Office, Minimal, Max Privacy, Developer, Privacy & Security Only, App Setup

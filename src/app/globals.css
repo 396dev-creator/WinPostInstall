@@ -144,3 +144,75 @@
   background-color: oklch(0.7 0.15 195 / 30%);
   color: oklch(0.95 0 0);
 }
+
+/* ===================================================================
+   WinPostInstall Theme Variables
+   These control the app's visual appearance and are toggled by
+   the ThemeProvider via data-theme="dark" | "light" on <html>
+   =================================================================== */
+
+/* Dark Theme (default) — Dark Tech aesthetic */
+[data-theme="dark"] {
+  --wpi-bg: #0a0a0f;
+  --wpi-bg-deep: #0d0d14;
+  --wpi-deep: #12121a;
+  --wpi-card: #1a1a2e;
+  --wpi-border: #2a2a3e;
+  --wpi-accent: #00d4ff;
+  --wpi-text: #e0e0e0;
+  --wpi-muted: #8888a0;
+  --wpi-info: #0ea5e9;
+
+  /* Accent glow for shadows */
+  --wpi-accent-glow: 0 0 20px rgba(0, 212, 255, 0.15);
+  --wpi-accent-glow-lg: 0 0 30px rgba(0, 212, 255, 0.05);
+
+  /* Scrollbar */
+  --wpi-scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --wpi-scrollbar-hover: rgba(255, 255, 255, 0.2);
+
+  /* Backdrop */
+  --wpi-backdrop: rgba(0, 0, 0, 0.6);
+}
+
+/* Light Theme — Clean Professional */
+[data-theme="light"] {
+  --wpi-bg: #f0f2f5;
+  --wpi-bg-deep: #e8eaee;
+  --wpi-deep: #ebedf0;
+  --wpi-card: #ffffff;
+  --wpi-border: #d5d8e0;
+  --wpi-accent: #0891b2;
+  --wpi-text: #1e1e2d;
+  --wpi-muted: #6b7280;
+  --wpi-info: #0284c7;
+
+  /* Accent glow for shadows (subtle in light mode) */
+  --wpi-accent-glow: 0 0 12px rgba(8, 145, 178, 0.1);
+  --wpi-accent-glow-lg: 0 0 20px rgba(8, 145, 178, 0.04);
+
+  /* Scrollbar */
+  --wpi-scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --wpi-scrollbar-hover: rgba(0, 0, 0, 0.25);
+
+  /* Backdrop */
+  --wpi-backdrop: rgba(0, 0, 0, 0.3);
+}
+
+/* Default to dark if no attribute set */
+:root {
+  --wpi-bg: #0a0a0f;
+  --wpi-bg-deep: #0d0d14;
+  --wpi-deep: #12121a;
+  --wpi-card: #1a1a2e;
+  --wpi-border: #2a2a3e;
+  --wpi-accent: #00d4ff;
+  --wpi-text: #e0e0e0;
+  --wpi-muted: #8888a0;
+  --wpi-info: #0ea5e9;
+  --wpi-accent-glow: 0 0 20px rgba(0, 212, 255, 0.15);
+  --wpi-accent-glow-lg: 0 0 30px rgba(0, 212, 255, 0.05);
+  --wpi-scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --wpi-scrollbar-hover: rgba(255, 255, 255, 0.2);
+  --wpi-backdrop: rgba(0, 0, 0, 0.6);
+}

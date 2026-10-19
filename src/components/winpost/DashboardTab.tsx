@@ -87,32 +87,32 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03, duration: 0.3 }}
               onClick={() => onSectionClick(section.id)}
-              className="group relative cursor-pointer rounded-xl border border-[#2a2a3e] bg-[#1a1a2e] p-4 transition-all duration-200 hover:border-[#00d4ff]/30 hover:bg-[#1a1a2e]/80 hover:shadow-[0_0_30px_rgba(0,212,255,0.05)]"
+              className="group relative cursor-pointer rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-card)] p-4 transition-all duration-200 hover:border-[var(--wpi-accent)]/30 hover:bg-[var(--wpi-card)]/80 hover:shadow-[0_0_30px_rgba(0,212,255,0.05)]"
             >
               {/* Glow effect on hover */}
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[#00d4ff]/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[var(--wpi-accent)]/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
 
               <div className="relative flex items-start gap-3">
                 {/* Icon */}
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${allEnabled ? "bg-[#00d4ff]/15 border border-[#00d4ff]/30" : "bg-[#12121a] border border-[#2a2a3e]"} transition-colors`}>
-                  <Icon className={`h-5 w-5 ${allEnabled ? "text-[#00d4ff]" : "text-[#8888a0]"}`} />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${allEnabled ? "bg-[var(--wpi-accent)]/15 border border-[var(--wpi-accent)]/30" : "bg-[var(--wpi-deep)] border border-[var(--wpi-border)]"} transition-colors`}>
+                  <Icon className={`h-5 w-5 ${allEnabled ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
                 </div>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-[#e0e0e0] truncate">
+                    <h3 className="text-sm font-semibold text-[var(--wpi-text)] truncate">
                       {section.name}
                     </h3>
                     <SafetyBadge safety={safety} compact />
                   </div>
 
-                  <p className="text-xs text-[#8888a0] mb-2 line-clamp-1">
+                  <p className="text-xs text-[var(--wpi-muted)] mb-2 line-clamp-1">
                     {section.description}
                   </p>
 
                   {/* Segmented progress bar with safety colors */}
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-[#12121a] overflow-hidden">
+                    <div className="flex-1 h-1.5 rounded-full bg-[var(--wpi-deep)] overflow-hidden">
                       <div className="flex h-full">
                         <motion.div
                           className="bg-[#22c55e]"
@@ -134,7 +134,7 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
                         />
                       </div>
                     </div>
-                    <span className="text-[10px] text-[#8888a0] tabular-nums">
+                    <span className="text-[10px] text-[var(--wpi-muted)] tabular-nums">
                       {enabled}/{total}
                     </span>
                   </div>
@@ -147,10 +147,10 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
                           <TooltipTrigger asChild>
                             <div className="flex items-center gap-0.5 cursor-default">
                               <div className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
-                              <span className="text-[9px] text-[#8888a0] tabular-nums">{eCounts.Safe}/{sCounts.Safe}</span>
+                              <span className="text-[9px] text-[var(--wpi-muted)] tabular-nums">{eCounts.Safe}/{sCounts.Safe}</span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+                          <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
                             {eCounts.Safe} of {sCounts.Safe} Safe settings enabled
                           </TooltipContent>
                         </Tooltip>
@@ -162,10 +162,10 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
                           <TooltipTrigger asChild>
                             <div className="flex items-center gap-0.5 cursor-default">
                               <div className="h-1.5 w-1.5 rounded-full bg-[#eab308]" />
-                              <span className="text-[9px] text-[#8888a0] tabular-nums">{eCounts.Moderate}/{sCounts.Moderate}</span>
+                              <span className="text-[9px] text-[var(--wpi-muted)] tabular-nums">{eCounts.Moderate}/{sCounts.Moderate}</span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+                          <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
                             {eCounts.Moderate} of {sCounts.Moderate} Moderate settings enabled
                           </TooltipContent>
                         </Tooltip>
@@ -177,10 +177,10 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
                           <TooltipTrigger asChild>
                             <div className="flex items-center gap-0.5 cursor-default">
                               <div className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" />
-                              <span className="text-[9px] text-[#8888a0] tabular-nums">{eCounts.Risky}/{sCounts.Risky}</span>
+                              <span className="text-[9px] text-[var(--wpi-muted)] tabular-nums">{eCounts.Risky}/{sCounts.Risky}</span>
                             </div>
                           </TooltipTrigger>
-                          <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+                          <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
                             {eCounts.Risky} of {sCounts.Risky} Risky settings enabled
                           </TooltipContent>
                         </Tooltip>
@@ -190,7 +190,7 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
 
                   {/* Search match count */}
                   {isFiltered && matchingSettings.length < total && (
-                    <p className="text-[10px] text-[#00d4ff] mt-1">
+                    <p className="text-[10px] text-[var(--wpi-accent)] mt-1">
                       {matchingSettings.length} matching
                     </p>
                   )}
@@ -201,7 +201,7 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
                   <Switch
                     checked={allEnabled}
                     onCheckedChange={(checked) => toggleSectionAll(section.id, checked)}
-                    className="data-[state=checked]:bg-[#00d4ff] data-[state=unchecked]:bg-[#2a2a3e]"
+                    className="data-[state=checked]:bg-[var(--wpi-accent)] data-[state=unchecked]:bg-[var(--wpi-border)]"
                   />
                 </div>
               </div>

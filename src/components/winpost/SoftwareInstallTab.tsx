@@ -36,12 +36,12 @@ export function SoftwareInstallTab() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-base font-semibold text-[#e0e0e0]">Software Installation</h2>
-          <p className="text-xs text-[#8888a0]">
+          <h2 className="text-base font-semibold text-[var(--wpi-text)]">Software Installation</h2>
+          <p className="text-xs text-[var(--wpi-muted)]">
             Select applications to install via Winget package manager
           </p>
         </div>
-        <Badge className="bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/20 text-xs">
+        <Badge className="bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)] border-[var(--wpi-accent)]/20 text-xs">
           {totalSelected} selected
         </Badge>
       </div>
@@ -49,12 +49,12 @@ export function SoftwareInstallTab() {
       {/* Search + Category filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[180px] max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#8888a0]" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--wpi-muted)]" />
           <Input
             placeholder="Search software..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 bg-[#12121a] border-[#2a2a3e] text-[#e0e0e0] placeholder:text-[#8888a0] focus-visible:ring-[#00d4ff]/30 focus-visible:border-[#00d4ff]/50 text-sm"
+            className="pl-9 h-9 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)] focus-visible:ring-[var(--wpi-accent)]/30 focus-visible:border-[var(--wpi-accent)]/50 text-sm"
           />
         </div>
         <div className="flex gap-1.5 flex-wrap">
@@ -62,8 +62,8 @@ export function SoftwareInstallTab() {
             onClick={() => setActiveCategory(null)}
             className={`h-9 px-3 rounded-lg text-xs font-medium transition-colors ${
               activeCategory === null
-                ? "bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/20"
-                : "bg-[#12121a] text-[#8888a0] border border-[#2a2a3e] hover:bg-[#1a1a2e]"
+                ? "bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)] border border-[var(--wpi-accent)]/20"
+                : "bg-[var(--wpi-deep)] text-[var(--wpi-muted)] border border-[var(--wpi-border)] hover:bg-[var(--wpi-card)]"
             }`}
           >
             All
@@ -74,8 +74,8 @@ export function SoftwareInstallTab() {
               onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
               className={`h-9 px-3 rounded-lg text-xs font-medium transition-colors ${
                 activeCategory === cat
-                  ? "bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/20"
-                  : "bg-[#12121a] text-[#8888a0] border border-[#2a2a3e] hover:bg-[#1a1a2e]"
+                  ? "bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)] border border-[var(--wpi-accent)]/20"
+                  : "bg-[var(--wpi-deep)] text-[var(--wpi-muted)] border border-[var(--wpi-border)] hover:bg-[var(--wpi-card)]"
               }`}
             >
               {cat}
@@ -98,26 +98,26 @@ export function SoftwareInstallTab() {
                 onClick={() => toggleSoftware(app.id)}
                 className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
                   isSelected
-                    ? "bg-[#00d4ff]/5 border-[#00d4ff]/20"
-                    : "bg-[#12121a] border-[#2a2a3e] hover:border-[#2a2a3e]/80 hover:bg-[#1a1a2e]/50"
+                    ? "bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/20"
+                    : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] hover:border-[var(--wpi-border)]/80 hover:bg-[var(--wpi-card)]/50"
                 }`}
               >
                 <Checkbox
                   checked={isSelected}
                   onCheckedChange={() => toggleSoftware(app.id)}
-                  className="border-[#2a2a3e] data-[state=checked]:bg-[#00d4ff] data-[state=checked]:border-[#00d4ff]"
+                  className="border-[var(--wpi-border)] data-[state=checked]:bg-[var(--wpi-accent)] data-[state=checked]:border-[var(--wpi-accent)]"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-medium ${isSelected ? "text-[#e0e0e0]" : "text-[#8888a0]"}`}>
+                    <span className={`text-sm font-medium ${isSelected ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
                       {app.name}
                     </span>
-                    <Badge variant="outline" className="h-4 px-1 text-[9px] bg-[#12121a] border-[#2a2a3e] text-[#8888a0]">
+                    <Badge variant="outline" className="h-4 px-1 text-[9px] bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)]">
                       {app.category}
                     </Badge>
                   </div>
-                  <p className="text-[11px] text-[#8888a0]/70 truncate">{app.desc}</p>
-                  <p className="text-[10px] text-[#8888a0]/40 font-mono truncate">{app.wingetId}</p>
+                  <p className="text-[11px] text-[var(--wpi-muted)]/70 truncate">{app.desc}</p>
+                  <p className="text-[10px] text-[var(--wpi-muted)]/40 font-mono truncate">{app.wingetId}</p>
                 </div>
               </motion.div>
             );

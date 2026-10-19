@@ -147,18 +147,18 @@ export function SectionDetailPanel() {
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg bg-[#0a0a0f] border-l border-[#2a2a3e] shadow-2xl flex flex-col"
+            className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-lg bg-[var(--wpi-bg)] border-l border-[var(--wpi-border)] shadow-2xl flex flex-col"
           >
             {/* Header */}
-            <div className="p-5 border-b border-[#2a2a3e]">
+            <div className="p-5 border-b border-[var(--wpi-border)]">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#00d4ff]/10 border border-[#00d4ff]/20">
-                    <Icon className="h-5 w-5 text-[#00d4ff]" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--wpi-accent)]/10 border border-[var(--wpi-accent)]/20">
+                    <Icon className="h-5 w-5 text-[var(--wpi-accent)]" />
                   </div>
                   <div>
-                    <h2 className="text-base font-bold text-[#e0e0e0]">{section.name}</h2>
-                    <p className="text-xs text-[#8888a0]">{section.description}</p>
+                    <h2 className="text-base font-bold text-[var(--wpi-text)]">{section.name}</h2>
+                    <p className="text-xs text-[var(--wpi-muted)]">{section.description}</p>
                   </div>
                 </div>
                 <Button
@@ -168,7 +168,7 @@ export function SectionDetailPanel() {
                     setActiveSectionId(null);
                     setSafetyFilter("all");
                   }}
-                  className="h-8 w-8 text-[#8888a0] hover:text-[#e0e0e0] hover:bg-[#1a1a2e]"
+                  className="h-8 w-8 text-[var(--wpi-muted)] hover:text-[var(--wpi-text)] hover:bg-[var(--wpi-card)]"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -177,10 +177,10 @@ export function SectionDetailPanel() {
               {/* Stats row */}
               <div className="flex items-center gap-2 flex-wrap mb-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-[#8888a0]">Enabled:</span>
-                  <span className="text-xs font-semibold text-[#00d4ff]">{enabledCount}/{totalCount}</span>
+                  <span className="text-xs text-[var(--wpi-muted)]">Enabled:</span>
+                  <span className="text-xs font-semibold text-[var(--wpi-accent)]">{enabledCount}/{totalCount}</span>
                 </div>
-                <div className="h-3 w-px bg-[#2a2a3e]" />
+                <div className="h-3 w-px bg-[var(--wpi-border)]" />
                 {safetyCounts.Safe > 0 && (
                   <Badge variant="outline" className="h-5 text-[10px] bg-[#22c55e]/5 border-[#22c55e]/20 text-[#22c55e]">
                     {enabledSafetyCounts.Safe}/{safetyCounts.Safe} Safe
@@ -200,7 +200,7 @@ export function SectionDetailPanel() {
 
               {/* Safety Quick Select row */}
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] text-[#8888a0] shrink-0 mr-0.5">Select:</span>
+                <span className="text-[10px] text-[var(--wpi-muted)] shrink-0 mr-0.5">Select:</span>
 
                 {/* Safe only */}
                 <Button
@@ -210,7 +210,7 @@ export function SectionDetailPanel() {
                   className={`h-6 gap-1 text-[9px] px-2 transition-all ${
                     allSafeEnabled && !allSafeModEnabled
                       ? "bg-[#22c55e]/15 border-[#22c55e]/40 text-[#22c55e]"
-                      : "bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:border-[#22c55e]/30 hover:text-[#22c55e]"
+                      : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:border-[#22c55e]/30 hover:text-[#22c55e]"
                   }`}
                 >
                   <Shield className="h-2.5 w-2.5" />
@@ -225,7 +225,7 @@ export function SectionDetailPanel() {
                   className={`h-6 gap-1 text-[9px] px-2 transition-all ${
                     allSafeModEnabled && !allSectionEnabled
                       ? "bg-[#eab308]/15 border-[#eab308]/40 text-[#eab308]"
-                      : "bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:border-[#eab308]/30 hover:text-[#eab308]"
+                      : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:border-[#eab308]/30 hover:text-[#eab308]"
                   }`}
                 >
                   <ShieldAlert className="h-2.5 w-2.5" />
@@ -240,7 +240,7 @@ export function SectionDetailPanel() {
                   className={`h-6 gap-1 text-[9px] px-2 transition-all ${
                     allSectionEnabled
                       ? "bg-[#ef4444]/15 border-[#ef4444]/40 text-[#ef4444]"
-                      : "bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:border-[#ef4444]/30 hover:text-[#ef4444]"
+                      : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:border-[#ef4444]/30 hover:text-[#ef4444]"
                   }`}
                 >
                   <ShieldX className="h-2.5 w-2.5" />
@@ -253,7 +253,7 @@ export function SectionDetailPanel() {
                   size="sm"
                   onClick={handleDeselectAllSection}
                   disabled={enabledCount === 0}
-                  className="h-6 gap-1 text-[9px] px-2 bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:border-[#2a2a3e] hover:text-[#e0e0e0] disabled:opacity-30"
+                  className="h-6 gap-1 text-[9px] px-2 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:border-[var(--wpi-border)] hover:text-[var(--wpi-text)] disabled:opacity-30"
                 >
                   None
                 </Button>
@@ -261,10 +261,10 @@ export function SectionDetailPanel() {
             </div>
 
             {/* Safety Filter Bar */}
-            <div className="px-5 py-2 border-b border-[#2a2a3e] bg-[#0d0d14]">
+            <div className="px-5 py-2 border-b border-[var(--wpi-border)] bg-[var(--wpi-bg-deep)]">
               <div className="flex items-center gap-1.5">
-                <Filter className="h-3 w-3 text-[#8888a0]" />
-                <span className="text-[10px] text-[#8888a0] shrink-0">Filter:</span>
+                <Filter className="h-3 w-3 text-[var(--wpi-muted)]" />
+                <span className="text-[10px] text-[var(--wpi-muted)] shrink-0">Filter:</span>
                 {(["all", "Safe", "Moderate", "Risky"] as SafetyFilter[]).map((filter) => (
                   <Button
                     key={filter}
@@ -274,13 +274,13 @@ export function SectionDetailPanel() {
                     className={`h-5 text-[9px] px-2 rounded transition-all ${
                       safetyFilter === filter
                         ? filter === "all"
-                          ? "bg-[#00d4ff]/15 text-[#00d4ff]"
+                          ? "bg-[var(--wpi-accent)]/15 text-[var(--wpi-accent)]"
                           : filter === "Safe"
                             ? "bg-[#22c55e]/15 text-[#22c55e]"
                             : filter === "Moderate"
                               ? "bg-[#eab308]/15 text-[#eab308]"
                               : "bg-[#ef4444]/15 text-[#ef4444]"
-                        : "text-[#8888a0] hover:text-[#e0e0e0] hover:bg-[#1a1a2e]"
+                        : "text-[var(--wpi-muted)] hover:text-[var(--wpi-text)] hover:bg-[var(--wpi-card)]"
                     }`}
                   >
                     {filter === "all" ? "All" : filter}
@@ -312,13 +312,13 @@ export function SectionDetailPanel() {
                         hasConflicts
                           ? "bg-[#ef4444]/5 border border-[#ef4444]/20"
                           : isEnabled
-                            ? "bg-[#00d4ff]/5 border border-[#00d4ff]/10"
-                            : "bg-[#12121a] border border-[#2a2a3e] hover:border-[#2a2a3e]/80"
+                            ? "bg-[var(--wpi-accent)]/5 border border-[var(--wpi-accent)]/10"
+                            : "bg-[var(--wpi-deep)] border border-[var(--wpi-border)] hover:border-[var(--wpi-border)]/80"
                       }`}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className={`text-sm font-medium ${hasConflicts ? "text-[#ef4444]" : isEnabled ? "text-[#e0e0e0]" : "text-[#8888a0]"}`}>
+                          <span className={`text-sm font-medium ${hasConflicts ? "text-[#ef4444]" : isEnabled ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
                             {setting.name}
                           </span>
                           <SafetyBadge safety={setting.safety} compact />
@@ -330,7 +330,7 @@ export function SectionDetailPanel() {
                                     <span className="text-[7px] text-[#eab308]">!</span>
                                   </div>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs max-w-xs">
+                                <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs max-w-xs">
                                   This setting has dependency rules. Conflicts may appear when other related settings are enabled.
                                 </TooltipContent>
                               </Tooltip>
@@ -349,14 +349,14 @@ export function SectionDetailPanel() {
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <p className={`text-[11px] line-clamp-1 cursor-help ${hasConflicts ? "text-[#ef4444]/70" : "text-[#8888a0]/70"}`}>
+                              <p className={`text-[11px] line-clamp-1 cursor-help ${hasConflicts ? "text-[#ef4444]/70" : "text-[var(--wpi-muted)]/70"}`}>
                                 {hasConflicts ? conflicts[0].message : setting.desc}
                               </p>
                             </TooltipTrigger>
                             <TooltipContent
                               side="bottom"
                               align="start"
-                              className="max-w-xs bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs"
+                              className="max-w-xs bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs"
                             >
                               {setting.desc}
                             </TooltipContent>
@@ -367,7 +367,7 @@ export function SectionDetailPanel() {
                       <Switch
                         checked={isEnabled}
                         onCheckedChange={() => toggleSetting(setting.id)}
-                        className="data-[state=checked]:bg-[#00d4ff] data-[state=unchecked]:bg-[#2a2a3e] shrink-0"
+                        className="data-[state=checked]:bg-[var(--wpi-accent)] data-[state=unchecked]:bg-[var(--wpi-border)] shrink-0"
                       />
                     </motion.div>
                   );
@@ -375,7 +375,7 @@ export function SectionDetailPanel() {
 
                 {filteredSettings.length === 0 && (
                   <div className="py-12 text-center">
-                    <p className="text-sm text-[#8888a0]">
+                    <p className="text-sm text-[var(--wpi-muted)]">
                       {safetyFilter !== "all" ? `No ${safetyFilter} settings found` : "No settings match your search"}
                     </p>
                   </div>
@@ -384,17 +384,17 @@ export function SectionDetailPanel() {
             </ScrollArea>
 
             {/* Footer */}
-            <div className="p-4 border-t border-[#2a2a3e] bg-[#12121a]">
+            <div className="p-4 border-t border-[var(--wpi-border)] bg-[var(--wpi-deep)]">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-[#8888a0]">
+                <span className="text-xs text-[var(--wpi-muted)]">
                   {enabledCount} of {totalCount} settings enabled
                   {safetyFilter !== "all" && (
-                    <span className="text-[#8888a0]/50">
+                    <span className="text-[var(--wpi-muted)]/50">
                       {" "}(showing {safetyFilter})
                     </span>
                   )}
                 </span>
-                <div className="h-2 w-32 rounded-full bg-[#2a2a3e] overflow-hidden">
+                <div className="h-2 w-32 rounded-full bg-[var(--wpi-border)] overflow-hidden">
                   {/* Segmented progress bar */}
                   <div className="flex h-full">
                     <motion.div

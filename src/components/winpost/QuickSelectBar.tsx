@@ -93,16 +93,16 @@ export function QuickSelectBar() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border border-[#2a2a3e] bg-[#12121a] p-3"
+        className="rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-deep)] p-3"
       >
         <div className="flex items-center gap-2 flex-wrap">
           {/* Label */}
           <div className="flex items-center gap-1.5 shrink-0 mr-1">
-            <Zap className="h-3.5 w-3.5 text-[#00d4ff]" />
-            <span className="text-xs font-semibold text-[#e0e0e0]">Quick Select</span>
+            <Zap className="h-3.5 w-3.5 text-[var(--wpi-accent)]" />
+            <span className="text-xs font-semibold text-[var(--wpi-text)]">Quick Select</span>
           </div>
 
-          <div className="h-5 w-px bg-[#2a2a3e] shrink-0" />
+          <div className="h-5 w-px bg-[var(--wpi-border)] shrink-0" />
 
           {/* All Safe button */}
           <TooltipProvider delayDuration={200}>
@@ -117,7 +117,7 @@ export function QuickSelectBar() {
                       ? "bg-[#22c55e]/15 border-[#22c55e]/40 text-[#22c55e] hover:bg-[#22c55e]/20 hover:border-[#22c55e]/50"
                       : someSafeEnabled
                         ? "bg-[#22c55e]/8 border-[#22c55e]/20 text-[#22c55e]/80 hover:bg-[#22c55e]/15"
-                        : "bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:border-[#22c55e]/30 hover:text-[#22c55e]"
+                        : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:border-[#22c55e]/30 hover:text-[#22c55e]"
                   }`}
                 >
                   <Shield className="h-3 w-3" />
@@ -127,7 +127,7 @@ export function QuickSelectBar() {
                   </Badge>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+              <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
                 Enable only Safe settings across all categories ({totalCounts.Safe} settings)
               </TooltipContent>
             </Tooltip>
@@ -146,7 +146,7 @@ export function QuickSelectBar() {
                       ? "bg-[#eab308]/15 border-[#eab308]/40 text-[#eab308] hover:bg-[#eab308]/20 hover:border-[#eab308]/50"
                       : someSafeModEnabled
                         ? "bg-[#eab308]/8 border-[#eab308]/20 text-[#eab308]/80 hover:bg-[#eab308]/15"
-                        : "bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:border-[#eab308]/30 hover:text-[#eab308]"
+                        : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:border-[#eab308]/30 hover:text-[#eab308]"
                   }`}
                 >
                   <ShieldAlert className="h-3 w-3" />
@@ -156,7 +156,7 @@ export function QuickSelectBar() {
                   </Badge>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+              <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
                 Enable Safe and Moderate settings across all categories ({totalCounts.Safe + totalCounts.Moderate} settings)
               </TooltipContent>
             </Tooltip>
@@ -173,7 +173,7 @@ export function QuickSelectBar() {
                   className={`h-7 gap-1.5 text-[10px] transition-all ${
                     allEnabled
                       ? "bg-[#ef4444]/15 border-[#ef4444]/40 text-[#ef4444] hover:bg-[#ef4444]/20 hover:border-[#ef4444]/50"
-                      : "bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:border-[#ef4444]/30 hover:text-[#ef4444]"
+                      : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:border-[#ef4444]/30 hover:text-[#ef4444]"
                   }`}
                 >
                   <ShieldX className="h-3 w-3" />
@@ -183,13 +183,13 @@ export function QuickSelectBar() {
                   </Badge>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+              <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
                 Enable ALL settings including Risky ones ({totalSettings} settings). Confirmation required.
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
 
-          <div className="h-5 w-px bg-[#2a2a3e] shrink-0" />
+          <div className="h-5 w-px bg-[var(--wpi-border)] shrink-0" />
 
           {/* Deselect All */}
           <TooltipProvider delayDuration={200}>
@@ -200,13 +200,13 @@ export function QuickSelectBar() {
                   size="sm"
                   onClick={handleDeselectAll}
                   disabled={totalEnabled === 0}
-                  className="h-7 gap-1.5 text-[10px] bg-[#12121a] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e] hover:border-[#ef4444]/30 hover:text-[#ef4444] disabled:opacity-30"
+                  className="h-7 gap-1.5 text-[10px] bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:border-[#ef4444]/30 hover:text-[#ef4444] disabled:opacity-30"
                 >
                   <XCircle className="h-3 w-3" />
                   <span>None</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-[#1a1a2e] border-[#2a2a3e] text-[#e0e0e0] text-xs">
+              <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
                 Disable all settings across all categories
               </TooltipContent>
             </Tooltip>
@@ -216,25 +216,25 @@ export function QuickSelectBar() {
           <div className="ml-auto flex items-center gap-2 shrink-0">
             <div className="flex items-center gap-1">
               <div className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
-              <span className="text-[10px] text-[#8888a0] tabular-nums">{enabledCounts.Safe}/{totalCounts.Safe}</span>
+              <span className="text-[10px] text-[var(--wpi-muted)] tabular-nums">{enabledCounts.Safe}/{totalCounts.Safe}</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="h-1.5 w-1.5 rounded-full bg-[#eab308]" />
-              <span className="text-[10px] text-[#8888a0] tabular-nums">{enabledCounts.Moderate}/{totalCounts.Moderate}</span>
+              <span className="text-[10px] text-[var(--wpi-muted)] tabular-nums">{enabledCounts.Moderate}/{totalCounts.Moderate}</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" />
-              <span className="text-[10px] text-[#8888a0] tabular-nums">{enabledCounts.Risky}/{totalCounts.Risky}</span>
+              <span className="text-[10px] text-[var(--wpi-muted)] tabular-nums">{enabledCounts.Risky}/{totalCounts.Risky}</span>
             </div>
-            <div className="h-4 w-px bg-[#2a2a3e]" />
-            <span className="text-[10px] font-semibold text-[#00d4ff] tabular-nums">
+            <div className="h-4 w-px bg-[var(--wpi-border)]" />
+            <span className="text-[10px] font-semibold text-[var(--wpi-accent)] tabular-nums">
               {totalEnabled}/{totalSettings}
             </span>
           </div>
         </div>
 
         {/* Safety breakdown progress bar */}
-        <div className="mt-2 flex h-1.5 rounded-full overflow-hidden bg-[#2a2a3e]">
+        <div className="mt-2 flex h-1.5 rounded-full overflow-hidden bg-[var(--wpi-border)]">
           {totalSettings > 0 && (
             <>
               <motion.div
@@ -259,13 +259,13 @@ export function QuickSelectBar() {
 
       {/* Confirmation dialog for risky actions */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="bg-[#12121a] border-[#2a2a3e] text-[#e0e0e0]">
+        <DialogContent className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-[#ef4444]">
               <ShieldX className="h-5 w-5" />
               Confirm Risky Action
             </DialogTitle>
-            <DialogDescription className="text-[#8888a0]">
+            <DialogDescription className="text-[var(--wpi-muted)]">
               You are about to <strong className="text-[#ef4444]">{pendingAction?.label}</strong>.
               This includes <strong>{totalCounts.Risky} Risky settings</strong> that could cause
               significant issues and may be difficult to reverse. Are you sure?
@@ -278,7 +278,7 @@ export function QuickSelectBar() {
                 setConfirmOpen(false);
                 setPendingAction(null);
               }}
-              className="bg-[#1a1a2e] border-[#2a2a3e] text-[#8888a0] hover:bg-[#1a1a2e]"
+              className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)]"
             >
               Cancel
             </Button>

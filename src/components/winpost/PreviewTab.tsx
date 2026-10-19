@@ -46,13 +46,13 @@ export function PreviewTab() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-base font-semibold text-[#e0e0e0]">Preview Changes</h2>
-          <p className="text-xs text-[#8888a0]">
+          <h2 className="text-base font-semibold text-[var(--wpi-text)]">Preview Changes</h2>
+          <p className="text-xs text-[var(--wpi-muted)]">
             Review all changes before applying
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/20 text-xs">
+          <Badge className="bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)] border-[var(--wpi-accent)]/20 text-xs">
             {totalEnabled} changes
           </Badge>
           <Button
@@ -70,7 +70,7 @@ export function PreviewTab() {
               URL.revokeObjectURL(url);
             }}
             disabled={totalEnabled === 0}
-            className="h-8 gap-1.5 bg-[#00d4ff] hover:bg-[#00d4ff]/90 text-[#0a0a0f] font-semibold text-xs shadow-[0_0_20px_rgba(0,212,255,0.15)]"
+            className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)] font-semibold text-xs shadow-[0_0_20px_rgba(0,212,255,0.15)]"
           >
             <Download className="h-3.5 w-3.5" />
             Confirm & Apply
@@ -83,20 +83,20 @@ export function PreviewTab() {
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-lg border border-[#2a2a3e] bg-[#12121a] p-3"
+          className="flex items-center gap-3 rounded-lg border border-[var(--wpi-border)] bg-[var(--wpi-deep)] p-3"
         >
           <Checkbox
             id="restore-point"
             checked={createRestorePoint}
             onCheckedChange={(checked) => setCreateRestorePoint(checked === true)}
-            className="border-[#00d4ff]/30 data-[state=checked]:bg-[#00d4ff] data-[state=checked]:border-[#00d4ff]"
+            className="border-[var(--wpi-accent)]/30 data-[state=checked]:bg-[var(--wpi-accent)] data-[state=checked]:border-[var(--wpi-accent)]"
           />
           <div className="flex-1">
-            <label htmlFor="restore-point" className="text-xs font-medium text-[#e0e0e0] cursor-pointer flex items-center gap-1.5">
-              <RotateCcw className="h-3.5 w-3.5 text-[#00d4ff]" />
+            <label htmlFor="restore-point" className="text-xs font-medium text-[var(--wpi-text)] cursor-pointer flex items-center gap-1.5">
+              <RotateCcw className="h-3.5 w-3.5 text-[var(--wpi-accent)]" />
               Create System Restore Point before applying
             </label>
-            <p className="text-[10px] text-[#8888a0] mt-0.5">
+            <p className="text-[10px] text-[var(--wpi-muted)] mt-0.5">
               Recommended. Creates a restore point so you can roll back if anything goes wrong.
             </p>
           </div>
@@ -191,11 +191,11 @@ export function PreviewTab() {
           animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center py-16 text-center"
         >
-          <div className="h-16 w-16 rounded-2xl bg-[#12121a] border border-[#2a2a3e] flex items-center justify-center mb-4">
-            <CheckCircle2 className="h-8 w-8 text-[#8888a0]/50" />
+          <div className="h-16 w-16 rounded-2xl bg-[var(--wpi-deep)] border border-[var(--wpi-border)] flex items-center justify-center mb-4">
+            <CheckCircle2 className="h-8 w-8 text-[var(--wpi-muted)]/50" />
           </div>
-          <p className="text-sm text-[#8888a0] mb-1">No changes selected</p>
-          <p className="text-xs text-[#8888a0]/50">Toggle settings to see them here</p>
+          <p className="text-sm text-[var(--wpi-muted)] mb-1">No changes selected</p>
+          <p className="text-xs text-[var(--wpi-muted)]/50">Toggle settings to see them here</p>
         </motion.div>
       ) : (
         <ScrollArea className="max-h-[calc(100vh-400px)]">
@@ -206,13 +206,13 @@ export function PreviewTab() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="rounded-xl border border-[#2a2a3e] bg-[#1a1a2e] overflow-hidden"
+                className="rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-card)] overflow-hidden"
               >
                 {/* Section header */}
-                <div className="flex items-center justify-between p-3 border-b border-[#2a2a3e] bg-[#12121a]">
+                <div className="flex items-center justify-between p-3 border-b border-[var(--wpi-border)] bg-[var(--wpi-deep)]">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[#e0e0e0]">{section.name}</span>
-                    <Badge variant="outline" className="h-4 px-1 text-[9px] bg-[#00d4ff]/5 border-[#00d4ff]/20 text-[#00d4ff]">
+                    <span className="text-sm font-semibold text-[var(--wpi-text)]">{section.name}</span>
+                    <Badge variant="outline" className="h-4 px-1 text-[9px] bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/20 text-[var(--wpi-accent)]">
                       {enabledSettings.length}
                     </Badge>
                   </div>
@@ -236,7 +236,7 @@ export function PreviewTab() {
                 </div>
 
                 {/* Settings list */}
-                <div className="divide-y divide-[#2a2a3e]/50">
+                <div className="divide-y divide-[var(--wpi-border)]/50">
                   {enabledSettings.map((setting) => (
                     <div
                       key={setting.id}
@@ -246,7 +246,7 @@ export function PreviewTab() {
                         setting.safety === "Safe" ? "text-[#22c55e]" :
                         setting.safety === "Moderate" ? "text-[#eab308]" : "text-[#ef4444]"
                       }`} />
-                      <span className="text-xs text-[#e0e0e0] flex-1">{setting.name}</span>
+                      <span className="text-xs text-[var(--wpi-text)] flex-1">{setting.name}</span>
                       <SafetyBadge safety={setting.safety} compact />
                     </div>
                   ))}
@@ -259,18 +259,18 @@ export function PreviewTab() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border border-[#2a2a3e] bg-[#1a1a2e] overflow-hidden"
+                className="rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-card)] overflow-hidden"
               >
-                <div className="flex items-center justify-between p-3 border-b border-[#2a2a3e] bg-[#12121a]">
+                <div className="flex items-center justify-between p-3 border-b border-[var(--wpi-border)] bg-[var(--wpi-deep)]">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[#e0e0e0]">Software to Install</span>
-                    <Badge variant="outline" className="h-4 px-1 text-[9px] bg-[#00d4ff]/5 border-[#00d4ff]/20 text-[#00d4ff]">
+                    <span className="text-sm font-semibold text-[var(--wpi-text)]">Software to Install</span>
+                    <Badge variant="outline" className="h-4 px-1 text-[9px] bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/20 text-[var(--wpi-accent)]">
                       {selectedSoftware.length}
                     </Badge>
                   </div>
                 </div>
                 <div className="p-3">
-                  <p className="text-xs text-[#8888a0]">
+                  <p className="text-xs text-[var(--wpi-muted)]">
                     {selectedSoftware.length} applications will be installed via Winget
                   </p>
                 </div>

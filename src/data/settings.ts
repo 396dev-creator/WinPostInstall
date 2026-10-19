@@ -680,4 +680,79 @@ export const builtinProfiles: Profile[] = [
     },
     software: ["sw_10", "sw_11", "sw_12", "sw_13", "sw_14", "sw_15", "sw_16", "sw_5", "sw_6", "sw_7", "sw_2", "sw_25"],
   },
+  {
+    id: "privacysecurity",
+    name: "Privacy & Security Only",
+    description: "Tighten privacy and security while keeping all default Windows apps intact. No debloat or app removal — ideal for clients who want a hardened system without changing the out-of-box experience.",
+    isBuiltin: true,
+    settings: {
+      // Privacy — all Safe + Moderate (skip Risky Error Reporting to keep crash diagnostics)
+      Priv_1: true, Priv_2: true, Priv_3: true, Priv_4: true, Priv_5: true, Priv_6: true,
+      Priv_8: true, Priv_9: true, Priv_10: true, Priv_11: true,
+      // NO debloat — keep all pre-installed apps
+      // Explorer — minimal safe changes
+      Exp_1: true, Exp_3: true,
+      // Services — only security-relevant
+      Svc_5: true, Svc_8: true, Svc_9: true,
+      // Performance — only safe
+      Perf_5: true, Perf_8: true,
+      // Security — all Safe + DNS over HTTPS
+      Sec_2: true, Sec_3: true, Sec_4: true, Sec_6: true, Sec_7: true, Sec_8: true,
+      // Network — privacy-focused
+      Net_2: true, Net_4: true, Net_7: true, Net_8: true, Net_9: true,
+      // Windows Update — sane defaults
+      WU_1: true, WU_2: true, WU_3: true,
+      // Edge — privacy only (don't remove or disable Edge)
+      Edge_1: true, Edge_2: true, Edge_3: true, Edge_6: true, Edge_7: true, Edge_9: true,
+      // Browser hardening — Safe items
+      BH_4: true, BH_5: true, BH_6: true, BH_7: true,
+      // OneDrive — privacy only (don't uninstall)
+      OD_2: true, OD_5: true,
+      // Office — privacy only
+      Off_1: true, Off_2: true, Off_5: true, Off_8: true,
+      // Scheduled tasks — Safe privacy-relevant
+      ST_1: true, ST_2: true, ST_3: true, ST_7: true, ST_9: true,
+      // Final touches — safe system improvements
+      FT_1: true, FT_6: true, FT_7: true,
+    },
+    software: ["sw_29"], // Bitwarden for password security
+  },
+  {
+    id: "appsetup",
+    name: "App Setup",
+    description: "Keep the out-of-box Windows experience almost unchanged. Just install alternative browsers, essential utilities (zip, search), configure Windows Defender, and set up browser plugins. Perfect for clients who only need software and Defender configuration.",
+    isBuiltin: true,
+    settings: {
+      // Minimal system changes — only the safest, non-disruptive ones
+      Exp_1: true, // Show file extensions (essential for tech users)
+      // Security — Defender-focused
+      Sec_2: true, // Disable AutoRun/AutoPlay
+      Sec_6: true, // Ensure Firewall is on
+      // Windows Update — just active hours
+      WU_2: true, // Set active hours
+      // OneDrive — just stop startup nag (keep OneDrive functional)
+      OD_5: true, // Disable OneDrive ad notifications
+      // Edge — minimal privacy (keep Edge fully functional)
+      Edge_7: true, // Strict tracking prevention
+      // Final touches
+      FT_6: true, // Create restore point
+    },
+    software: [
+      // Alternative browsers
+      "sw_1", // Google Chrome
+      "sw_2", // Mozilla Firefox
+      "sw_3", // Brave Browser
+      // Essential utilities
+      "sw_5", // 7-Zip
+      "sw_6", // Everything Search
+      "sw_7", // PowerToys
+      // Security tools
+      "sw_29", // Bitwarden password manager
+      "sw_28", // VeraCrypt disk encryption
+      // Media
+      "sw_17", // VLC Media Player
+      // Communication
+      "sw_25", // Discord
+    ],
+  },
 ];
