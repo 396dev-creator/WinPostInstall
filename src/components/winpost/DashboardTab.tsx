@@ -19,6 +19,7 @@ import { sections, type Section } from "@/data/settings";
 import { useAppStore } from "@/store/useAppStore";
 import { SafetyBadge } from "./SafetyBadge";
 import { QuickSelectBar } from "./QuickSelectBar";
+import { clientScenarios } from "@/data/settings";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Shield, Trash2, FolderOpen, Settings, Zap, Lock,
@@ -39,7 +40,9 @@ interface DashboardTabProps {
 }
 
 export function DashboardTab({ onSectionClick }: DashboardTabProps) {
-  const { settings, searchQuery, toggleSectionAll, getEnabledCount, getTotalCount, getSectionSafetyCounts, getSectionEnabledSafetyCounts } = useAppStore();
+  const { settings, searchQuery, toggleSectionAll, getEnabledCount, getTotalCount, getSectionSafetyCounts, getSectionEnabledSafetyCounts, activeScenarioId, setScenarioPickerOpen } = useAppStore();
+
+  const activeScenario = activeScenarioId ? clientScenarios.find(s => s.id === activeScenarioId) : null;
 
   const filteredSections = sections.filter((section) => {
     if (!searchQuery) return true;
@@ -56,6 +59,34 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
     <div className="space-y-4">
       {/* Quick Select Bar */}
       <QuickSelectBar />
+
+      {/* Active Scenario Banner */}
+      {activeScenario && (
+        <motion.div
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition-all hover:shadow-sm"
+          style={{
+            borderColor: `${activeScenario.color}40`,
+            backgroundColor: `${activeScenario.color}08`,
+          }}
+          onClick={() => setScenarioPickerOpen(true)}
+        >
+          <Sparkles className="h-4 w-4 shrink-0" style={{ color: activeScenario.color }} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold" style={{ color: activeScenario.color }}>
+                {activeScenario.name}
+              </span>
+              <Badge variant="secondary" className="h-4 px-1 text-[9px]" style={{ backgroundColor: `${activeScenario.color}15`, color: activeScenario.color, border: 0 }}>
+                Active
+              </Badge>
+            </div>
+            <p className="text-[10px] text-[var(--wpi-muted)]">{activeScenario.subtitle}</p>
+          </div>
+          <span className="text-[10px] text-[var(--wpi-muted)] hover:text-[var(--wpi-text)] shrink-0">Change scenario →</span>
+        </motion.div>
+      )}
 
       {/* Section Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-1">

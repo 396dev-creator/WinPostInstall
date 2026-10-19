@@ -16,9 +16,10 @@ import { UndoCenterTab } from "@/components/winpost/UndoCenterTab";
 import { PreviewTab } from "@/components/winpost/PreviewTab";
 import { RegistryScanTab } from "@/components/winpost/RegistryScanTab";
 import { ISOBuilderTab } from "@/components/winpost/ISOBuilderTab";
+import { ScenarioPicker } from "@/components/winpost/ScenarioPicker";
 
 export default function WinPostInstallPage() {
-  const { setActiveSectionId, applyChanges, hydrate, hydrated, toggleBySafety, toggleAllSettings } = useAppStore();
+  const { setActiveSectionId, applyChanges, hydrate, hydrated, toggleBySafety, toggleAllSettings, setScenarioPickerOpen } = useAppStore();
   const [activeTab, setActiveTab] = useState("dashboard");
 
   useEffect(() => {
@@ -71,6 +72,10 @@ export default function WinPostInstallPage() {
       // Ctrl+P → Preview
       e.preventDefault();
       setActiveTab("preview");
+    } else if (ctrlOrMeta && e.key === "s") {
+      // Ctrl+S → Scenario Picker
+      e.preventDefault();
+      setScenarioPickerOpen(true);
     } else if (e.key === "1" && ctrlOrMeta) {
       e.preventDefault();
       setActiveTab("dashboard");
@@ -93,7 +98,7 @@ export default function WinPostInstallPage() {
       e.preventDefault();
       setActiveTab("iso");
     }
-  }, [toggleBySafety, toggleAllSettings]);
+  }, [toggleBySafety, toggleAllSettings, setScenarioPickerOpen]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -215,6 +220,10 @@ export default function WinPostInstallPage() {
               <kbd className="px-1 py-0.5 rounded bg-[var(--wpi-deep)] border border-[var(--wpi-border)] text-[8px]">Ctrl+D</kbd>
               <span>None</span>
             </div>
+            <div className="flex items-center gap-1.5 text-[9px] text-[var(--wpi-muted)]/40">
+              <kbd className="px-1 py-0.5 rounded bg-[var(--wpi-deep)] border border-[var(--wpi-border)] text-[8px]">Ctrl+S</kbd>
+              <span>Scenario</span>
+            </div>
             <div className="h-3 w-px bg-[var(--wpi-border)]/50" />
             <p className="text-[10px] text-[var(--wpi-muted)]/50">
               Compatible with WinPostInstall.ps1
@@ -225,6 +234,9 @@ export default function WinPostInstallPage() {
 
       {/* Section Detail Panel (overlay) */}
       <SectionDetailPanel />
+
+      {/* Scenario Picker (overlay) */}
+      <ScenarioPicker />
     </div>
   );
 }

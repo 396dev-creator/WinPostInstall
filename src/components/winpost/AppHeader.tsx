@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe } from "lucide-react";
+import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +24,7 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
-  const { searchQuery, setSearchQuery, profiles, activeProfileId, loadProfile } = useAppStore();
+  const { searchQuery, setSearchQuery, profiles, activeProfileId, loadProfile, activeScenarioId, setScenarioPickerOpen } = useAppStore();
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
 
@@ -61,6 +61,26 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
               className="pl-9 h-9 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)] focus-visible:ring-[var(--wpi-accent)]/30 focus-visible:border-[var(--wpi-accent)]/50 text-sm"
             />
           </div>
+
+          {/* Scenario Picker Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setScenarioPickerOpen(true)}
+            className={`h-9 gap-1.5 text-xs ${
+              activeScenarioId
+                ? "bg-[var(--wpi-accent)]/10 border-[var(--wpi-accent)]/30 text-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/15 hover:border-[var(--wpi-accent)]/40"
+                : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:text-[var(--wpi-accent)] hover:border-[var(--wpi-accent)]/30"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Scenario</span>
+            {activeScenarioId && (
+              <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-[var(--wpi-accent)]/15 text-[var(--wpi-accent)] border-0">
+                Active
+              </Badge>
+            )}
+          </Button>
 
           {/* Profile selector */}
           <DropdownMenu>

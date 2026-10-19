@@ -201,3 +201,24 @@ Stage Summary:
 - New "Privacy & Security Only" profile for clients who want hardened privacy without removing apps
 - New "App Setup" profile for clients who just need software installed with minimal system changes
 - All 7 built-in profiles now available: Gaming, Office, Minimal, Max Privacy, Developer, Privacy & Security Only, App Setup
+---
+Task ID: 1
+Agent: main
+Task: Implement Client Scenario/Persona system and verify all improvements
+
+Work Log:
+- Added ClientScenario interface and clientScenarios data to settings.ts
+- Two scenarios defined: "Privacy & Security Hardening" (privacysecurity profile) and "App Setup & Defender Config" (appsetup profile)
+- Added activeScenarioId, scenarioPickerOpen, applyScenario, setScenarioPickerOpen to Zustand store
+- Created ScenarioPicker.tsx component with guided 2-step workflow (choose → confirm)
+- Added Scenario button to AppHeader with active state indicator
+- Added active scenario banner to DashboardTab
+- Added Ctrl+S keyboard shortcut for scenario picker
+- Added scenario info to generated config JSON
+- Build verified clean (Next.js 16.1.3 Turbopack)
+- Packaged project as WinPostInstall-GUI-v4.1.0.zip for download
+
+Stage Summary:
+- Client scenario system fully implemented and integrated
+- All 7 existing improvements verified (theme toggle, deps/conflicts, batch undo, restore point, config diff, i18n, registry scanner)
+- Project builds clean, packaged at 226KB zip

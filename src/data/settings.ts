@@ -34,6 +34,83 @@ export interface SoftwareApp {
   desc: string;
 }
 
+/** Client scenario — a guided use-case that maps to a profile */
+export interface ClientScenario {
+  id: string;
+  name: string;
+  subtitle: string;
+  description: string;
+  /** Lucide icon name */
+  icon: string;
+  /** Color accent for the scenario card */
+  color: string;
+  /** What this scenario does (bullet points) */
+  highlights: string[];
+  /** What this scenario does NOT do (bullet points) */
+  excludes: string[];
+  /** The builtin profile ID to load when selected */
+  profileId: string;
+  /** Whether this scenario is recommended for first-time users */
+  recommended?: boolean;
+}
+
+export const clientScenarios: ClientScenario[] = [
+  {
+    id: "privacy-security",
+    name: "Privacy & Security Hardening",
+    subtitle: "Harden the system, keep stock apps",
+    description:
+      "For clients who want to tighten privacy and security of Windows but are fine with all or most of the out-of-box apps. This scenario disables telemetry, hardens network and browser settings, and locks down security — without removing any pre-installed applications.",
+    icon: "ShieldCheck",
+    color: "#22c55e",
+    highlights: [
+      "Disable all Windows telemetry and tracking",
+      "Harden security: DNS-over-HTTPS, disable SMBv1, enable firewall, disable LLMNR/WPAD",
+      "Configure Edge and browser privacy (tracking prevention, disable suggestions)",
+      "Lock down OneDrive privacy without removing it",
+      "Disable Office telemetry and connected experiences",
+      "Harden scheduled tasks (disable CEIP, compatibility assistant, app launch telemetry)",
+      "Safe system improvements: file extensions, 24h clock, long paths, restore point",
+    ],
+    excludes: [
+      "No bloatware removal — keeps all pre-installed apps",
+      "No aggressive service disabling",
+      "No OneDrive uninstall",
+      "No risky settings (Error Reporting stays on for diagnostics)",
+      "No performance overclocking or risky tweaks",
+    ],
+    profileId: "privacysecurity",
+    recommended: true,
+  },
+  {
+    id: "app-setup",
+    name: "App Setup & Defender Config",
+    subtitle: "Keep stock system, install apps",
+    description:
+      "For clients who are fine with the out-of-box Windows experience and just need installation of alternative browsers, zip software, essential utilities, plus Windows Defender configuration and browser plugin setup. Minimal system changes — just software.",
+    icon: "Package",
+    color: "#3b82f6",
+    highlights: [
+      "Install alternative browsers: Chrome, Firefox, Brave",
+      "Install essential utilities: 7-Zip, Everything Search, PowerToys",
+      "Install security tools: Bitwarden, VeraCrypt",
+      "Install media and communication apps: VLC, Discord",
+      "Configure Windows Defender and firewall (ensure active)",
+      "Set Edge strict tracking prevention",
+      "Show file extensions (essential for tech-savvy users)",
+    ],
+    excludes: [
+      "No privacy hardening beyond basic Edge tracking prevention",
+      "No bloatware removal",
+      "No telemetry disabling",
+      "No service disabling",
+      "No browser hardening beyond tracking prevention",
+      "No OneDrive changes (except ad notification suppression)",
+    ],
+    profileId: "appsetup",
+  },
+];
+
 export const sections: Section[] = [
   {
     id: "Privacy",

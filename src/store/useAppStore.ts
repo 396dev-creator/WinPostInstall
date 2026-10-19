@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { sections, builtinProfiles, type Profile } from "@/data/settings";
+import { sections, builtinProfiles, clientScenarios, type Profile, type ClientScenario } from "@/data/settings";
 
 interface UndoEntry {
   id: string;
@@ -26,12 +26,16 @@ interface AppState {
   // Profiles
   profiles: Profile[];
   activeProfileId: string | null;
+  // Active scenario
+  activeScenarioId: string | null;
   // Search
   searchQuery: string;
   // Undo log
   undoLog: UndoEntry[];
   // Section detail panel
   activeSectionId: string | null;
+  // Scenario picker visibility
+  scenarioPickerOpen: boolean;
 
   // Actions
   hydrate: () => void;
@@ -49,6 +53,8 @@ interface AppState {
   exportProfile: (profileId: string) => string;
   importProfile: (json: string) => boolean;
   applyChanges: () => void;
+  applyScenario: (scenarioId: string) => void;
+  setScenarioPickerOpen: (open: boolean) => void;
   undoChange: (undoId: string) => void;
   undoAll: () => void;
   undoBySafety: (safetyLevels: Array<"Safe" | "Moderate" | "Risky">) => void;
@@ -101,9 +107,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedSoftware: [],
   profiles: [...builtinProfiles],
   activeProfileId: null,
+  activeScenarioId: null,
   searchQuery: "",
   undoLog: [],
   activeSectionId: null,
+  scenarioPickerOpen: false,
 
   hydrate: () => {
     if (get().hydrated) return;
@@ -224,6 +232,32 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSearchQuery: (query: string) => set({ searchQuery: query }),
   setActiveSectionId: (sectionId: string | null) => set({ activeSectionId: sectionId }),
+  setScenarioPickerOpen: (open: boolean) => set({ scenarioPickerOpen: open }),
+
+  applyScenario: (scenarioId: string) => {
+    const scenario = clientScenarios.find((s) => s.id === scenarioId);
+    if (!scenario) return;
+
+    // Load the associated profile
+    const profile = builtinProfiles.find((p) => p.id === scenario.profileId);
+    if (!profile) return;
+
+    const newSettings = getDefaultSettings();
+    Object.entries(profile.settings).forEach(([key, value]) => {
+      if (key in newSettings) {
+        newSettings[key] = value;
+      }
+    });
+    saveToStorage(SETTINGS_KEY, newSettings);
+    saveToStorage(SOFTWARE_KEY, profile.software);
+    set({
+      settings: newSettings,
+      selectedSoftware: [...profile.software],
+      activeProfileId: scenario.profileId,
+      activeScenarioId: scenarioId,
+      scenarioPickerOpen: false,
+    });
+  },
 
   loadProfile: (profileId: string) => {
     const state = get();
@@ -436,6 +470,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       sections: configSections,
       software: enabledSoftware,
       activeProfile: state.activeProfileId,
+      activeScenario: state.activeScenarioId,
     };
   },
 }));
