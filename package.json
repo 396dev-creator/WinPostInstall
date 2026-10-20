@@ -12,7 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:build": "BUILD_MODE=tauri next build && tauri build",
     "tauri:preview": "tauri dev --no-watch"
   },
   "dependencies": {

@@ -348,13 +348,55 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   applyChanges: () => {
     const config = get().generateConfig();
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "WinPostInstall-Config.json";
-    a.click();
-    URL.revokeObjectURL(url);
+    const configJson = JSON.stringify(config, null, 2);
+
+    // In Tauri desktop mode: save config next to the exe, ready for PS1 script
+    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      // Dynamic import to avoid bundling Tauri API in web mode
+      import("@tauri-apps/api/core").then(({ invoke }) => {
+        invoke("save_config", { configJson, filename: "WinPostInstall-Config.json" })
+          .then((path) => {
+            console.log(`Config saved to: ${path}`);
+            // Also trigger browser download as backup
+            const blob = new Blob([configJson], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "WinPostInstall-Config.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          })
+          .catch((err) => {
+            console.error("Tauri save failed, falling back to download:", err);
+            // Fallback to download
+            const blob = new Blob([configJson], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "WinPostInstall-Config.json";
+            a.click();
+            URL.revokeObjectURL(url);
+          });
+      }).catch(() => {
+        // Tauri API not available, fall back to download
+        const blob = new Blob([configJson], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "WinPostInstall-Config.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    } else {
+      // Web/browser mode: download config JSON
+      const blob = new Blob([configJson], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "WinPostInstall-Config.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   },
 
   undoChange: (undoId: string) => {
