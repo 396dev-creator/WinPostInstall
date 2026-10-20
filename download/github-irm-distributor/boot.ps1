@@ -1,13 +1,13 @@
 # ============================================================================
 #  boot.ps1 — Bootstrap script for irm | iex distribution
-#  Host this at: https://raw.githubusercontent.com/<USER>/<REPO>/main/boot.ps1
-#  Users run:    irm https://raw.githubusercontent.com/<USER>/<REPO>/main/boot.ps1 | iex
+#  Host this at: https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1
+#  Users run:    irm https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1 | iex
 # ============================================================================
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 # Replace these with your actual GitHub repo details
-$RepoOwner = "YOUR_GITHUB_USERNAME"
-$RepoName  = "YOUR_REPO_NAME"
+$RepoOwner = "396dev-creator"
+$RepoName  = "WinPostInstall"
 $ExeName   = "WinPostInstall.exe"          # The binary name in your release
 
 # ── Helper: Write colored output ──────────────────────────────────────────────

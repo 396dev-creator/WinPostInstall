@@ -3,8 +3,8 @@
 #  For users who prefer a lean, fast loader
 # ============================================================================
 
-$RepoOwner = "YOUR_GITHUB_USERNAME"
-$RepoName  = "YOUR_REPO_NAME"
+$RepoOwner = "396dev-creator"
+$RepoName  = "WinPostInstall"
 $ExeName   = "WinPostInstall.exe"
 
 # Get latest release info

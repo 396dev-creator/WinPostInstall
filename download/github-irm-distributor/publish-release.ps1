@@ -10,8 +10,8 @@ param(
 )
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-$RepoOwner = "YOUR_GITHUB_USERNAME"
-$RepoName  = "YOUR_REPO_NAME"
+$RepoOwner = "396dev-creator"
+$RepoName  = "WinPostInstall"
 $ExeName   = "WinPostInstall.exe"
 
 # ── Validate ───────────────────────────────────────────────────────────────────
