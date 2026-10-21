@@ -296,7 +296,7 @@ export function SectionDetailPanel() {
 
             {/* Settings list */}
             <ScrollArea className="flex-1 overflow-hidden">
-              <div className="p-4 space-y-2">
+              <div className="p-3 space-y-1.5">
                 {filteredSettings.map((setting, index) => {
                   const isEnabled = settings[setting.id] ?? false;
                   const conflicts = isEnabled ? checkSettingConflicts(setting.id, settings) : [];
@@ -308,9 +308,9 @@ export function SectionDetailPanel() {
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.02 }}
-                      className={`group flex items-start gap-3 rounded-lg p-3 transition-colors ${
+                      className={`group flex items-center gap-3 rounded-lg p-3 transition-colors cursor-pointer min-h-[44px] ${
                         hasConflicts
-                          ? "bg-[#ef4444]/5 border border-[#ef4444]/20"
+                          ? "bg-[var(--wpi-risky)]/5 border border-[var(--wpi-risky)]/20"
                           : isEnabled
                             ? "bg-[var(--wpi-accent)]/5 border border-[var(--wpi-accent)]/10"
                             : "bg-[var(--wpi-deep)] border border-[var(--wpi-border)] hover:border-[var(--wpi-border)]/80"
@@ -318,7 +318,7 @@ export function SectionDetailPanel() {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
-                          <span className={`text-sm font-medium ${hasConflicts ? "text-[#ef4444]" : isEnabled ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
+                          <span className={`text-sm font-medium ${hasConflicts ? "text-[var(--wpi-risky)]" : isEnabled ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
                             {setting.name}
                           </span>
                           <SafetyBadge safety={setting.safety} compact />
@@ -326,8 +326,8 @@ export function SectionDetailPanel() {
                             <TooltipProvider delayDuration={200}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <div className="h-3 w-3 rounded-full bg-[#eab308]/20 border border-[#eab308]/30 flex items-center justify-center cursor-help">
-                                    <span className="text-[7px] text-[#eab308]">!</span>
+                                  <div className="h-4 w-4 rounded-full bg-[var(--wpi-moderate)]/20 border border-[var(--wpi-moderate)]/30 flex items-center justify-center cursor-help">
+                                    <span className="text-[10px] text-[var(--wpi-moderate)] font-bold">!</span>
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs max-w-xs">
@@ -340,7 +340,7 @@ export function SectionDetailPanel() {
                         {hasConflicts && (
                           <div className="mb-1 flex flex-wrap gap-1">
                             {conflicts.map((c, ci) => (
-                              <Badge key={ci} variant="outline" className="h-4 text-[9px] bg-[#ef4444]/10 border-[#ef4444]/30 text-[#ef4444]">
+                              <Badge key={ci} variant="outline" className="h-5 text-[10px] bg-[var(--wpi-risky)]/10 border-[var(--wpi-risky)]/30 text-[var(--wpi-risky)]">
                                 {c.type === "conflict" ? "Conflicts" : "Requires"}: {c.settingName}
                               </Badge>
                             ))}
@@ -349,7 +349,7 @@ export function SectionDetailPanel() {
                         <TooltipProvider delayDuration={200}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <p className={`text-[11px] line-clamp-1 cursor-help ${hasConflicts ? "text-[#ef4444]/70" : "text-[var(--wpi-muted)]/70"}`}>
+                              <p className={`text-xs line-clamp-1 cursor-help ${hasConflicts ? "text-[var(--wpi-risky)]/70" : "text-[var(--wpi-muted)]"}`}>
                                 {hasConflicts ? conflicts[0].message : setting.desc}
                               </p>
                             </TooltipTrigger>
@@ -367,7 +367,7 @@ export function SectionDetailPanel() {
                       <Switch
                         checked={isEnabled}
                         onCheckedChange={() => toggleSetting(setting.id)}
-                        className="data-[state=checked]:bg-[var(--wpi-accent)] data-[state=unchecked]:bg-[var(--wpi-border)] shrink-0"
+                        className="data-[state=checked]:bg-[var(--wpi-accent)] data-[state=unchecked]:bg-[var(--wpi-border)] shrink-0 scale-110"
                       />
                     </motion.div>
                   );

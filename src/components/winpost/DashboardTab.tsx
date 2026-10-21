@@ -8,13 +8,6 @@ import {
   Globe, Cloud, Gamepad2, CalendarClock, ShieldCheck,
   Sparkles, Puzzle,
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { sections, type Section } from "@/data/settings";
 import { useAppStore } from "@/store/useAppStore";
 import { SafetyBadge } from "./SafetyBadge";
@@ -78,18 +71,18 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
               <span className="text-xs font-semibold" style={{ color: activeScenario.color }}>
                 {activeScenario.name}
               </span>
-              <Badge variant="secondary" className="h-4 px-1 text-[9px]" style={{ backgroundColor: `${activeScenario.color}15`, color: activeScenario.color, border: 0 }}>
+              <span className="text-xs px-1.5 py-0.5 rounded-md font-medium" style={{ backgroundColor: `${activeScenario.color}15`, color: activeScenario.color }}>
                 Active
-              </Badge>
+              </span>
             </div>
-            <p className="text-[10px] text-[var(--wpi-muted)]">{activeScenario.subtitle}</p>
+            <p className="text-xs text-[var(--wpi-muted)] mt-0.5">{activeScenario.subtitle}</p>
           </div>
-          <span className="text-[10px] text-[var(--wpi-muted)] hover:text-[var(--wpi-text)] shrink-0">Change scenario →</span>
+          <span className="text-xs text-[var(--wpi-muted)] hover:text-[var(--wpi-text)] shrink-0">Change →</span>
         </motion.div>
       )}
 
-      {/* Section Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-1">
+      {/* Section Cards Grid — Simplified Apple/Google style */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-1">
         {filteredSections.map((section, index) => {
           const Icon = iconMap[section.icon] || Settings;
           const enabled = getEnabledCount(section.id);
@@ -98,7 +91,7 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
           const safety = getSectionSafety(section);
           const isFiltered = !!searchQuery;
 
-          // Safety breakdown for this section
+          // Safety breakdown for the progress bar
           const sCounts = getSectionSafetyCounts(section.id);
           const eCounts = getSectionEnabledSafetyCounts(section.id);
 
@@ -111,6 +104,8 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
               )
             : section.settings;
 
+          const percentage = total > 0 ? Math.round((enabled / total) * 100) : 0;
+
           return (
             <motion.div
               key={section.id}
@@ -118,123 +113,83 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03, duration: 0.3 }}
               onClick={() => onSectionClick(section.id)}
-              className="group relative cursor-pointer rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-card)] p-4 transition-all duration-200 hover:border-[var(--wpi-accent)]/30 hover:bg-[var(--wpi-card)]/80 hover:shadow-[0_0_30px_rgba(0,212,255,0.05)]"
+              className="group relative cursor-pointer rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-card)] transition-all duration-200 hover:border-[var(--wpi-accent)]/30 hover:shadow-[var(--wpi-accent-glow-lg)]"
             >
-              {/* Glow effect on hover */}
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-[var(--wpi-accent)]/5 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-
-              <div className="relative flex items-start gap-3">
-                {/* Icon */}
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${allEnabled ? "bg-[var(--wpi-accent)]/15 border border-[var(--wpi-accent)]/30" : "bg-[var(--wpi-deep)] border border-[var(--wpi-border)]"} transition-colors`}>
-                  <Icon className={`h-5 w-5 ${allEnabled ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-sm font-semibold text-[var(--wpi-text)] truncate">
-                      {section.name}
-                    </h3>
-                    <SafetyBadge safety={safety} compact />
+              <div className="p-4">
+                <div className="flex items-start gap-3">
+                  {/* Icon */}
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${allEnabled ? "bg-[var(--wpi-accent)]/15 border border-[var(--wpi-accent)]/30" : "bg-[var(--wpi-deep)] border border-[var(--wpi-border)]"}`}>
+                    <Icon className={`h-5 w-5 ${allEnabled ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
                   </div>
 
-                  <p className="text-xs text-[var(--wpi-muted)] mb-2 line-clamp-1">
-                    {section.description}
-                  </p>
-
-                  {/* Segmented progress bar with safety colors */}
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 rounded-full bg-[var(--wpi-deep)] overflow-hidden">
-                      <div className="flex h-full">
-                        <motion.div
-                          className="bg-[#22c55e]"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${total > 0 ? (eCounts.Safe / total) * 100 : 0}%` }}
-                          transition={{ duration: 0.5 }}
-                        />
-                        <motion.div
-                          className="bg-[#eab308]"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${total > 0 ? (eCounts.Moderate / total) * 100 : 0}%` }}
-                          transition={{ duration: 0.5 }}
-                        />
-                        <motion.div
-                          className="bg-[#ef4444]"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${total > 0 ? (eCounts.Risky / total) * 100 : 0}%` }}
-                          transition={{ duration: 0.5 }}
-                        />
-                      </div>
+                  <div className="flex-1 min-w-0">
+                    {/* Title row */}
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-sm font-semibold text-[var(--wpi-text)] truncate">
+                        {section.name}
+                      </h3>
+                      <SafetyBadge safety={safety} compact />
                     </div>
-                    <span className="text-[10px] text-[var(--wpi-muted)] tabular-nums">
-                      {enabled}/{total}
-                    </span>
-                  </div>
 
-                  {/* Safety breakdown labels */}
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    {sCounts.Safe > 0 && (
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-0.5 cursor-default">
-                              <div className="h-1.5 w-1.5 rounded-full bg-[#22c55e]" />
-                              <span className="text-[9px] text-[var(--wpi-muted)] tabular-nums">{eCounts.Safe}/{sCounts.Safe}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
-                            {eCounts.Safe} of {sCounts.Safe} Safe settings enabled
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {sCounts.Moderate > 0 && (
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-0.5 cursor-default">
-                              <div className="h-1.5 w-1.5 rounded-full bg-[#eab308]" />
-                              <span className="text-[9px] text-[var(--wpi-muted)] tabular-nums">{eCounts.Moderate}/{sCounts.Moderate}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
-                            {eCounts.Moderate} of {sCounts.Moderate} Moderate settings enabled
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {sCounts.Risky > 0 && (
-                      <TooltipProvider delayDuration={200}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <div className="flex items-center gap-0.5 cursor-default">
-                              <div className="h-1.5 w-1.5 rounded-full bg-[#ef4444]" />
-                              <span className="text-[9px] text-[var(--wpi-muted)] tabular-nums">{eCounts.Risky}/{sCounts.Risky}</span>
-                            </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-xs">
-                            {eCounts.Risky} of {sCounts.Risky} Risky settings enabled
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
-
-                  {/* Search match count */}
-                  {isFiltered && matchingSettings.length < total && (
-                    <p className="text-[10px] text-[var(--wpi-accent)] mt-1">
-                      {matchingSettings.length} matching
+                    {/* Description */}
+                    <p className="text-xs text-[var(--wpi-muted)] line-clamp-1">
+                      {section.description}
                     </p>
-                  )}
+                  </div>
+
+                  {/* Toggle — larger touch target */}
+                  <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      role="switch"
+                      aria-checked={allEnabled}
+                      onClick={(e) => { e.stopPropagation(); toggleSectionAll(section.id, !allEnabled); }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wpi-accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wpi-card)] ${allEnabled ? "bg-[var(--wpi-accent)]" : "bg-[var(--wpi-border)]"}`}
+                    >
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${allEnabled ? "translate-x-5" : "translate-x-0"}`} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom progress bar — clean, minimal */}
+              <div className="border-t border-[var(--wpi-border)]/50 px-4 py-2.5">
+                <div className="flex items-center gap-3">
+                  {/* Segmented progress bar */}
+                  <div className="flex-1 h-2 rounded-full bg-[var(--wpi-deep)] overflow-hidden">
+                    <div className="flex h-full">
+                      <motion.div
+                        className="bg-[var(--wpi-safe)]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${total > 0 ? (eCounts.Safe / total) * 100 : 0}%` }}
+                        transition={{ duration: 0.5 }}
+                      />
+                      <motion.div
+                        className="bg-[var(--wpi-moderate)]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${total > 0 ? (eCounts.Moderate / total) * 100 : 0}%` }}
+                        transition={{ duration: 0.5 }}
+                      />
+                      <motion.div
+                        className="bg-[var(--wpi-risky)]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${total > 0 ? (eCounts.Risky / total) * 100 : 0}%` }}
+                        transition={{ duration: 0.5 }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Count — clean, readable */}
+                  <span className="text-xs font-medium text-[var(--wpi-muted)] tabular-nums whitespace-nowrap">
+                    {enabled}/{total}
+                  </span>
                 </div>
 
-                {/* Toggle all switch */}
-                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                  <Switch
-                    checked={allEnabled}
-                    onCheckedChange={(checked) => toggleSectionAll(section.id, checked)}
-                    className="data-[state=checked]:bg-[var(--wpi-accent)] data-[state=unchecked]:bg-[var(--wpi-border)]"
-                  />
-                </div>
+                {/* Search match indicator */}
+                {isFiltered && matchingSettings.length < total && (
+                  <p className="text-xs text-[var(--wpi-accent)] mt-1">
+                    {matchingSettings.length} matching
+                  </p>
+                )}
               </div>
             </motion.div>
           );

@@ -173,6 +173,17 @@
 
   /* Backdrop */
   --wpi-backdrop: rgba(0, 0, 0, 0.6);
+
+  /* Safety semantic colors */
+  --wpi-safe: #22c55e;
+  --wpi-safe-bg: rgba(34, 197, 94, 0.08);
+  --wpi-safe-border: rgba(34, 197, 94, 0.20);
+  --wpi-moderate: #eab308;
+  --wpi-moderate-bg: rgba(234, 179, 8, 0.08);
+  --wpi-moderate-border: rgba(234, 179, 8, 0.20);
+  --wpi-risky: #ef4444;
+  --wpi-risky-bg: rgba(239, 68, 68, 0.08);
+  --wpi-risky-border: rgba(239, 68, 68, 0.20);
 }
 
 /* Light Theme — Clean Professional */
@@ -197,6 +208,17 @@
 
   /* Backdrop */
   --wpi-backdrop: rgba(0, 0, 0, 0.3);
+
+  /* Safety semantic colors (darker for light bg contrast) */
+  --wpi-safe: #16a34a;
+  --wpi-safe-bg: rgba(22, 163, 74, 0.08);
+  --wpi-safe-border: rgba(22, 163, 74, 0.20);
+  --wpi-moderate: #ca8a04;
+  --wpi-moderate-bg: rgba(202, 138, 4, 0.08);
+  --wpi-moderate-border: rgba(202, 138, 4, 0.20);
+  --wpi-risky: #dc2626;
+  --wpi-risky-bg: rgba(220, 38, 38, 0.08);
+  --wpi-risky-border: rgba(220, 38, 38, 0.20);
 }
 
 /* Default to dark if no attribute set */
@@ -215,4 +237,15 @@
   --wpi-scrollbar-thumb: rgba(255, 255, 255, 0.1);
   --wpi-scrollbar-hover: rgba(255, 255, 255, 0.2);
   --wpi-backdrop: rgba(0, 0, 0, 0.6);
+
+  /* Safety semantic colors (defaults, same as dark) */
+  --wpi-safe: #22c55e;
+  --wpi-safe-bg: rgba(34, 197, 94, 0.08);
+  --wpi-safe-border: rgba(34, 197, 94, 0.20);
+  --wpi-moderate: #eab308;
+  --wpi-moderate-bg: rgba(234, 179, 8, 0.08);
+  --wpi-moderate-border: rgba(234, 179, 8, 0.20);
+  --wpi-risky: #ef4444;
+  --wpi-risky-bg: rgba(239, 68, 68, 0.08);
+  --wpi-risky-border: rgba(239, 68, 68, 0.20);
 }
