@@ -5,10 +5,9 @@
 # ============================================================================
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-# Replace these with your actual GitHub repo details
 $RepoOwner = "396dev-creator"
 $RepoName  = "WinPostInstall"
-$ExeName   = "WinPostInstall.exe"          # The binary name in your release
+$ExeName   = "WinPostInstall.exe"
 
 # ── Helper: Write colored output ──────────────────────────────────────────────
 function Write-Status($msg)  { Write-Host "[*] $msg" -ForegroundColor Cyan }
@@ -42,33 +41,101 @@ $Version     = $Release.tag_name
 
 Write-OK "Found $ExeName v$Version ($FileSize MB)"
 
-# ── Step 3: Create a temporary directory ──────────────────────────────────────
-# Using a GUID-based name under $env:TEMP to avoid collisions
+# ── Step 3: Check & install WebView2 if missing ──────────────────────────────
+Write-Status "Checking WebView2 runtime ..."
+
+$WebView2Installed = $false
+
+# Method 1: Check registry (most reliable)
+$RegPaths = @(
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8C85-1E1E0F8A3F9E}",
+    "HKLM:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8C85-1E1E0F8A3F9E}",
+    "HKCU:\SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8C85-1E1E0F8A3F9E}"
+)
+
+foreach ($RegPath in $RegPaths) {
+    if (Test-Path $RegPath) {
+        $WebView2Installed = $true
+        break
+    }
+}
+
+# Method 2: Check if the DLL exists on disk
+if (-not $WebView2Installed) {
+    $DllPaths = @(
+        "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application\msedge.exe",
+        "$env:ProgramFiles\Microsoft\EdgeWebView\Application\msedge.exe",
+        "${env:ProgramFiles(x86)}\Microsoft\EdgeCore\msedge.exe"
+    )
+    foreach ($DllPath in $DllPaths) {
+        if (Test-Path $DllPath) {
+            $WebView2Installed = $true
+            break
+        }
+    }
+}
+
+# Method 3: Try to find via Get-Command
+if (-not $WebView2Installed) {
+    try {
+        $null = Get-Command "msedge" -ErrorAction Stop
+        $WebView2Installed = $true
+    } catch {}
+}
+
+if ($WebView2Installed) {
+    Write-OK "WebView2 runtime found"
+} else {
+    Write-Warn "WebView2 runtime not found — installing automatically ..."
+
+    try {
+        # Download the official Microsoft WebView2 Evergreen Bootstrapper (~2MB)
+        $WV2Installer = Join-Path $env:TEMP "MicrosoftEdgeWebview2Setup.exe"
+        Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile $WV2Installer -UseBasicParsing
+
+        # Run the installer silently (no UI, no reboot prompt)
+        $WV2Process = Start-Process -FilePath $WV2Installer -ArgumentList "/silent /install" -Wait -PassThru -ErrorAction Stop
+
+        if ($WV2Process.ExitCode -eq 0) {
+            Write-OK "WebView2 installed successfully"
+        } else {
+            Write-Warn "WebView2 installer exited with code $($WV2Process.ExitCode) — app may still work if Edge is present"
+        }
+
+        # Clean up the installer
+        Remove-Item -Path $WV2Installer -Force -ErrorAction SilentlyContinue
+
+    } catch {
+        Write-Warn "Could not auto-install WebView2: $($_.Exception.Message)"
+        Write-Warn "The app may fail to launch. Install it manually from:"
+        Write-Warn "  https://developer.microsoft.com/en-us/microsoft-edge/webview2/"
+
+        # Don't abort — let the app try to launch anyway. Tauri might show its own error.
+    }
+}
+
+# ── Step 4: Create a temporary directory ──────────────────────────────────────
 $TempDir = Join-Path $env:TEMP "WinPostInstall_$(New-Guid)"
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
 $TempExe = Join-Path $TempDir $ExeName
 
-# ── Step 4: Download the binary with progress ────────────────────────────────
+# ── Step 5: Download the binary with progress ────────────────────────────────
 Write-Status "Downloading to temporary location..."
 
 try {
-    # Use WebClient for progress bar support
     $WebClient = New-Object System.Net.WebClient
-    
-    # Register progress event
+
     $EventHandler = Register-ObjectEvent -InputObject $WebClient -EventName DownloadProgressChanged -SourceIdentifier WebClientProgress -Action {
         $Global:DownloadProgress = $EventArgs.ProgressPercentage
     }
-    
-    # Register completion event
+
     $CompleteHandler = Register-ObjectEvent -InputObject $WebClient -EventName DownloadFileCompleted -SourceIdentifier WebClientComplete -Action {
         $Global:DownloadComplete = $true
     }
-    
+
     $WebClient.DownloadFileAsync($DownloadUrl, $TempExe)
-    
-    # Show progress
+
     while (-not $Global:DownloadComplete) {
         if ($Global:DownloadProgress -ge 0) {
             Write-Progress -Activity "Downloading $ExeName" -Status "$Global:DownloadProgress%" -PercentComplete $Global:DownloadProgress
@@ -76,15 +143,13 @@ try {
         Start-Sleep -Milliseconds 200
     }
     Write-Progress -Activity "Downloading $ExeName" -Completed
-    
-    # Clean up event registrations
+
     Unregister-Event -SourceIdentifier WebClientProgress -ErrorAction SilentlyContinue
     Unregister-Event -SourceIdentifier WebClientComplete -ErrorAction SilentlyContinue
     $WebClient.Dispose()
-    
+
 } catch {
     Write-Err "Download failed: $($_.Exception.Message)"
-    # Cleanup on failure
     Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     return
 }
@@ -97,7 +162,7 @@ if (-not (Test-Path $TempExe)) {
 
 Write-OK "Download complete"
 
-# ── Step 5: Run the executable and WAIT for it to exit ───────────────────────
+# ── Step 6: Run the executable and WAIT for it to exit ───────────────────────
 Write-Status "Launching $ExeName ..."
 Write-Host ""
 
@@ -109,31 +174,17 @@ try {
     Write-Err "Failed to launch: $($_.Exception.Message)"
 }
 
-# ── Step 6: CLEANUP — Delete all traces ──────────────────────────────────────
+# ── Step 7: CLEANUP — Delete all traces ──────────────────────────────────────
 Write-Status "Cleaning up temporary files..."
 
-# Small delay to ensure file handles are released
 Start-Sleep -Milliseconds 500
 
 try {
-    # Remove the entire temp directory
     Remove-Item -Path $TempDir -Recurse -Force -ErrorAction Stop
     Write-OK "Temporary files deleted"
 } catch {
-    # If deletion fails (file still locked), schedule deletion on reboot
     Write-Warn "Some files still locked. Scheduling cleanup on next reboot..."
-    
-    # Mark files for deletion on reboot (requires admin, but won't error if not)
-    foreach ($Item in (Get-ChildItem -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue)) {
-        try {
-            # MoveFileEx with MOVEFILE_DELAY_UNTIL_REBOOT (4)
-            $null = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
-                (Get-Process -Id $PID).Modules[0].BaseAddress,
-                [type]([System.Delegate])
-            )
-        } catch {}
-    }
-    
+
     # Fallback: spawn a delayed deletion in background
     $CleanupScript = @"
 `$Attempts = 0
