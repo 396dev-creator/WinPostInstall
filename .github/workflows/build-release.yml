@@ -103,7 +103,7 @@ jobs:
 
           # Generate changelog from recent commits
           $commits = git log --oneline -10 --pretty=format:"- %s"
-          $notes = "What's new in $version:`n`n$commits"
+          $notes = "What's new in ${version}:`n`n$commits"
 
           # Create the release
           gh release create $version $exePath `
