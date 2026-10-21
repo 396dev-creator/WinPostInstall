@@ -58,7 +58,7 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition-all hover:shadow-sm"
+          className="flex items-center gap-3 rounded-xl border p-3.5 cursor-pointer transition-all duration-200 hover:shadow-sm"
           style={{
             borderColor: `${activeScenario.color}40`,
             backgroundColor: `${activeScenario.color}08`,
@@ -81,8 +81,8 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
         </motion.div>
       )}
 
-      {/* Section Cards Grid — Simplified Apple/Google style */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-1">
+      {/* Section Cards Grid — Apple HIG style: generous spacing, clear hierarchy */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 p-0.5">
         {filteredSections.map((section, index) => {
           const Icon = iconMap[section.icon] || Settings;
           const enabled = getEnabledCount(section.id);
@@ -109,77 +109,77 @@ export function DashboardTab({ onSectionClick }: DashboardTabProps) {
           return (
             <motion.div
               key={section.id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.03, duration: 0.3 }}
+              transition={{ delay: index * 0.04, duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
               onClick={() => onSectionClick(section.id)}
-              className="group relative cursor-pointer rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-card)] transition-all duration-200 hover:border-[var(--wpi-accent)]/30 hover:shadow-[var(--wpi-accent-glow-lg)]"
+              className="group relative cursor-pointer rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-card)] transition-all duration-200 hover:border-[var(--wpi-accent)]/25 hover:shadow-[var(--wpi-accent-glow-lg)]"
             >
-              <div className="p-4">
+              <div className="p-4 pb-3">
                 <div className="flex items-start gap-3">
-                  {/* Icon */}
-                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-colors ${allEnabled ? "bg-[var(--wpi-accent)]/15 border border-[var(--wpi-accent)]/30" : "bg-[var(--wpi-deep)] border border-[var(--wpi-border)]"}`}>
-                    <Icon className={`h-5 w-5 ${allEnabled ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
+                  {/* Icon — Apple-style with subtle gradient fill */}
+                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all duration-200 ${allEnabled ? "bg-[var(--wpi-safe-15)] border border-[var(--wpi-safe-30)]" : "bg-[var(--wpi-deep)] border border-[var(--wpi-border)]"}`}>
+                    <Icon className={`h-5 w-5 transition-colors duration-200 ${allEnabled ? "text-[var(--wpi-safe)]" : "text-[var(--wpi-muted)] group-hover:text-[var(--wpi-text-secondary)]"}`} />
                   </div>
 
                   <div className="flex-1 min-w-0">
                     {/* Title row */}
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-sm font-semibold text-[var(--wpi-text)] truncate">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <h3 className="text-sm font-semibold text-[var(--wpi-text)] truncate leading-tight">
                         {section.name}
                       </h3>
                       <SafetyBadge safety={safety} compact />
                     </div>
 
                     {/* Description */}
-                    <p className="text-xs text-[var(--wpi-muted)] line-clamp-1">
+                    <p className="text-xs text-[var(--wpi-muted)] line-clamp-1 leading-relaxed">
                       {section.description}
                     </p>
                   </div>
 
-                  {/* Toggle — larger touch target */}
+                  {/* Toggle — consistent with shadcn Switch style */}
                   <div className="shrink-0 pt-0.5" onClick={(e) => e.stopPropagation()}>
                     <button
                       role="switch"
                       aria-checked={allEnabled}
                       onClick={(e) => { e.stopPropagation(); toggleSectionAll(section.id, !allEnabled); }}
-                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wpi-accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wpi-card)] ${allEnabled ? "bg-[var(--wpi-accent)]" : "bg-[var(--wpi-border)]"}`}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-all duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--wpi-accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--wpi-card)] ${allEnabled ? "bg-[var(--wpi-accent)]" : "bg-[var(--wpi-border)]"}`}
                     >
-                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${allEnabled ? "translate-x-5" : "translate-x-0"}`} />
+                      <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm ring-0 transition-all duration-200 ease-[cubic-bezier(0.25,0.1,0.25,1)] ${allEnabled ? "translate-x-5" : "translate-x-0"}`} />
                     </button>
                   </div>
                 </div>
               </div>
 
-              {/* Bottom progress bar — clean, minimal */}
-              <div className="border-t border-[var(--wpi-border)]/50 px-4 py-2.5">
+              {/* Bottom progress bar — Apple-style clean minimal */}
+              <div className="border-t border-[var(--wpi-border-subtle)] px-4 py-2.5">
                 <div className="flex items-center gap-3">
                   {/* Segmented progress bar */}
-                  <div className="flex-1 h-2 rounded-full bg-[var(--wpi-deep)] overflow-hidden">
+                  <div className="flex-1 h-1.5 rounded-full bg-[var(--wpi-deep)] overflow-hidden">
                     <div className="flex h-full">
                       <motion.div
                         className="bg-[var(--wpi-safe)]"
                         initial={{ width: 0 }}
                         animate={{ width: `${total > 0 ? (eCounts.Safe / total) * 100 : 0}%` }}
-                        transition={{ duration: 0.5 }}
+                        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
                       />
                       <motion.div
                         className="bg-[var(--wpi-moderate)]"
                         initial={{ width: 0 }}
                         animate={{ width: `${total > 0 ? (eCounts.Moderate / total) * 100 : 0}%` }}
-                        transition={{ duration: 0.5 }}
+                        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
                       />
                       <motion.div
                         className="bg-[var(--wpi-risky)]"
                         initial={{ width: 0 }}
                         animate={{ width: `${total > 0 ? (eCounts.Risky / total) * 100 : 0}%` }}
-                        transition={{ duration: 0.5 }}
+                        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
                       />
                     </div>
                   </div>
 
-                  {/* Count — clean, readable */}
-                  <span className="text-xs font-medium text-[var(--wpi-muted)] tabular-nums whitespace-nowrap">
+                  {/* Count — clean, readable with accent color when active */}
+                  <span className={`text-xs font-medium tabular-nums whitespace-nowrap transition-colors duration-200 ${percentage > 0 ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`}>
                     {enabled}/{total}
                   </span>
                 </div>

@@ -325,20 +325,20 @@ Write-Host "Boot from this ISO to install Windows with WinPostInstall pre-config
           <div className="flex items-center gap-4 text-xs">
             {enabledCounts.Safe > 0 && (
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-[#22c55e]" />
-                <span className="text-[#22c55e]">{enabledCounts.Safe} Safe</span>
+                <div className="h-2 w-2 rounded-full bg-[var(--wpi-safe)]" />
+                <span className="text-[var(--wpi-safe)]">{enabledCounts.Safe} Safe</span>
               </div>
             )}
             {enabledCounts.Moderate > 0 && (
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-[#eab308]" />
-                <span className="text-[#eab308]">{enabledCounts.Moderate} Moderate</span>
+                <div className="h-2 w-2 rounded-full bg-[var(--wpi-moderate)]" />
+                <span className="text-[var(--wpi-moderate)]">{enabledCounts.Moderate} Moderate</span>
               </div>
             )}
             {enabledCounts.Risky > 0 && (
               <div className="flex items-center gap-1.5">
-                <div className="h-2 w-2 rounded-full bg-[#ef4444]" />
-                <span className="text-[#ef4444]">{enabledCounts.Risky} Risky</span>
+                <div className="h-2 w-2 rounded-full bg-[var(--wpi-risky)]" />
+                <span className="text-[var(--wpi-risky)]">{enabledCounts.Risky} Risky</span>
               </div>
             )}
             <div className="h-3 w-px bg-[var(--wpi-border)]" />

@@ -46,7 +46,7 @@ export function SoftwareInstallTab() {
         </Badge>
       </div>
 
-      {/* Search + Category filters */}
+      {/* Search + Category filters — Apple-style chip filters */}
       <div className="flex gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[180px] max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--wpi-muted)]" />
@@ -54,13 +54,13 @@ export function SoftwareInstallTab() {
             placeholder="Search software..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-9 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)] focus-visible:ring-[var(--wpi-accent)]/30 focus-visible:border-[var(--wpi-accent)]/50 text-sm"
+            className="pl-9 h-8 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)] focus-visible:ring-[var(--wpi-accent)]/30 focus-visible:border-[var(--wpi-accent)]/40 text-sm"
           />
         </div>
         <div className="flex gap-1.5 flex-wrap">
           <button
             onClick={() => setActiveCategory(null)}
-            className={`h-9 px-3 rounded-lg text-xs font-medium transition-colors ${
+            className={`h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 ${
               activeCategory === null
                 ? "bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)] border border-[var(--wpi-accent)]/20"
                 : "bg-[var(--wpi-deep)] text-[var(--wpi-muted)] border border-[var(--wpi-border)] hover:bg-[var(--wpi-card)]"
@@ -72,7 +72,7 @@ export function SoftwareInstallTab() {
             <button
               key={cat}
               onClick={() => setActiveCategory(activeCategory === cat ? null : cat)}
-              className={`h-9 px-3 rounded-lg text-xs font-medium transition-colors ${
+              className={`h-8 px-3 rounded-lg text-xs font-medium transition-all duration-200 ${
                 activeCategory === cat
                   ? "bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)] border border-[var(--wpi-accent)]/20"
                   : "bg-[var(--wpi-deep)] text-[var(--wpi-muted)] border border-[var(--wpi-border)] hover:bg-[var(--wpi-card)]"
@@ -84,22 +84,22 @@ export function SoftwareInstallTab() {
         </div>
       </div>
 
-      {/* App grid */}
+      {/* App grid — Apple-style list rows */}
       <ScrollArea className="max-h-[calc(100vh-320px)]">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-0.5">
           {filteredApps.map((app, index) => {
             const isSelected = selectedSoftware.includes(app.id);
             return (
               <motion.div
                 key={app.id}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.02 }}
+                transition={{ delay: index * 0.02, duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
                 onClick={() => toggleSoftware(app.id)}
-                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${
+                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-200 border ${
                   isSelected
-                    ? "bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/20"
-                    : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] hover:border-[var(--wpi-border)]/80 hover:bg-[var(--wpi-card)]/50"
+                    ? "bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/15"
+                    : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] hover:border-[var(--wpi-border-subtle)] hover:bg-[var(--wpi-card)]/50"
                 }`}
               >
                 <Checkbox
@@ -109,7 +109,7 @@ export function SoftwareInstallTab() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-medium ${isSelected ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
+                    <span className={`text-sm font-medium transition-colors duration-200 ${isSelected ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
                       {app.name}
                     </span>
                     <Badge variant="outline" className="h-4 px-1 text-[9px] bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)]">

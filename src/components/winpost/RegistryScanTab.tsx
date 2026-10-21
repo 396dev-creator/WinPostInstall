@@ -174,13 +174,13 @@ Write-Host "Found $($scanResults.Count) non-default settings."
         <>
           {/* Scan Summary */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-xl border border-[#22c55e]/20 bg-[#22c55e]/5 p-3 text-center">
-              <p className="text-lg font-bold text-[#22c55e]">{scanResults.length - changedCount - unknownCount}</p>
-              <p className="text-[10px] text-[#22c55e]/70">Default</p>
+            <div className="rounded-xl border border-[var(--wpi-safe-20)] bg-[var(--wpi-safe-5)] p-3 text-center">
+              <p className="text-lg font-bold text-[var(--wpi-safe)]">{scanResults.length - changedCount - unknownCount}</p>
+              <p className="text-[10px] text-[var(--wpi-safe)]/70">Default</p>
             </div>
-            <div className="rounded-xl border border-[#eab308]/20 bg-[#eab308]/5 p-3 text-center">
-              <p className="text-lg font-bold text-[#eab308]">{changedCount}</p>
-              <p className="text-[10px] text-[#eab308]/70">Modified</p>
+            <div className="rounded-xl border border-[var(--wpi-moderate-20)] bg-[var(--wpi-moderate-5)] p-3 text-center">
+              <p className="text-lg font-bold text-[var(--wpi-moderate)]">{changedCount}</p>
+              <p className="text-[10px] text-[var(--wpi-moderate)]/70">Modified</p>
             </div>
             <div className="rounded-xl border border-[var(--wpi-muted)]/20 bg-[var(--wpi-muted)]/5 p-3 text-center">
               <p className="text-lg font-bold text-[var(--wpi-muted)]">{unknownCount}</p>
@@ -193,7 +193,7 @@ Write-Host "Found $($scanResults.Count) non-default settings."
               <Button
                 size="sm"
                 onClick={handleApplyDetected}
-                className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)] font-semibold text-xs"
+                className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs"
               >
                 <CheckCircle2 className="h-3.5 w-3.5" />
                 Apply {changedCount} Detected Changes
@@ -211,17 +211,17 @@ Write-Host "Found $($scanResults.Count) non-default settings."
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.02 }}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-[#eab308]/5 border border-[#eab308]/20"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-[var(--wpi-moderate-5)] border border-[var(--wpi-moderate-20)]"
                 >
-                  <AlertCircle className="h-4 w-4 text-[#eab308] shrink-0" />
+                  <AlertCircle className="h-4 w-4 text-[var(--wpi-moderate)] shrink-0" />
                   <div className="flex-1 min-w-0">
                     <span className="text-sm text-[var(--wpi-text)]">{result.settingName}</span>
                     <span className="text-[10px] text-[var(--wpi-muted)] ml-2">({result.sectionName})</span>
                   </div>
                   <Badge variant="outline" className={`h-4 px-1 text-[9px] shrink-0 ${
-                    result.safety === "Safe" ? "bg-[#22c55e]/5 border-[#22c55e]/20 text-[#22c55e]"
-                      : result.safety === "Moderate" ? "bg-[#eab308]/5 border-[#eab308]/20 text-[#eab308]"
-                      : "bg-[#ef4444]/5 border-[#ef4444]/20 text-[#ef4444]"
+                    result.safety === "Safe" ? "bg-[var(--wpi-safe-5)] border-[var(--wpi-safe-20)] text-[var(--wpi-safe)]"
+                      : result.safety === "Moderate" ? "bg-[var(--wpi-moderate-5)] border-[var(--wpi-moderate-20)] text-[var(--wpi-moderate)]"
+                      : "bg-[var(--wpi-risky-5)] border-[var(--wpi-risky-20)] text-[var(--wpi-risky)]"
                   }`}>
                     {result.safety}
                   </Badge>

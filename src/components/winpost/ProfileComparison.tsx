@@ -50,7 +50,7 @@ export function ProfileComparison({ profileA, profileB }: ProfileComparisonProps
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-[var(--wpi-muted)]">
         <div className="flex items-center gap-1.5">
-          <div className="h-2 w-2 rounded-full bg-[#22c55e]" />
+          <div className="h-2 w-2 rounded-full bg-[var(--wpi-safe)]" />
           <span>Only in {profileA.name} ({onlyA})</span>
         </div>
         <div className="flex items-center gap-1.5">
@@ -72,7 +72,7 @@ export function ProfileComparison({ profileA, profileB }: ProfileComparisonProps
                   <div key={setting.id} className="flex items-center gap-3 px-3 py-2">
                     <span className="text-xs text-[var(--wpi-text)] flex-1">{setting.name}</span>
                     <div className="flex items-center gap-2 shrink-0">
-                      <div className={`flex items-center gap-1 ${inA ? "text-[#22c55e]" : "text-[var(--wpi-muted)]/30"}`}>
+                      <div className={`flex items-center gap-1 ${inA ? "text-[var(--wpi-safe)]" : "text-[var(--wpi-muted)]/30"}`}>
                         {inA ? <CheckCircle2 className="h-3 w-3" /> : <XCircle className="h-3 w-3" />}
                         <span className="text-[9px] w-12 text-right">{profileA.name.slice(0, 8)}</span>
                       </div>
@@ -97,7 +97,7 @@ export function ProfileComparison({ profileA, profileB }: ProfileComparisonProps
               <div className="p-3 space-y-2 text-xs">
                 {softwareOnlyA.length > 0 && (
                   <div>
-                    <span className="text-[#22c55e] font-medium">Only in {profileA.name}:</span>
+                    <span className="text-[var(--wpi-safe)] font-medium">Only in {profileA.name}:</span>
                     <span className="text-[var(--wpi-muted)] ml-2">{softwareOnlyA.join(", ")}</span>
                   </div>
                 )}

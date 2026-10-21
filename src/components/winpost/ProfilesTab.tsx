@@ -171,7 +171,7 @@ export function ProfilesTab() {
                   className="w-full h-32 rounded-lg bg-[var(--wpi-card)] border border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)] p-3 text-xs font-mono resize-none focus:outline-none focus:ring-1 focus:ring-[var(--wpi-accent)]/30"
                 />
                 {importError && (
-                  <p className="text-xs text-[#ef4444]">Invalid JSON format</p>
+                  <p className="text-xs text-[var(--wpi-risky)]">Invalid JSON format</p>
                 )}
               </div>
               <DialogFooter>
@@ -291,7 +291,7 @@ export function ProfilesTab() {
                       size="sm"
                       variant="outline"
                       onClick={() => deleteProfile(profile.id)}
-                      className="h-7 gap-1 text-[10px] bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[#ef4444]/10 hover:text-[#ef4444] hover:border-[#ef4444]/30"
+                      className="h-7 gap-1 text-[10px] bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-risky-10)] hover:text-[var(--wpi-risky)] hover:border-[var(--wpi-risky-30)]"
                     >
                       <Trash2 className="h-3 w-3" />
                       Delete

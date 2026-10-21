@@ -69,12 +69,12 @@ export function ScenarioPicker() {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          transition={{ type: "spring", damping: 28, stiffness: 280 }}
           onClick={(e) => e.stopPropagation()}
-          className="absolute inset-4 sm:inset-8 md:inset-16 lg:inset-24 rounded-2xl border border-[var(--wpi-border)] bg-[var(--wpi-bg)] overflow-hidden flex flex-col shadow-2xl"
+          className="absolute inset-4 sm:inset-8 md:inset-16 lg:inset-24 rounded-2xl border border-[var(--wpi-border)] bg-[var(--wpi-bg)] overflow-hidden flex flex-col shadow-2xl backdrop-blur-xl"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--wpi-border)] bg-[var(--wpi-deep)]">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--wpi-border)] bg-[var(--wpi-bg-deep)]">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--wpi-accent)]/10 border border-[var(--wpi-accent)]/20">
                 <Sparkles className="h-5 w-5 text-[var(--wpi-accent)]" />

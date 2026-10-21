@@ -147,78 +147,132 @@
 
 /* ===================================================================
    WinPostInstall Theme Variables
-   These control the app's visual appearance and are toggled by
-   the ThemeProvider via data-theme="dark" | "light" on <html>
+   Apple HIG + Material Design 3 inspired design tokens
+   Toggled by ThemeProvider via data-theme="dark" | "light" on <html>
    =================================================================== */
 
-/* Dark Theme (default) — Dark Tech aesthetic */
+/* Dark Theme (default) — Refined Dark aesthetic */
 [data-theme="dark"] {
+  /* Surface elevation system (Apple HIG layered surfaces) */
   --wpi-bg: #0a0a0f;
   --wpi-bg-deep: #0d0d14;
   --wpi-deep: #12121a;
   --wpi-card: #1a1a2e;
+  --wpi-surface-elevated: #22223a;       /* Highest surface — popovers, dialogs */
   --wpi-border: #2a2a3e;
-  --wpi-accent: #00d4ff;
-  --wpi-text: #e0e0e0;
-  --wpi-muted: #8888a0;
+  --wpi-border-subtle: #1e1e30;          /* For inner dividers, subtle separators */
+
+  /* Accent — slightly softer cyan for reduced eye strain (Material color roles) */
+  --wpi-accent: #06b6d4;
+  --wpi-accent-foreground: #0a0a0f;      /* Text on accent background */
+  --wpi-text: #e4e4ec;
+  --wpi-text-secondary: #b0b0c0;         /* For descriptions, secondary info */
+  --wpi-muted: #6e6e88;
   --wpi-info: #0ea5e9;
 
-  /* Accent glow for shadows */
-  --wpi-accent-glow: 0 0 20px rgba(0, 212, 255, 0.15);
-  --wpi-accent-glow-lg: 0 0 30px rgba(0, 212, 255, 0.05);
+  /* Accent glow for shadows — softer */
+  --wpi-accent-glow: 0 0 16px rgba(6, 182, 212, 0.12);
+  --wpi-accent-glow-lg: 0 0 24px rgba(6, 182, 212, 0.06);
 
   /* Scrollbar */
-  --wpi-scrollbar-thumb: rgba(255, 255, 255, 0.1);
-  --wpi-scrollbar-hover: rgba(255, 255, 255, 0.2);
+  --wpi-scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --wpi-scrollbar-hover: rgba(255, 255, 255, 0.16);
 
-  /* Backdrop */
-  --wpi-backdrop: rgba(0, 0, 0, 0.6);
+  /* Backdrop — Apple-style frosted glass */
+  --wpi-backdrop: rgba(0, 0, 0, 0.5);
 
-  /* Safety semantic colors */
-  --wpi-safe: #22c55e;
-  --wpi-safe-bg: rgba(34, 197, 94, 0.08);
-  --wpi-safe-border: rgba(34, 197, 94, 0.20);
-  --wpi-moderate: #eab308;
-  --wpi-moderate-bg: rgba(234, 179, 8, 0.08);
-  --wpi-moderate-border: rgba(234, 179, 8, 0.20);
-  --wpi-risky: #ef4444;
-  --wpi-risky-bg: rgba(239, 68, 68, 0.08);
-  --wpi-risky-border: rgba(239, 68, 68, 0.20);
+  /* Safety semantic colors — Material-style tonal palette */
+  --wpi-safe: #4ade80;
+  --wpi-safe-5: rgba(74, 222, 128, 0.05);
+  --wpi-safe-10: rgba(74, 222, 128, 0.10);
+  --wpi-safe-15: rgba(74, 222, 128, 0.15);
+  --wpi-safe-20: rgba(74, 222, 128, 0.20);
+  --wpi-safe-30: rgba(74, 222, 128, 0.30);
+  --wpi-safe-40: rgba(74, 222, 128, 0.40);
+  --wpi-moderate: #facc15;
+  --wpi-moderate-5: rgba(250, 204, 21, 0.05);
+  --wpi-moderate-10: rgba(250, 204, 21, 0.10);
+  --wpi-moderate-15: rgba(250, 204, 21, 0.15);
+  --wpi-moderate-20: rgba(250, 204, 21, 0.20);
+  --wpi-moderate-30: rgba(250, 204, 21, 0.30);
+  --wpi-moderate-40: rgba(250, 204, 21, 0.40);
+  --wpi-risky: #f87171;
+  --wpi-risky-5: rgba(248, 113, 113, 0.05);
+  --wpi-risky-10: rgba(248, 113, 113, 0.10);
+  --wpi-risky-15: rgba(248, 113, 113, 0.15);
+  --wpi-risky-20: rgba(248, 113, 113, 0.20);
+  --wpi-risky-30: rgba(248, 113, 113, 0.30);
+  --wpi-risky-40: rgba(248, 113, 113, 0.40);
+
+  /* Legacy aliases for backward compat */
+  --wpi-safe-bg: rgba(74, 222, 128, 0.08);
+  --wpi-safe-border: rgba(74, 222, 128, 0.20);
+  --wpi-moderate-bg: rgba(250, 204, 21, 0.08);
+  --wpi-moderate-border: rgba(250, 204, 21, 0.20);
+  --wpi-risky-bg: rgba(248, 113, 113, 0.08);
+  --wpi-risky-border: rgba(248, 113, 113, 0.20);
 }
 
-/* Light Theme — Clean Professional */
+/* Light Theme — Apple HIG Clean */
 [data-theme="light"] {
-  --wpi-bg: #f0f2f5;
-  --wpi-bg-deep: #e8eaee;
-  --wpi-deep: #ebedf0;
+  /* Surface elevation system */
+  --wpi-bg: #f5f5f7;
+  --wpi-bg-deep: #eeeef0;
+  --wpi-deep: #e8e8eb;
   --wpi-card: #ffffff;
-  --wpi-border: #d5d8e0;
+  --wpi-surface-elevated: #ffffff;
+  --wpi-border: #d1d1d6;
+  --wpi-border-subtle: #e5e5ea;
+
+  /* Accent — Apple-style teal */
   --wpi-accent: #0891b2;
-  --wpi-text: #1e1e2d;
-  --wpi-muted: #6b7280;
+  --wpi-accent-foreground: #ffffff;
+  --wpi-text: #1d1d1f;
+  --wpi-text-secondary: #6e6e73;
+  --wpi-muted: #86868b;
   --wpi-info: #0284c7;
 
   /* Accent glow for shadows (subtle in light mode) */
-  --wpi-accent-glow: 0 0 12px rgba(8, 145, 178, 0.1);
-  --wpi-accent-glow-lg: 0 0 20px rgba(8, 145, 178, 0.04);
+  --wpi-accent-glow: 0 0 10px rgba(8, 145, 178, 0.08);
+  --wpi-accent-glow-lg: 0 0 16px rgba(8, 145, 178, 0.04);
 
   /* Scrollbar */
-  --wpi-scrollbar-thumb: rgba(0, 0, 0, 0.15);
-  --wpi-scrollbar-hover: rgba(0, 0, 0, 0.25);
+  --wpi-scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --wpi-scrollbar-hover: rgba(0, 0, 0, 0.22);
 
   /* Backdrop */
-  --wpi-backdrop: rgba(0, 0, 0, 0.3);
+  --wpi-backdrop: rgba(0, 0, 0, 0.25);
 
-  /* Safety semantic colors (darker for light bg contrast) */
-  --wpi-safe: #16a34a;
-  --wpi-safe-bg: rgba(22, 163, 74, 0.08);
-  --wpi-safe-border: rgba(22, 163, 74, 0.20);
-  --wpi-moderate: #ca8a04;
-  --wpi-moderate-bg: rgba(202, 138, 4, 0.08);
-  --wpi-moderate-border: rgba(202, 138, 4, 0.20);
-  --wpi-risky: #dc2626;
-  --wpi-risky-bg: rgba(220, 38, 38, 0.08);
-  --wpi-risky-border: rgba(220, 38, 38, 0.20);
+  /* Safety semantic colors — Apple HIG semantic colors */
+  --wpi-safe: #34c759;
+  --wpi-safe-5: rgba(52, 199, 89, 0.05);
+  --wpi-safe-10: rgba(52, 199, 89, 0.10);
+  --wpi-safe-15: rgba(52, 199, 89, 0.15);
+  --wpi-safe-20: rgba(52, 199, 89, 0.20);
+  --wpi-safe-30: rgba(52, 199, 89, 0.30);
+  --wpi-safe-40: rgba(52, 199, 89, 0.40);
+  --wpi-moderate: #ff9f0a;
+  --wpi-moderate-5: rgba(255, 159, 10, 0.05);
+  --wpi-moderate-10: rgba(255, 159, 10, 0.10);
+  --wpi-moderate-15: rgba(255, 159, 10, 0.15);
+  --wpi-moderate-20: rgba(255, 159, 10, 0.20);
+  --wpi-moderate-30: rgba(255, 159, 10, 0.30);
+  --wpi-moderate-40: rgba(255, 159, 10, 0.40);
+  --wpi-risky: #ff3b30;
+  --wpi-risky-5: rgba(255, 59, 48, 0.05);
+  --wpi-risky-10: rgba(255, 59, 48, 0.10);
+  --wpi-risky-15: rgba(255, 59, 48, 0.15);
+  --wpi-risky-20: rgba(255, 59, 48, 0.20);
+  --wpi-risky-30: rgba(255, 59, 48, 0.30);
+  --wpi-risky-40: rgba(255, 59, 48, 0.40);
+
+  /* Legacy aliases */
+  --wpi-safe-bg: rgba(52, 199, 89, 0.08);
+  --wpi-safe-border: rgba(52, 199, 89, 0.20);
+  --wpi-moderate-bg: rgba(255, 159, 10, 0.08);
+  --wpi-moderate-border: rgba(255, 159, 10, 0.20);
+  --wpi-risky-bg: rgba(255, 59, 48, 0.08);
+  --wpi-risky-border: rgba(255, 59, 48, 0.20);
 }
 
 /* Default to dark if no attribute set */
@@ -227,25 +281,47 @@
   --wpi-bg-deep: #0d0d14;
   --wpi-deep: #12121a;
   --wpi-card: #1a1a2e;
+  --wpi-surface-elevated: #22223a;
   --wpi-border: #2a2a3e;
-  --wpi-accent: #00d4ff;
-  --wpi-text: #e0e0e0;
-  --wpi-muted: #8888a0;
+  --wpi-border-subtle: #1e1e30;
+  --wpi-accent: #06b6d4;
+  --wpi-accent-foreground: #0a0a0f;
+  --wpi-text: #e4e4ec;
+  --wpi-text-secondary: #b0b0c0;
+  --wpi-muted: #6e6e88;
   --wpi-info: #0ea5e9;
-  --wpi-accent-glow: 0 0 20px rgba(0, 212, 255, 0.15);
-  --wpi-accent-glow-lg: 0 0 30px rgba(0, 212, 255, 0.05);
-  --wpi-scrollbar-thumb: rgba(255, 255, 255, 0.1);
-  --wpi-scrollbar-hover: rgba(255, 255, 255, 0.2);
-  --wpi-backdrop: rgba(0, 0, 0, 0.6);
+  --wpi-accent-glow: 0 0 16px rgba(6, 182, 212, 0.12);
+  --wpi-accent-glow-lg: 0 0 24px rgba(6, 182, 212, 0.06);
+  --wpi-scrollbar-thumb: rgba(255, 255, 255, 0.08);
+  --wpi-scrollbar-hover: rgba(255, 255, 255, 0.16);
+  --wpi-backdrop: rgba(0, 0, 0, 0.5);
 
-  /* Safety semantic colors (defaults, same as dark) */
-  --wpi-safe: #22c55e;
-  --wpi-safe-bg: rgba(34, 197, 94, 0.08);
-  --wpi-safe-border: rgba(34, 197, 94, 0.20);
-  --wpi-moderate: #eab308;
-  --wpi-moderate-bg: rgba(234, 179, 8, 0.08);
-  --wpi-moderate-border: rgba(234, 179, 8, 0.20);
-  --wpi-risky: #ef4444;
-  --wpi-risky-bg: rgba(239, 68, 68, 0.08);
-  --wpi-risky-border: rgba(239, 68, 68, 0.20);
+  --wpi-safe: #4ade80;
+  --wpi-safe-5: rgba(74, 222, 128, 0.05);
+  --wpi-safe-10: rgba(74, 222, 128, 0.10);
+  --wpi-safe-15: rgba(74, 222, 128, 0.15);
+  --wpi-safe-20: rgba(74, 222, 128, 0.20);
+  --wpi-safe-30: rgba(74, 222, 128, 0.30);
+  --wpi-safe-40: rgba(74, 222, 128, 0.40);
+  --wpi-moderate: #facc15;
+  --wpi-moderate-5: rgba(250, 204, 21, 0.05);
+  --wpi-moderate-10: rgba(250, 204, 21, 0.10);
+  --wpi-moderate-15: rgba(250, 204, 21, 0.15);
+  --wpi-moderate-20: rgba(250, 204, 21, 0.20);
+  --wpi-moderate-30: rgba(250, 204, 21, 0.30);
+  --wpi-moderate-40: rgba(250, 204, 21, 0.40);
+  --wpi-risky: #f87171;
+  --wpi-risky-5: rgba(248, 113, 113, 0.05);
+  --wpi-risky-10: rgba(248, 113, 113, 0.10);
+  --wpi-risky-15: rgba(248, 113, 113, 0.15);
+  --wpi-risky-20: rgba(248, 113, 113, 0.20);
+  --wpi-risky-30: rgba(248, 113, 113, 0.30);
+  --wpi-risky-40: rgba(248, 113, 113, 0.40);
+
+  --wpi-safe-bg: rgba(74, 222, 128, 0.08);
+  --wpi-safe-border: rgba(74, 222, 128, 0.20);
+  --wpi-moderate-bg: rgba(250, 204, 21, 0.08);
+  --wpi-moderate-border: rgba(250, 204, 21, 0.20);
+  --wpi-risky-bg: rgba(248, 113, 113, 0.08);
+  --wpi-risky-border: rgba(248, 113, 113, 0.20);
 }

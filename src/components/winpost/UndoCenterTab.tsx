@@ -34,6 +34,12 @@ export function UndoCenterTab() {
     return "Safe" as const;
   };
 
+  const safetyColorMap = {
+    Safe: { bg: "bg-[var(--wpi-safe-10)]", border: "border-[var(--wpi-safe-20)]", text: "text-[var(--wpi-safe)]", buttonBg: "bg-[var(--wpi-safe-5)]", buttonBorder: "border-[var(--wpi-safe-30)]" },
+    Moderate: { bg: "bg-[var(--wpi-moderate-10)]", border: "border-[var(--wpi-moderate-20)]", text: "text-[var(--wpi-moderate)]", buttonBg: "bg-[var(--wpi-moderate-5)]", buttonBorder: "border-[var(--wpi-moderate-30)]" },
+    Risky: { bg: "bg-[var(--wpi-risky-10)]", border: "border-[var(--wpi-risky-20)]", text: "text-[var(--wpi-risky)]", buttonBg: "bg-[var(--wpi-risky-5)]", buttonBorder: "border-[var(--wpi-risky-30)]" },
+  };
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -45,7 +51,7 @@ export function UndoCenterTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge className="bg-[#eab308]/10 text-[#eab308] border-[#eab308]/20 text-xs">
+          <Badge className="bg-[var(--wpi-moderate-10)] text-[var(--wpi-moderate)] border-[var(--wpi-moderate-20)] text-xs">
             {totalEnabled} enabled
           </Badge>
           {totalEnabled > 0 && (
@@ -53,7 +59,7 @@ export function UndoCenterTab() {
               size="sm"
               variant="outline"
               onClick={undoAll}
-              className="h-8 gap-1.5 bg-[#ef4444]/5 border-[#ef4444]/20 text-[#ef4444] hover:bg-[#ef4444]/10 hover:text-[#ef4444] text-xs"
+              className="h-8 gap-1.5 bg-[var(--wpi-risky-5)] border-[var(--wpi-risky-20)] text-[var(--wpi-risky)] hover:bg-[var(--wpi-risky-10)] hover:text-[var(--wpi-risky)] text-xs"
             >
               <Trash2 className="h-3.5 w-3.5" />
               Undo All
@@ -67,6 +73,7 @@ export function UndoCenterTab() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
           className="rounded-xl border border-[var(--wpi-border)] bg-[var(--wpi-deep)] p-4"
         >
           <h3 className="text-sm font-semibold text-[var(--wpi-text)] mb-3">Undo by Safety Level</h3>
@@ -76,7 +83,7 @@ export function UndoCenterTab() {
                 variant="outline"
                 size="sm"
                 onClick={() => undoBySafety(["Risky"])}
-                className="h-8 gap-1.5 text-xs bg-[#ef4444]/5 border-[#ef4444]/30 text-[#ef4444] hover:bg-[#ef4444]/10 hover:text-[#ef4444]"
+                className="h-8 gap-1.5 text-xs bg-[var(--wpi-risky-5)] border-[var(--wpi-risky-30)] text-[var(--wpi-risky)] hover:bg-[var(--wpi-risky-10)] hover:text-[var(--wpi-risky)]"
               >
                 <ShieldX className="h-3.5 w-3.5" />
                 Undo Risky ({enabledSafetyCounts.Risky})
@@ -87,7 +94,7 @@ export function UndoCenterTab() {
                 variant="outline"
                 size="sm"
                 onClick={() => undoBySafety(["Moderate"])}
-                className="h-8 gap-1.5 text-xs bg-[#eab308]/5 border-[#eab308]/30 text-[#eab308] hover:bg-[#eab308]/10 hover:text-[#eab308]"
+                className="h-8 gap-1.5 text-xs bg-[var(--wpi-moderate-5)] border-[var(--wpi-moderate-30)] text-[var(--wpi-moderate)] hover:bg-[var(--wpi-moderate-10)] hover:text-[var(--wpi-moderate)]"
               >
                 <ShieldAlert className="h-3.5 w-3.5" />
                 Undo Moderate ({enabledSafetyCounts.Moderate})
@@ -98,7 +105,7 @@ export function UndoCenterTab() {
                 variant="outline"
                 size="sm"
                 onClick={() => undoBySafety(["Safe"])}
-                className="h-8 gap-1.5 text-xs bg-[#22c55e]/5 border-[#22c55e]/30 text-[#22c55e] hover:bg-[#22c55e]/10 hover:text-[#22c55e]"
+                className="h-8 gap-1.5 text-xs bg-[var(--wpi-safe-5)] border-[var(--wpi-safe-30)] text-[var(--wpi-safe)] hover:bg-[var(--wpi-safe-10)] hover:text-[var(--wpi-safe)]"
               >
                 <Shield className="h-3.5 w-3.5" />
                 Undo Safe ({enabledSafetyCounts.Safe})
@@ -109,7 +116,7 @@ export function UndoCenterTab() {
                 variant="outline"
                 size="sm"
                 onClick={() => undoBySafety(["Moderate", "Risky"])}
-                className="h-8 gap-1.5 text-xs bg-[#eab308]/5 border-[var(--wpi-border)] text-[#eab308] hover:bg-[#eab308]/10 hover:text-[#eab308]"
+                className="h-8 gap-1.5 text-xs bg-[var(--wpi-moderate-5)] border-[var(--wpi-border)] text-[var(--wpi-moderate)] hover:bg-[var(--wpi-moderate-10)] hover:text-[var(--wpi-moderate)]"
               >
                 <ShieldAlert className="h-3.5 w-3.5" />
                 Undo Mod+Risky ({enabledSafetyCounts.Moderate + enabledSafetyCounts.Risky})
@@ -126,40 +133,35 @@ export function UndoCenterTab() {
           animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center py-16 text-center"
         >
-          <div className="h-16 w-16 rounded-2xl bg-[var(--wpi-deep)] border border-[var(--wpi-border)] flex items-center justify-center mb-4">
-            <Undo2 className="h-8 w-8 text-[var(--wpi-muted)]/50" />
+          <div className="h-14 w-14 rounded-2xl bg-[var(--wpi-deep)] border border-[var(--wpi-border)] flex items-center justify-center mb-4">
+            <Undo2 className="h-6 w-6 text-[var(--wpi-muted)]/40" />
           </div>
           <p className="text-sm text-[var(--wpi-muted)] mb-1">No changes to undo</p>
           <p className="text-xs text-[var(--wpi-muted)]/50">Toggle settings to start making changes</p>
         </motion.div>
       ) : (
         <ScrollArea className="max-h-[calc(100vh-380px)]">
-          <div className="space-y-2 p-1">
+          <div className="space-y-1.5 p-0.5">
             <AnimatePresence>
               {undoLog.map((entry, index) => {
                 const safety = getSettingSafety(entry.settingId);
+                const colors = safetyColorMap[safety];
                 return (
                   <motion.div
                     key={entry.id}
-                    initial={{ opacity: 0, x: -20 }}
+                    initial={{ opacity: 0, x: -16 }}
                     animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20, height: 0 }}
-                    transition={{ delay: index * 0.02 }}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-[var(--wpi-card)] border border-[var(--wpi-border)] group hover:border-[var(--wpi-border)]/80 transition-colors"
+                    exit={{ opacity: 0, x: 16, height: 0 }}
+                    transition={{ delay: index * 0.02, duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                    className="flex items-center gap-3 p-3 rounded-lg bg-[var(--wpi-card)] border border-[var(--wpi-border)] group hover:border-[var(--wpi-border-subtle)] transition-colors duration-200"
                   >
-                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
                       entry.action === "enabled"
-                        ? safety === "Safe" ? "bg-[#22c55e]/10 border border-[#22c55e]/20"
-                          : safety === "Moderate" ? "bg-[#eab308]/10 border border-[#eab308]/20"
-                          : "bg-[#ef4444]/10 border border-[#ef4444]/20"
-                        : "bg-[var(--wpi-muted)]/10 border border-[var(--wpi-muted)]/20"
+                        ? `${colors.bg} ${colors.border}`
+                        : "bg-[var(--wpi-muted)]/10 border-[var(--wpi-muted)]/20"
                     }`}>
                       <Undo2 className={`h-4 w-4 ${
-                        entry.action === "enabled"
-                          ? safety === "Safe" ? "text-[#22c55e]"
-                            : safety === "Moderate" ? "text-[#eab308]"
-                            : "text-[#ef4444]"
-                          : "text-[var(--wpi-muted)]"
+                        entry.action === "enabled" ? colors.text : "text-[var(--wpi-muted)]"
                       }`} />
                     </div>
 
@@ -172,19 +174,15 @@ export function UndoCenterTab() {
                           variant="outline"
                           className={`h-4 px-1 text-[9px] shrink-0 ${
                             entry.action === "enabled"
-                              ? "bg-[#22c55e]/5 border-[#22c55e]/20 text-[#22c55e]"
-                              : "bg-[#ef4444]/5 border-[#ef4444]/20 text-[#ef4444]"
+                              ? "bg-[var(--wpi-safe-5)] border-[var(--wpi-safe-20)] text-[var(--wpi-safe)]"
+                              : "bg-[var(--wpi-risky-5)] border-[var(--wpi-risky-20)] text-[var(--wpi-risky)]"
                           }`}
                         >
                           {entry.action === "enabled" ? "Enabled" : "Disabled"}
                         </Badge>
                         <Badge
                           variant="outline"
-                          className={`h-4 px-1 text-[9px] shrink-0 ${
-                            safety === "Safe" ? "bg-[#22c55e]/5 border-[#22c55e]/20 text-[#22c55e]"
-                              : safety === "Moderate" ? "bg-[#eab308]/5 border-[#eab308]/20 text-[#eab308]"
-                              : "bg-[#ef4444]/5 border-[#ef4444]/20 text-[#ef4444]"
-                          }`}
+                          className={`h-4 px-1 text-[9px] shrink-0 ${colors.bg} ${colors.border} ${colors.text}`}
                         >
                           {safety}
                         </Badge>
@@ -203,7 +201,7 @@ export function UndoCenterTab() {
                       size="sm"
                       variant="outline"
                       onClick={() => undoChange(entry.id)}
-                      className="h-7 gap-1 text-[10px] shrink-0 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[#eab308] hover:bg-[#eab308]/10 hover:text-[#eab308] hover:border-[#eab308]/30"
+                      className="h-7 gap-1 text-[10px] shrink-0 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-moderate)] hover:bg-[var(--wpi-moderate-10)] hover:text-[var(--wpi-moderate)] hover:border-[var(--wpi-moderate-30)]"
                     >
                       <Undo2 className="h-3 w-3" />
                       Undo

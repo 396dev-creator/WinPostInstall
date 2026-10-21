@@ -4,9 +4,9 @@ import React from "react";
 import { type SafetyLevel } from "@/data/settings";
 
 const safetyConfig: Record<SafetyLevel, { color: string; bg: string; border: string; label: string }> = {
-  Safe: { color: "text-[#22c55e]", bg: "bg-[#22c55e]/10", border: "border-[#22c55e]/20", label: "Safe" },
-  Moderate: { color: "text-[#eab308]", bg: "bg-[#eab308]/10", border: "border-[#eab308]/20", label: "Moderate" },
-  Risky: { color: "text-[#ef4444]", bg: "bg-[#ef4444]/10", border: "border-[#ef4444]/20", label: "Risky" },
+  Safe: { color: "text-[var(--wpi-safe)]", bg: "bg-[var(--wpi-safe-10)]", border: "border-[var(--wpi-safe-20)]", label: "Safe" },
+  Moderate: { color: "text-[var(--wpi-moderate)]", bg: "bg-[var(--wpi-moderate-10)]", border: "border-[var(--wpi-moderate-20)]", label: "Moderate" },
+  Risky: { color: "text-[var(--wpi-risky)]", bg: "bg-[var(--wpi-risky-10)]", border: "border-[var(--wpi-risky-20)]", label: "Risky" },
 };
 
 interface SafetyBadgeProps {
