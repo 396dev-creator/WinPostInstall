@@ -20,6 +20,9 @@ on:
     branches: [main]
   workflow_dispatch:  # Allow manual trigger from GitHub Actions tab
 
+permissions:
+  contents: write       # Required to create releases and upload assets
+
 jobs:
   build-and-release:
     runs-on: windows-latest
@@ -104,6 +107,13 @@ jobs:
           # Generate changelog from recent commits
           $commits = git log --oneline -10 --pretty=format:"- %s"
           $notes = "What's new in ${version}:`n`n$commits"
+
+          # Delete existing release if it exists (re-run support)
+          $existing = gh release view $version --repo "$env:GITHUB_REPOSITORY" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Deleting existing release $version ..."
+            gh release delete $version --repo "$env:GITHUB_REPOSITORY" --yes --cleanup-tag
+          }
 
           # Create the release
           gh release create $version $exePath `
