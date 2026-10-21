@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles } from "lucide-react";
+import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,9 +13,18 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "./ThemeProvider";
 import { useI18n, localeNames, type Locale } from "@/lib/i18n";
+import { toast } from "@/hooks/use-toast";
 
 interface AppHeaderProps {
   onApply: () => void;
@@ -24,11 +33,59 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
-  const { searchQuery, setSearchQuery, profiles, activeProfileId, loadProfile, activeScenarioId, setScenarioPickerOpen } = useAppStore();
+  const {
+    searchQuery, setSearchQuery, profiles, activeProfileId,
+    loadProfile, saveProfile, updateProfile, activeScenarioId,
+    setScenarioPickerOpen, settings, selectedSoftware,
+  } = useAppStore();
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
+  const enabledCount = Object.values(settings).filter(Boolean).length;
+
+  // Save profile dialog state
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profileDesc, setProfileDesc] = useState("");
+  const [saveMode, setSaveMode] = useState<"new" | "update">("new");
+
+  const handleSaveProfile = () => {
+    if (saveMode === "update" && activeProfileId && !activeProfile?.isBuiltin) {
+      updateProfile(activeProfileId);
+      toast({
+        title: "Profile Updated",
+        description: `"${activeProfile?.name}" has been updated with your current settings.`,
+      });
+      setSaveDialogOpen(false);
+    } else {
+      if (!profileName.trim()) return;
+      saveProfile(profileName.trim(), profileDesc.trim());
+      toast({
+        title: "Profile Saved",
+        description: `"${profileName.trim()}" has been saved with ${enabledCount} settings and ${selectedSoftware.length} apps.`,
+      });
+      setProfileName("");
+      setProfileDesc("");
+      setSaveDialogOpen(false);
+    }
+  };
+
+  const handleApplyWithFeedback = () => {
+    if (enabledCount === 0 && selectedSoftware.length === 0) {
+      toast({
+        title: "Nothing to apply",
+        description: "Select some settings or software first, then click Apply.",
+        variant: "destructive",
+      });
+      return;
+    }
+    onApply();
+    toast({
+      title: "Config Applied",
+      description: `${enabledCount} settings + ${selectedSoftware.length} software exported as WinPostInstall-Config.json`,
+    });
+  };
 
   return (
     <motion.header
@@ -178,8 +235,25 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
           {/* Separator */}
           <div className="h-5 w-px bg-[var(--wpi-border)] shrink-0" />
 
-          {/* Actions — Apple-style grouped, prominent CTA */}
+          {/* Actions — Save Profile, Preview, Undo, Apply */}
           <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                // If active custom profile, default to update mode; otherwise new
+                if (activeProfileId && !activeProfile?.isBuiltin) {
+                  setSaveMode("update");
+                } else {
+                  setSaveMode("new");
+                }
+                setSaveDialogOpen(true);
+              }}
+              className="h-8 gap-1.5 text-[var(--wpi-muted)] hover:text-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/10 text-xs"
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span className="hidden lg:inline">Save</span>
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -199,7 +273,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
             </Button>
             <Button
               size="sm"
-              onClick={onApply}
+              onClick={handleApplyWithFeedback}
               className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)]"
             >
               <Download className="h-3.5 w-3.5" />
@@ -208,6 +282,125 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
           </div>
         </div>
       </div>
+
+      {/* Save Profile Dialog */}
+      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+        <DialogContent className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)]">
+          <DialogHeader>
+            <DialogTitle className="text-[var(--wpi-text)]">Save as Profile</DialogTitle>
+            <DialogDescription className="text-[var(--wpi-muted)]">
+              Save your current configuration so you can reload it anytime
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Stats summary */}
+            <div className="flex items-center gap-2 rounded-lg bg-[var(--wpi-card)] border border-[var(--wpi-border)] p-3">
+              <CheckCircle2 className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+              <span className="text-xs text-[var(--wpi-muted)]">
+                <span className="font-semibold text-[var(--wpi-text)]">{enabledCount}</span> settings +{" "}
+                <span className="font-semibold text-[var(--wpi-text)]">{selectedSoftware.length}</span> software selected
+              </span>
+            </div>
+
+            {/* Update existing profile option */}
+            {activeProfileId && !activeProfile?.isBuiltin && (
+              <div
+                onClick={() => setSaveMode("update")}
+                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
+                  saveMode === "update"
+                    ? "bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/30"
+                    : "bg-[var(--wpi-card)] border-[var(--wpi-border)] hover:border-[var(--wpi-accent)]/20"
+                }`}
+              >
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${
+                  saveMode === "update" ? "bg-[var(--wpi-accent)]/15" : "bg-[var(--wpi-deep)]"
+                }`}>
+                  <Save className={`h-4 w-4 ${saveMode === "update" ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${saveMode === "update" ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
+                    Update &quot;{activeProfile?.name}&quot;
+                  </p>
+                  <p className="text-[11px] text-[var(--wpi-muted)]/70">
+                    Replace the current profile&apos;s settings with your selection
+                  </p>
+                </div>
+                {saveMode === "update" && (
+                  <CheckCircle2 className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+                )}
+              </div>
+            )}
+
+            {/* Save as new profile option */}
+            <div
+              onClick={() => setSaveMode("new")}
+              className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
+                saveMode === "new"
+                  ? "bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/30"
+                  : "bg-[var(--wpi-card)] border-[var(--wpi-border)] hover:border-[var(--wpi-accent)]/20"
+              }`}
+            >
+              <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${
+                saveMode === "new" ? "bg-[var(--wpi-accent)]/15" : "bg-[var(--wpi-deep)]"
+              }`}>
+                <Save className={`h-4 w-4 ${saveMode === "new" ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${saveMode === "new" ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
+                  Save as new profile
+                </p>
+                <p className="text-[11px] text-[var(--wpi-muted)]/70">
+                  Create a new named profile from your current settings
+                </p>
+              </div>
+              {saveMode === "new" && (
+                <CheckCircle2 className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+              )}
+            </div>
+
+            {/* New profile name/desc inputs (only in "new" mode) */}
+            {saveMode === "new" && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="space-y-2 overflow-hidden"
+              >
+                <Input
+                  placeholder="Profile name"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  autoFocus
+                  className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)]"
+                />
+                <Input
+                  placeholder="Description (optional)"
+                  value={profileDesc}
+                  onChange={(e) => setProfileDesc(e.target.value)}
+                  className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)]"
+                />
+              </motion.div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSaveDialogOpen(false)}
+              className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:text-[var(--wpi-text)]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveProfile}
+              disabled={saveMode === "new" && !profileName.trim()}
+              className="bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)]"
+            >
+              <Save className="h-3.5 w-3.5 mr-1.5" />
+              {saveMode === "update" ? "Update Profile" : "Save Profile"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </motion.header>
   );
 }

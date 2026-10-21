@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAppStore } from "@/store/useAppStore";
 import { ProfileComparison } from "./ProfileComparison";
+import { toast } from "@/hooks/use-toast";
 
 const profileIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   gaming: Shield,
@@ -39,6 +40,7 @@ export function ProfilesTab() {
     activeProfileId,
     loadProfile,
     saveProfile,
+    updateProfile,
     deleteProfile,
     exportProfile,
     importProfile,
@@ -61,6 +63,10 @@ export function ProfilesTab() {
   const handleSave = () => {
     if (!newProfileName.trim()) return;
     saveProfile(newProfileName.trim(), newProfileDesc.trim());
+    toast({
+      title: "Profile Saved",
+      description: `"${newProfileName.trim()}" saved with ${enabledCount} settings and ${selectedSoftware.length} apps.`,
+    });
     setNewProfileName("");
     setNewProfileDesc("");
     setSaveDialogOpen(false);
@@ -286,11 +292,34 @@ export function ProfilesTab() {
                     <GitCompare className="h-3 w-3" />
                     Compare
                   </Button>
+                  {!profile.isBuiltin && isActive && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        updateProfile(profile.id);
+                        toast({
+                          title: "Profile Updated",
+                          description: `"${profile.name}" updated with your current settings.`,
+                        });
+                      }}
+                      className="h-7 gap-1 text-[10px] bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/20 text-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/10 hover:border-[var(--wpi-accent)]/30"
+                    >
+                      <Save className="h-3 w-3" />
+                      Update
+                    </Button>
+                  )}
                   {!profile.isBuiltin && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => deleteProfile(profile.id)}
+                      onClick={() => {
+                        deleteProfile(profile.id);
+                        toast({
+                          title: "Profile Deleted",
+                          description: `"${profile.name}" has been removed.`,
+                        });
+                      }}
                       className="h-7 gap-1 text-[10px] bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-risky-10)] hover:text-[var(--wpi-risky)] hover:border-[var(--wpi-risky-30)]"
                     >
                       <Trash2 className="h-3 w-3" />

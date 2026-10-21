@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { clientScenarios, builtinProfiles, type ClientScenario } from "@/data/settings";
 import { useAppStore } from "@/store/useAppStore";
+import { toast } from "@/hooks/use-toast";
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   ShieldCheck,
@@ -32,6 +33,10 @@ export function ScenarioPicker() {
   const handleApply = () => {
     if (selectedScenario) {
       applyScenario(selectedScenario.id);
+      toast({
+        title: "Scenario Applied",
+        description: `"${selectedScenario.name}" scenario has been loaded. Customize settings and click Apply to export.`,
+      });
     }
   };
 

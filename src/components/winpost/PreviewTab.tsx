@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { sections, getAllConflicts } from "@/data/settings";
 import { useAppStore } from "@/store/useAppStore";
 import { SafetyBadge } from "./SafetyBadge";
+import { toast } from "@/hooks/use-toast";
 
 export function PreviewTab() {
   const { settings, selectedSoftware, applyChanges, generateConfig } = useAppStore();
@@ -67,6 +68,10 @@ export function PreviewTab() {
               a.download = "WinPostInstall-Config.json";
               a.click();
               URL.revokeObjectURL(url);
+              toast({
+                title: "Config Applied",
+                description: `${totalEnabled} settings + ${selectedSoftware.length} software exported successfully.`,
+              });
             }}
             disabled={totalEnabled === 0}
             className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)]"

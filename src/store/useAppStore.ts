@@ -52,7 +52,8 @@ interface AppState {
   deleteProfile: (profileId: string) => void;
   exportProfile: (profileId: string) => string;
   importProfile: (json: string) => boolean;
-  applyChanges: () => void;
+  applyChanges: () => boolean;
+  updateProfile: (profileId: string) => void;
   applyScenario: (scenarioId: string) => void;
   setScenarioPickerOpen: (open: boolean) => void;
   undoChange: (undoId: string) => void;
@@ -71,6 +72,7 @@ const STORAGE_KEY = "winpostinstall-profiles";
 const SETTINGS_KEY = "winpostinstall-settings";
 const SOFTWARE_KEY = "winpostinstall-software";
 const UNDO_KEY = "winpostinstall-undo";
+const ACTIVE_PROFILE_KEY = "winpostinstall-active-profile";
 
 function loadFromStorage<T>(key: string, fallback: T): T {
   try {
@@ -119,6 +121,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const savedSoftware = loadFromStorage<string[]>(SOFTWARE_KEY, []);
     const savedUndo = loadFromStorage<UndoEntry[]>(UNDO_KEY, []);
     const customProfiles = loadFromStorage<Profile[]>(STORAGE_KEY, []);
+    const savedActiveProfileId = loadFromStorage<string | null>(ACTIVE_PROFILE_KEY, null);
 
     set({
       hydrated: true,
@@ -126,6 +129,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       selectedSoftware: savedSoftware,
       undoLog: savedUndo,
       profiles: [...builtinProfiles, ...customProfiles],
+      activeProfileId: savedActiveProfileId,
     });
   },
 
@@ -250,6 +254,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     saveToStorage(SETTINGS_KEY, newSettings);
     saveToStorage(SOFTWARE_KEY, profile.software);
+    saveToStorage(ACTIVE_PROFILE_KEY, scenario.profileId);
     set({
       settings: newSettings,
       selectedSoftware: [...profile.software],
@@ -262,6 +267,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   loadProfile: (profileId: string) => {
     const state = get();
     if (!profileId) {
+      saveToStorage(ACTIVE_PROFILE_KEY, null);
       set({ activeProfileId: null });
       return;
     }
@@ -276,6 +282,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
     saveToStorage(SETTINGS_KEY, newSettings);
     saveToStorage(SOFTWARE_KEY, profile.software);
+    saveToStorage(ACTIVE_PROFILE_KEY, profileId);
     set({
       settings: newSettings,
       selectedSoftware: [...profile.software],
@@ -302,9 +309,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       const customProfiles = loadFromStorage<Profile[]>(STORAGE_KEY, []);
       customProfiles.push(newProfile);
       saveToStorage(STORAGE_KEY, customProfiles);
+      saveToStorage(ACTIVE_PROFILE_KEY, newProfile.id);
 
       return {
         profiles: [...builtinProfiles, ...customProfiles],
+        activeProfileId: newProfile.id,
       };
     });
   },
@@ -314,9 +323,37 @@ export const useAppStore = create<AppState>((set, get) => ({
       const customProfiles = loadFromStorage<Profile[]>(STORAGE_KEY, []);
       const filtered = customProfiles.filter((p) => p.id !== profileId);
       saveToStorage(STORAGE_KEY, filtered);
+      const newActiveId = state.activeProfileId === profileId ? null : state.activeProfileId;
+      if (state.activeProfileId === profileId) {
+        saveToStorage(ACTIVE_PROFILE_KEY, null);
+      }
       return {
         profiles: [...builtinProfiles, ...filtered],
-        activeProfileId: state.activeProfileId === profileId ? null : state.activeProfileId,
+        activeProfileId: newActiveId,
+      };
+    });
+  },
+
+  updateProfile: (profileId: string) => {
+    set((state) => {
+      const enabledSettings: Record<string, boolean> = {};
+      Object.entries(state.settings).forEach(([key, value]) => {
+        if (value) enabledSettings[key] = true;
+      });
+
+      const customProfiles = loadFromStorage<Profile[]>(STORAGE_KEY, []);
+      const profileIndex = customProfiles.findIndex((p) => p.id === profileId);
+      if (profileIndex === -1) return state;
+
+      customProfiles[profileIndex] = {
+        ...customProfiles[profileIndex],
+        settings: enabledSettings,
+        software: [...state.selectedSoftware],
+      };
+      saveToStorage(STORAGE_KEY, customProfiles);
+
+      return {
+        profiles: [...builtinProfiles, ...customProfiles],
       };
     });
   },
@@ -347,7 +384,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   applyChanges: () => {
-    const config = get().generateConfig();
+    const state = get();
+    const totalEnabled = Object.values(state.settings).filter(Boolean).length;
+    if (totalEnabled === 0 && state.selectedSoftware.length === 0) return false;
+
+    const config = state.generateConfig();
     const configJson = JSON.stringify(config, null, 2);
 
     // In Tauri desktop mode: save config next to the exe, ready for PS1 script
@@ -397,6 +438,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       a.click();
       URL.revokeObjectURL(url);
     }
+    return true;
   },
 
   undoChange: (undoId: string) => {
