@@ -1,0 +1,125 @@
+# ============================================================================
+#  Build & Release WinPostInstall.exe automatically on every push to main
+#
+#  What it does:
+#    1. Spins up a Windows VM on GitHub's servers
+#    2. Installs Rust, Node.js, and all dependencies
+#    3. Builds the Next.js frontend
+#    4. Builds the Tauri Windows .exe
+#    5. Reads the version from tauri.conf.json
+#    6. Creates a GitHub Release and uploads the .exe
+#
+#  After this runs, users can do:
+#    irm https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1 | iex
+# ============================================================================
+
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger from GitHub Actions tab
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      # ── Checkout code ──────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Install Node.js ───────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # ── Install frontend dependencies ─────────────────────────────────────
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # ── Install Rust toolchain ────────────────────────────────────────────
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # ── Cache Rust build artifacts (speeds up future builds) ──────────────
+      - name: Cache Rust target
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      # ── Install Tauri CLI ─────────────────────────────────────────────────
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli
+
+      # ── Fix beforeBuildCommand for npm (tauri.conf.json may say "bun") ───
+      - name: Ensure npm is used in tauri.conf.json
+        shell: pwsh
+        run: |
+          $conf = Get-Content "src-tauri/tauri.conf.json" -Raw
+          $conf = $conf -replace '"beforeBuildCommand"\s*:\s*"[^"]*"', '"beforeBuildCommand": "npm run build"'
+          $conf = $conf -replace '"beforeDevCommand"\s*:\s*"[^"]*"', '"beforeDevCommand": "npm run dev"'
+          Set-Content "src-tauri/tauri.conf.json" $conf -NoNewline
+
+      # ── Build the Tauri app (this also runs npm run build via beforeBuildCommand) ──
+      - name: Build Tauri app
+        run: tauri build
+        env:
+          NODE_ENV: production
+
+      # ── Read version from tauri.conf.json ─────────────────────────────────
+      - name: Get version
+        id: version
+        shell: pwsh
+        run: |
+          $conf = Get-Content "src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json
+          $version = "v$($conf.version)"
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+          Write-Host "Version: $version"
+
+      # ── Create GitHub Release with the .exe ───────────────────────────────
+      - name: Create Release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $exePath = "src-tauri\target\release\WinPostInstall.exe"
+
+          if (-not (Test-Path $exePath)) {
+            Write-Error "Build output not found at: $exePath"
+            exit 1
+          }
+
+          $fileSize = [math]::Round((Get-Item $exePath).Length / 1MB, 2)
+          Write-Host "Publishing $version ($fileSize MB)"
+
+          # Generate changelog from recent commits
+          $commits = git log --oneline -10 --pretty=format:"- %s"
+          $notes = "What's new in $version:`n`n$commits"
+
+          # Create the release
+          gh release create $version $exePath `
+            --repo "$env:GITHUB_REPOSITORY" `
+            --title "WinPostInstall $version" `
+            --notes $notes
+
+          Write-Host "Release created: https://github.com/$env:GITHUB_REPOSITORY/releases/tag/$version"
+
+      # ── Also upload the NSIS installer if it exists ───────────────────────
+      - name: Upload NSIS installer (if exists)
+        shell: pwsh
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $nsisPath = "src-tauri\target\release\bundle\nsis\*.exe"
+
+          if (Test-Path $nsisPath) {
+            Write-Host "Found NSIS installer, uploading..."
+            $installer = (Get-ChildItem $nsisPath | Select-Object -First 1).FullName
+            gh release upload $version $installer --repo "$env:GITHUB_REPOSITORY"
+          }
