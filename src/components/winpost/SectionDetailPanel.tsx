@@ -295,7 +295,7 @@ export function SectionDetailPanel() {
             </div>
 
             {/* Settings list */}
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 overflow-hidden">
               <div className="p-4 space-y-2">
                 {filteredSettings.map((setting, index) => {
                   const isEnabled = settings[setting.id] ?? false;
