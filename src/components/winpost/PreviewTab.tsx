@@ -62,12 +62,15 @@ export function PreviewTab() {
               try {
                 const config = generateConfig();
                 const fullConfig = { ...config, createRestorePoint };
+                const now = new Date();
+                const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+                const filename = `WinPostInstall-Config_${ts}.json`;
                 const blob = new Blob([JSON.stringify(fullConfig, null, 2)], { type: "application/json" });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement("a");
                 a.style.display = "none";
                 a.href = url;
-                a.download = "WinPostInstall-Config.json";
+                a.download = filename;
                 document.body.appendChild(a);
                 a.click();
                 setTimeout(() => {
@@ -75,8 +78,8 @@ export function PreviewTab() {
                   URL.revokeObjectURL(url);
                 }, 100);
                 toast({
-                  title: "Config Applied",
-                  description: `${totalEnabled} settings + ${selectedSoftware.length} software exported successfully.`,
+                  title: "Config Applied!",
+                  description: `${totalEnabled} settings + ${selectedSoftware.length} software exported as ${filename}`,
                 });
               } catch (err) {
                 console.error("Apply failed:", err);

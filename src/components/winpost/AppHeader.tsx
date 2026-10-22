@@ -92,7 +92,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
       }
       toast({
         title: "Config Applied!",
-        description: `${enabledCount} settings + ${selectedSoftware.length} software exported as WinPostInstall-Config.json. Check your Downloads folder.`,
+        description: `${enabledCount} settings + ${selectedSoftware.length} software exported. Check Downloads for the timestamped .json file.`,
       });
     } catch (err) {
       console.error("Apply failed:", err);

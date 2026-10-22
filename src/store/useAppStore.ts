@@ -391,17 +391,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     const config = state.generateConfig();
     const configJson = JSON.stringify(config, null, 2);
 
-    const downloadConfig = (json: string, filename: string) => {
+    // Generate timestamped filename to avoid duplicates in Downloads
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+    const filename = `WinPostInstall-Config_${ts}.json`;
+
+    const downloadConfig = (json: string, fname: string) => {
       try {
         const blob = new Blob([json], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.style.display = "none";
         a.href = url;
-        a.download = filename;
+        a.download = fname;
         document.body.appendChild(a);
         a.click();
-        // Clean up after a short delay to ensure download starts
         setTimeout(() => {
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
@@ -411,25 +415,27 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     };
 
-    // In Tauri desktop mode: save config next to the exe, ready for PS1 script
+    // In Tauri desktop mode: save config next to the exe (single file, overwrites)
+    // Also download a timestamped copy for the user's records
     if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
-      // Dynamic import to avoid bundling Tauri API in web mode
       import("@tauri-apps/api/core").then(({ invoke }) => {
+        // Save canonical copy next to the exe (always overwrites same file)
         invoke("save_config", { configJson, filename: "WinPostInstall-Config.json" })
           .then((path) => {
             console.log(`Config saved to: ${path}`);
-            downloadConfig(configJson, "WinPostInstall-Config.json");
+            // Also download timestamped copy
+            downloadConfig(configJson, filename);
           })
           .catch((err) => {
             console.error("Tauri save failed, falling back to download:", err);
-            downloadConfig(configJson, "WinPostInstall-Config.json");
+            downloadConfig(configJson, filename);
           });
       }).catch(() => {
-        downloadConfig(configJson, "WinPostInstall-Config.json");
+        downloadConfig(configJson, filename);
       });
     } else {
-      // Web/browser mode: download config JSON
-      downloadConfig(configJson, "WinPostInstall-Config.json");
+      // Web/browser mode: download timestamped config JSON
+      downloadConfig(configJson, filename);
     }
     return true;
   },
