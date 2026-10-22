@@ -391,6 +391,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     const config = state.generateConfig();
     const configJson = JSON.stringify(config, null, 2);
 
+    const downloadConfig = (json: string, filename: string) => {
+      try {
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        // Clean up after a short delay to ensure download starts
+        setTimeout(() => {
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 100);
+      } catch (err) {
+        console.error("Download failed:", err);
+      }
+    };
+
     // In Tauri desktop mode: save config next to the exe, ready for PS1 script
     if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
       // Dynamic import to avoid bundling Tauri API in web mode
@@ -398,45 +418,18 @@ export const useAppStore = create<AppState>((set, get) => ({
         invoke("save_config", { configJson, filename: "WinPostInstall-Config.json" })
           .then((path) => {
             console.log(`Config saved to: ${path}`);
-            // Also trigger browser download as backup
-            const blob = new Blob([configJson], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "WinPostInstall-Config.json";
-            a.click();
-            URL.revokeObjectURL(url);
+            downloadConfig(configJson, "WinPostInstall-Config.json");
           })
           .catch((err) => {
             console.error("Tauri save failed, falling back to download:", err);
-            // Fallback to download
-            const blob = new Blob([configJson], { type: "application/json" });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "WinPostInstall-Config.json";
-            a.click();
-            URL.revokeObjectURL(url);
+            downloadConfig(configJson, "WinPostInstall-Config.json");
           });
       }).catch(() => {
-        // Tauri API not available, fall back to download
-        const blob = new Blob([configJson], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "WinPostInstall-Config.json";
-        a.click();
-        URL.revokeObjectURL(url);
+        downloadConfig(configJson, "WinPostInstall-Config.json");
       });
     } else {
       // Web/browser mode: download config JSON
-      const blob = new Blob([configJson], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "WinPostInstall-Config.json";
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadConfig(configJson, "WinPostInstall-Config.json");
     }
     return true;
   },

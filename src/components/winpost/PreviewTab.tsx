@@ -59,19 +59,33 @@ export function PreviewTab() {
           <Button
             size="sm"
             onClick={() => {
-              const config = generateConfig();
-              const fullConfig = { ...config, createRestorePoint };
-              const blob = new Blob([JSON.stringify(fullConfig, null, 2)], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = "WinPostInstall-Config.json";
-              a.click();
-              URL.revokeObjectURL(url);
-              toast({
-                title: "Config Applied",
-                description: `${totalEnabled} settings + ${selectedSoftware.length} software exported successfully.`,
-              });
+              try {
+                const config = generateConfig();
+                const fullConfig = { ...config, createRestorePoint };
+                const blob = new Blob([JSON.stringify(fullConfig, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.style.display = "none";
+                a.href = url;
+                a.download = "WinPostInstall-Config.json";
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 100);
+                toast({
+                  title: "Config Applied",
+                  description: `${totalEnabled} settings + ${selectedSoftware.length} software exported successfully.`,
+                });
+              } catch (err) {
+                console.error("Apply failed:", err);
+                toast({
+                  title: "Apply Failed",
+                  description: "Could not export config. Check the browser console for details.",
+                  variant: "destructive",
+                });
+              }
             }}
             disabled={totalEnabled === 0}
             className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)]"

@@ -80,11 +80,28 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
       });
       return;
     }
-    onApply();
-    toast({
-      title: "Config Applied",
-      description: `${enabledCount} settings + ${selectedSoftware.length} software exported as WinPostInstall-Config.json`,
-    });
+    try {
+      const success = onApply();
+      if (success === false) {
+        toast({
+          title: "Nothing to apply",
+          description: "No settings or software were selected.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: "Config Applied!",
+        description: `${enabledCount} settings + ${selectedSoftware.length} software exported as WinPostInstall-Config.json. Check your Downloads folder.`,
+      });
+    } catch (err) {
+      console.error("Apply failed:", err);
+      toast({
+        title: "Apply Failed",
+        description: "Could not export config. Check the browser console for details.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
