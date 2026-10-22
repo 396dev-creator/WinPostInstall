@@ -16,6 +16,14 @@ interface SafetyCounts {
   Risky: number;
 }
 
+interface ApplyResult {
+  success: boolean;
+  message: string;
+  configPath: string;
+  stdout: string;
+  stderr: string;
+}
+
 interface AppState {
   // Hydration flag
   hydrated: boolean;
@@ -36,6 +44,10 @@ interface AppState {
   activeSectionId: string | null;
   // Scenario picker visibility
   scenarioPickerOpen: boolean;
+  // Execution state (Tauri live-apply)
+  isApplying: boolean;
+  applyResult: ApplyResult | null;
+  applyResultDialogOpen: boolean;
 
   // Actions
   hydrate: () => void;
@@ -52,10 +64,12 @@ interface AppState {
   deleteProfile: (profileId: string) => void;
   exportProfile: (profileId: string) => string;
   importProfile: (json: string) => boolean;
-  applyChanges: () => boolean;
+  applyChanges: (createRestorePoint?: boolean) => Promise<boolean>;
   updateProfile: (profileId: string) => void;
   applyScenario: (scenarioId: string) => void;
   setScenarioPickerOpen: (open: boolean) => void;
+  setApplyResultDialogOpen: (open: boolean) => void;
+  clearApplyResult: () => void;
   undoChange: (undoId: string) => void;
   undoAll: () => void;
   undoBySafety: (safetyLevels: Array<"Safe" | "Moderate" | "Risky">) => void;
@@ -114,6 +128,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   undoLog: [],
   activeSectionId: null,
   scenarioPickerOpen: false,
+  isApplying: false,
+  applyResult: null,
+  applyResultDialogOpen: false,
 
   hydrate: () => {
     if (get().hydrated) return;
@@ -383,15 +400,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  applyChanges: () => {
+  setApplyResultDialogOpen: (open: boolean) => set({ applyResultDialogOpen: open }),
+
+  clearApplyResult: () => set({ applyResult: null, applyResultDialogOpen: false }),
+
+  applyChanges: async (createRestorePoint: boolean = true) => {
     const state = get();
     const totalEnabled = Object.values(state.settings).filter(Boolean).length;
     if (totalEnabled === 0 && state.selectedSoftware.length === 0) return false;
 
     const config = state.generateConfig();
-    const configJson = JSON.stringify(config, null, 2);
+    const fullConfig = { ...config, createRestorePoint };
+    const configJson = JSON.stringify(fullConfig, null, 2);
 
-    // Generate timestamped filename to avoid duplicates in Downloads
+    // Generate timestamped filename for receipt/download
     const now = new Date();
     const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
     const filename = `WinPostInstall-Config_${ts}.json`;
@@ -415,28 +437,44 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     };
 
-    // In Tauri desktop mode: save config next to the exe (single file, overwrites)
-    // Also download a timestamped copy for the user's records
+    // ──── Tauri desktop mode: save config AND execute the PowerShell script ────
     if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
-      import("@tauri-apps/api/core").then(({ invoke }) => {
-        // Save canonical copy next to the exe (always overwrites same file)
-        invoke("save_config", { configJson, filename: "WinPostInstall-Config.json" })
-          .then((path) => {
-            console.log(`Config saved to: ${path}`);
-            // Also download timestamped copy
-            downloadConfig(configJson, filename);
-          })
-          .catch((err) => {
-            console.error("Tauri save failed, falling back to download:", err);
-            downloadConfig(configJson, filename);
-          });
-      }).catch(() => {
+      set({ isApplying: true, applyResult: null });
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+
+        // Call the apply_config Tauri command: saves JSON + runs WinPostInstall.ps1
+        const result = await invoke<ApplyResult>("apply_config", {
+          configJson,
+          createRestorePoint,
+        });
+
+        // Also download a timestamped receipt copy
         downloadConfig(configJson, filename);
-      });
-    } else {
-      // Web/browser mode: download timestamped config JSON
-      downloadConfig(configJson, filename);
+
+        set({
+          isApplying: false,
+          applyResult: result,
+          applyResultDialogOpen: true,
+        });
+        return result.success;
+      } catch (err) {
+        // Tauri invoke failed — fall back to just saving + downloading
+        console.error("Tauri apply_config failed, falling back to save-only:", err);
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          await invoke("save_config", { configJson, filename: "WinPostInstall-Config.json" });
+        } catch {
+          // ignore
+        }
+        downloadConfig(configJson, filename);
+        set({ isApplying: false });
+        return true;
+      }
     }
+
+    // ──── Web/browser mode: download config JSON (manual apply) ────
+    downloadConfig(configJson, filename);
     return true;
   },
 

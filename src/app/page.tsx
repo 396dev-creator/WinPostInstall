@@ -32,8 +32,8 @@ export default function WinPostInstallPage() {
     setActiveSectionId(sectionId);
   };
 
-  const handleApply = () => {
-    applyChanges();
+  const handleApply = (): Promise<boolean> => {
+    return applyChanges();
   };
 
   const handleUndo = () => {

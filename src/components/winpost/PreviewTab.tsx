@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion } from "framer-motion";
-import { Download, AlertTriangle, CheckCircle2, Shield, ShieldAlert, ShieldX, AlertCircle, RotateCcw } from "lucide-react";
+import { Download, AlertTriangle, CheckCircle2, Shield, ShieldAlert, ShieldX, AlertCircle, RotateCcw, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,8 +13,10 @@ import { SafetyBadge } from "./SafetyBadge";
 import { toast } from "@/hooks/use-toast";
 
 export function PreviewTab() {
-  const { settings, selectedSoftware, applyChanges, generateConfig } = useAppStore();
+  const { settings, selectedSoftware, applyChanges, generateConfig, isApplying } = useAppStore();
   const [createRestorePoint, setCreateRestorePoint] = React.useState(true);
+
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
   // Build change summary
   const changeSummary = sections.map((section) => {
@@ -58,43 +60,26 @@ export function PreviewTab() {
           </Badge>
           <Button
             size="sm"
-            onClick={() => {
-              try {
-                const config = generateConfig();
-                const fullConfig = { ...config, createRestorePoint };
-                const now = new Date();
-                const ts = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
-                const filename = `WinPostInstall-Config_${ts}.json`;
-                const blob = new Blob([JSON.stringify(fullConfig, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.style.display = "none";
-                a.href = url;
-                a.download = filename;
-                document.body.appendChild(a);
-                a.click();
-                setTimeout(() => {
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
-                }, 100);
-                toast({
-                  title: "Config Applied!",
-                  description: `${totalEnabled} settings + ${selectedSoftware.length} software exported as ${filename}`,
-                });
-              } catch (err) {
-                console.error("Apply failed:", err);
-                toast({
-                  title: "Apply Failed",
-                  description: "Could not export config. Check the browser console for details.",
-                  variant: "destructive",
-                });
-              }
-            }}
-            disabled={totalEnabled === 0}
-            className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)]"
+            onClick={() => applyChanges(createRestorePoint)}
+            disabled={totalEnabled === 0 || isApplying}
+            className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)] disabled:opacity-60"
           >
-            <Download className="h-3.5 w-3.5" />
-            Confirm & Apply
+            {isApplying ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Applying...
+              </>
+            ) : isTauri ? (
+              <>
+                <Zap className="h-3.5 w-3.5" />
+                Confirm & Apply
+              </>
+            ) : (
+              <>
+                <Download className="h-3.5 w-3.5" />
+                Confirm & Apply
+              </>
+            )}
           </Button>
         </div>
       </div>

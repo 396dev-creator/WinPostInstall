@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle } from "lucide-react";
+import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle, Loader2, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ import { useI18n, localeNames, type Locale } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
 
 interface AppHeaderProps {
-  onApply: () => void;
+  onApply: () => Promise<boolean>;
   onUndo: () => void;
   onPreview: () => void;
 }
@@ -37,6 +37,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
     searchQuery, setSearchQuery, profiles, activeProfileId,
     loadProfile, saveProfile, updateProfile, activeScenarioId,
     setScenarioPickerOpen, settings, selectedSoftware,
+    isApplying, applyResult, applyResultDialogOpen, setApplyResultDialogOpen, clearApplyResult,
   } = useAppStore();
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
@@ -71,7 +72,10 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
     }
   };
 
-  const handleApplyWithFeedback = () => {
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+  const handleApplyWithFeedback = async () => {
+    if (isApplying) return; // prevent double-click
     if (enabledCount === 0 && selectedSoftware.length === 0) {
       toast({
         title: "Nothing to apply",
@@ -81,7 +85,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
       return;
     }
     try {
-      const success = onApply();
+      const success = await onApply();
       if (success === false) {
         toast({
           title: "Nothing to apply",
@@ -90,15 +94,19 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
         });
         return;
       }
-      toast({
-        title: "Config Applied!",
-        description: `${enabledCount} settings + ${selectedSoftware.length} software exported. Check Downloads for the timestamped .json file.`,
-      });
+      // In Tauri mode, the result dialog will show automatically
+      // In browser mode, show a simple toast
+      if (!isTauri) {
+        toast({
+          title: "Config Exported!",
+          description: `${enabledCount} settings + ${selectedSoftware.length} software exported. Check Downloads for the .json file.`,
+        });
+      }
     } catch (err) {
       console.error("Apply failed:", err);
       toast({
         title: "Apply Failed",
-        description: "Could not export config. Check the browser console for details.",
+        description: "Could not apply config. Check the browser console for details.",
         variant: "destructive",
       });
     }
@@ -291,10 +299,25 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
             <Button
               size="sm"
               onClick={handleApplyWithFeedback}
-              className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)]"
+              disabled={isApplying}
+              className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)] disabled:opacity-60"
             >
-              <Download className="h-3.5 w-3.5" />
-              Apply
+              {isApplying ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Applying...
+                </>
+              ) : isTauri ? (
+                <>
+                  <Zap className="h-3.5 w-3.5" />
+                  Apply
+                </>
+              ) : (
+                <>
+                  <Download className="h-3.5 w-3.5" />
+                  Apply
+                </>
+              )}
             </Button>
           </div>
         </div>
@@ -414,6 +437,68 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
             >
               <Save className="h-3.5 w-3.5 mr-1.5" />
               {saveMode === "update" ? "Update Profile" : "Save Profile"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Apply Result Dialog — shows PowerShell execution output */}
+      <Dialog open={applyResultDialogOpen} onOpenChange={(open) => { if (!open) clearApplyResult(); }}>
+        <DialogContent className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[var(--wpi-text)]">
+              {applyResult?.success ? (
+                <CheckCircle2 className="h-5 w-5 text-[var(--wpi-safe)]" />
+              ) : (
+                <AlertCircle className="h-5 w-5 text-[var(--wpi-risky)]" />
+              )}
+              {applyResult?.success ? "Settings Applied Successfully" : "Apply Failed"}
+            </DialogTitle>
+            <DialogDescription className="text-[var(--wpi-muted)]">
+              {applyResult?.message}
+            </DialogDescription>
+          </DialogHeader>
+
+          {applyResult && (
+            <div className="space-y-3 py-2">
+              {/* Config path */}
+              <div className="flex items-center gap-2 rounded-lg bg-[var(--wpi-card)] border border-[var(--wpi-border)] p-3">
+                <Terminal className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] text-[var(--wpi-muted)]">Config saved to</p>
+                  <p className="text-xs font-mono text-[var(--wpi-text)] truncate">{applyResult.configPath}</p>
+                </div>
+              </div>
+
+              {/* PowerShell output */}
+              {applyResult.stdout && (
+                <div>
+                  <p className="text-[10px] font-medium text-[var(--wpi-muted)] mb-1.5">Output</p>
+                  <pre className="text-[11px] font-mono text-[var(--wpi-safe)] bg-[var(--wpi-card)] border border-[var(--wpi-border)] rounded-lg p-3 max-h-[200px] overflow-auto whitespace-pre-wrap break-words">
+                    {applyResult.stdout}
+                  </pre>
+                </div>
+              )}
+
+              {/* Error output */}
+              {applyResult.stderr && (
+                <div>
+                  <p className="text-[10px] font-medium text-[var(--wpi-risky)] mb-1.5">Errors</p>
+                  <pre className="text-[11px] font-mono text-[var(--wpi-risky)] bg-[var(--wpi-risky-5)] border border-[var(--wpi-risky-20)] rounded-lg p-3 max-h-[120px] overflow-auto whitespace-pre-wrap break-words">
+                    {applyResult.stderr}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              onClick={clearApplyResult}
+              className="bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)]"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

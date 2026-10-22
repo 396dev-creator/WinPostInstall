@@ -8,6 +8,8 @@ struct ApplyResult {
     success: bool,
     message: String,
     config_path: String,
+    stdout: String,
+    stderr: String,
 }
 
 /// Save the generated config JSON to a file next to the exe/PS1 script
@@ -25,9 +27,9 @@ fn save_config(config_json: String, filename: String) -> Result<String, String> 
     Ok(config_path.to_string_lossy().to_string())
 }
 
-/// Run WinPostInstall.ps1 with the given config file
+/// Run WinPostInstall.ps1 with the given config file path
 #[tauri::command]
-async fn run_script(config_path: String) -> Result<String, String> {
+async fn run_script(config_path: String) -> Result<ApplyResult, String> {
     let exe_dir = std::env::current_exe()
         .map_err(|e| format!("Cannot find exe path: {}", e))?;
     let dir = exe_dir.parent()
@@ -50,17 +52,99 @@ async fn run_script(config_path: String) -> Result<String, String> {
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
             "-File", &script_path,
-            "-ConfigPath", &config_path,
+            "-ConfigFile", &config_path,
+            "-Silent",
         ])
         .output()
         .map_err(|e| format!("Failed to run script: {}", e))?;
 
-    if output.status.success() {
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let success = output.status.success();
+
+    Ok(ApplyResult {
+        success,
+        message: if success { "Script completed successfully".to_string() } else { "Script failed".to_string() },
+        config_path: config_path.clone(),
+        stdout,
+        stderr,
+    })
+}
+
+/// Save config JSON and immediately run the script — single-step "Apply" workflow
+#[tauri::command]
+async fn apply_config(config_json: String, create_restore_point: bool) -> Result<ApplyResult, String> {
+    let exe_dir = std::env::current_exe()
+        .map_err(|e| format!("Cannot find exe path: {}", e))?;
+    let dir = exe_dir.parent()
+        .ok_or("Cannot determine exe directory")?;
+
+    // 1. Save config file next to the exe
+    let config_path = dir.join("WinPostInstall-Config.json");
+    fs::write(&config_path, &config_json)
+        .map_err(|e| format!("Failed to write config: {}", e))?;
+    let config_path_str = config_path.to_string_lossy().to_string();
+
+    // 2. Look for the PowerShell script next to the exe
+    let ps1_path = dir.join("WinPostInstall.ps1");
+    let cmd_path = dir.join("WinPostInstall.cmd");
+    
+    let script_path = if ps1_path.exists() {
+        ps1_path.to_string_lossy().to_string()
+    } else if cmd_path.exists() {
+        cmd_path.to_string_lossy().to_string()
     } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!("Script failed: {}", stderr))
-    }
+        return Ok(ApplyResult {
+            success: false,
+            message: "WinPostInstall.ps1 not found. Place it next to WinPostInstall.exe".to_string(),
+            config_path: config_path_str,
+            stdout: String::new(),
+            stderr: "WinPostInstall.ps1 not found next to executable".to_string(),
+        });
+    };
+
+    // 3. Build the PowerShell command
+    // Optionally create a restore point first
+    let restore_script = if create_restore_point {
+        r#"
+        try {
+            Enable-ComputerRestore -Drive "C:\" -ErrorAction SilentlyContinue
+            Checkpoint-Computer -Description "WinPostInstall Pre-Apply" -RestorePointType "MODIFY_SETTINGS"
+            Write-Output "[OK] Restore point created"
+        } catch {
+            Write-Warning "[WARN] Could not create restore point: $_"
+        }
+        "#
+    } else {
+        ""
+    };
+
+    let full_script = format!(
+        "{}\n& \"{}\" -ConfigFile \"{}\" -Silent",
+        restore_script, script_path, config_path_str
+    );
+
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-NonInteractive",
+            "-Command", &full_script,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run script: {}", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let success = output.status.success();
+
+    Ok(ApplyResult {
+        success,
+        message: if success { "Settings applied successfully".to_string() } else { "Script execution failed".to_string() },
+        config_path: config_path_str,
+        stdout,
+        stderr,
+    })
 }
 
 /// Get the directory where the exe is located (for saving configs)
@@ -88,6 +172,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             save_config,
             run_script,
+            apply_config,
             get_app_dir,
             save_config_dialog,
         ])
