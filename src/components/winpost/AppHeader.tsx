@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle, Loader2, Zap } from "lucide-react";
+import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle, Loader2, Zap, Trash2, Power } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -319,6 +319,26 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
                 </>
               )}
             </Button>
+            {/* Wipe & Exit — only in Tauri desktop mode (burn after reading) */}
+            {isTauri && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  try {
+                    const { invoke } = await import("@tauri-apps/api/core");
+                    localStorage.clear();
+                    await invoke("cleanup_and_exit");
+                  } catch {
+                    window.close();
+                  }
+                }}
+                className="h-8 gap-1.5 text-[var(--wpi-muted)] hover:text-[var(--wpi-risky)] hover:bg-[var(--wpi-risky)]/10 text-xs"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span className="hidden lg:inline">Wipe</span>
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -492,7 +512,27 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            {isTauri && (
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const { invoke } = await import("@tauri-apps/api/core");
+                    // Clear localStorage before cleanup
+                    localStorage.clear();
+                    await invoke("cleanup_and_exit");
+                  } catch {
+                    // fallback: just close
+                    window.close();
+                  }
+                }}
+                className="bg-[var(--wpi-risky-5)] border-[var(--wpi-risky-20)] text-[var(--wpi-risky)] hover:bg-[var(--wpi-risky)]/15 hover:text-[var(--wpi-risky)]"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Wipe & Exit
+              </Button>
+            )}
             <Button
               onClick={clearApplyResult}
               className="bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)]"

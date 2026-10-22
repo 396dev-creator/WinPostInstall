@@ -28,6 +28,29 @@ export default function WinPostInstallPage() {
     hydrate();
   }, [hydrate]);
 
+  // Amnesic cleanup: clear localStorage when window is about to close (Tauri mode)
+  useEffect(() => {
+    const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+    if (!isTauri) return;
+
+    const handleBeforeUnload = () => {
+      // Clear all WinPostInstall localStorage keys
+      const keysToRemove = [
+        "winpostinstall-profiles",
+        "winpostinstall-settings",
+        "winpostinstall-software",
+        "winpostinstall-undo",
+        "winpostinstall-active-profile",
+      ];
+      keysToRemove.forEach((key) => {
+        try { localStorage.removeItem(key); } catch { /* ignore */ }
+      });
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, []);
+
   const handleSectionClick = (sectionId: string) => {
     setActiveSectionId(sectionId);
   };
