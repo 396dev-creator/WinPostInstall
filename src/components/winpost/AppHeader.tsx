@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle, Loader2, Zap, Trash2, Power } from "lucide-react";
+import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle, Loader2, Zap, Trash2, AlertTriangle, Wrench } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,19 +25,22 @@ import { useAppStore } from "@/store/useAppStore";
 import { useTheme } from "./ThemeProvider";
 import { useI18n, localeNames, type Locale } from "@/lib/i18n";
 import { toast } from "@/hooks/use-toast";
+import { getAllConflicts, sections } from "@/data/settings";
 
 interface AppHeaderProps {
   onApply: () => Promise<boolean>;
   onUndo: () => void;
   onPreview: () => void;
+  onResolveAndApply?: () => Promise<boolean>;
 }
 
-export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
+export function AppHeader({ onApply, onUndo, onPreview, onResolveAndApply }: AppHeaderProps) {
   const {
     searchQuery, setSearchQuery, profiles, activeProfileId,
     loadProfile, saveProfile, updateProfile, activeScenarioId,
     setScenarioPickerOpen, settings, selectedSoftware,
     isApplying, applyResult, applyResultDialogOpen, setApplyResultDialogOpen, clearApplyResult,
+    toggleSetting,
   } = useAppStore();
   const { theme, toggleTheme } = useTheme();
   const { locale, setLocale, t } = useI18n();
@@ -50,6 +53,7 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
   const [profileName, setProfileName] = useState("");
   const [profileDesc, setProfileDesc] = useState("");
   const [saveMode, setSaveMode] = useState<"new" | "update">("new");
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
 
   const handleSaveProfile = () => {
     if (saveMode === "update" && activeProfileId && !activeProfile?.isBuiltin) {
@@ -74,6 +78,19 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
 
   const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+  // Check for conflicts to show badge on Apply button
+  const allConflicts = getAllConflicts(settings);
+  const hasConflicts = allConflicts.length > 0;
+
+  // Helper: get safety level for a setting ID
+  const getSafetyForId = (id: string): "Safe" | "Moderate" | "Risky" => {
+    for (const section of sections) {
+      const found = section.settings.find((s) => s.id === id);
+      if (found) return found.safety;
+    }
+    return "Safe";
+  };
+
   const handleApplyWithFeedback = async () => {
     if (isApplying) return; // prevent double-click
     if (enabledCount === 0 && selectedSoftware.length === 0) {
@@ -82,6 +99,12 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
         description: "Select some settings or software first, then click Apply.",
         variant: "destructive",
       });
+      return;
+    }
+    // Check for conflicts before applying
+    const conflicts = getAllConflicts(settings);
+    if (conflicts.length > 0) {
+      setConflictDialogOpen(true);
       return;
     }
     try {
@@ -300,12 +323,24 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
               size="sm"
               onClick={handleApplyWithFeedback}
               disabled={isApplying}
-              className="h-8 gap-1.5 bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)] font-semibold text-xs shadow-[var(--wpi-accent-glow)] disabled:opacity-60"
+              className={`h-8 gap-1.5 font-semibold text-xs shadow-[var(--wpi-accent-glow)] disabled:opacity-60 ${
+                hasConflicts
+                  ? "bg-[var(--wpi-risky)] hover:bg-[var(--wpi-risky)]/90 text-white"
+                  : "bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)]"
+              }`}
             >
               {isApplying ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   Applying...
+                </>
+              ) : hasConflicts ? (
+                <>
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Apply
+                  <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-white/20 text-white border-0 ml-0.5">
+                    {allConflicts.length}
+                  </Badge>
                 </>
               ) : isTauri ? (
                 <>
@@ -539,6 +574,115 @@ export function AppHeader({ onApply, onUndo, onPreview }: AppHeaderProps) {
             >
               <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
               Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conflict Warning Dialog — shown when Apply is clicked with unresolved conflicts */}
+      <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+        <DialogContent className="bg-[var(--wpi-deep)] border-[var(--wpi-risky-20)] text-[var(--wpi-text)] max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-[var(--wpi-risky)]">
+              <AlertTriangle className="h-5 w-5" />
+              Unresolved Setting Conflicts
+            </DialogTitle>
+            <DialogDescription className="text-[var(--wpi-muted)]">
+              You have {allConflicts.length} conflict{allConflicts.length !== 1 ? "s" : ""} that need to be resolved before applying. Applying with conflicts may cause unexpected behavior.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            {/* Conflict summary list */}
+            <div className="max-h-[180px] overflow-auto space-y-2">
+              {allConflicts.slice(0, 5).map((c, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-2 rounded-lg bg-[var(--wpi-risky-5)] border border-[var(--wpi-risky-15)] p-2.5"
+                >
+                  <Badge variant="outline" className="h-4 shrink-0 text-[9px] bg-[var(--wpi-risky-10)] border-[var(--wpi-risky-20)] text-[var(--wpi-risky)] mt-0.5">
+                    {c.type === "conflict" ? "Conflict" : "Dep"}
+                  </Badge>
+                  <span className="text-[11px] text-[var(--wpi-risky)]/80 leading-relaxed">{c.message}</span>
+                </div>
+              ))}
+              {allConflicts.length > 5 && (
+                <p className="text-[10px] text-[var(--wpi-muted)] text-center">
+                  +{allConflicts.length - 5} more conflict{allConflicts.length - 5 !== 1 ? "s" : ""}…
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col gap-2 sm:flex-row">
+            <Button
+              variant="outline"
+              onClick={() => setConflictDialogOpen(false)}
+              className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:text-[var(--wpi-text)]"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConflictDialogOpen(false);
+                onPreview();
+              }}
+              className="bg-[var(--wpi-card)] border-[var(--wpi-accent)]/30 text-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/10 hover:border-[var(--wpi-accent)]/40"
+            >
+              <AlertCircle className="h-3.5 w-3.5 mr-1.5" />
+              Go to Preview
+            </Button>
+            <Button
+              onClick={async () => {
+                // Auto-resolve conflicts then apply
+                const resolved = new Set<string>();
+                for (const conflict of allConflicts) {
+                  if (conflict.type === "conflict") {
+                    const settingSafety = getSafetyForId(conflict.settingId);
+                    const targetSafety = getSafetyForId(conflict.targetId);
+                    if (settingSafety === "Risky" || (settingSafety === "Moderate" && targetSafety === "Safe")) {
+                      if (!resolved.has(conflict.settingId)) {
+                        toggleSetting(conflict.settingId);
+                        resolved.add(conflict.settingId);
+                      }
+                    } else {
+                      if (!resolved.has(conflict.targetId)) {
+                        toggleSetting(conflict.targetId);
+                        resolved.add(conflict.targetId);
+                      }
+                    }
+                  } else if (conflict.type === "unmet_require") {
+                    if (!resolved.has(conflict.targetId)) {
+                      toggleSetting(conflict.targetId);
+                      resolved.add(conflict.targetId);
+                    }
+                  }
+                }
+                setConflictDialogOpen(false);
+                toast({
+                  title: "Conflicts Resolved",
+                  description: `${resolved.size} settings adjusted. Applying now…`,
+                });
+                // Small delay to let state settle, then apply
+                setTimeout(async () => {
+                  try {
+                    await onApply();
+                    if (!isTauri) {
+                      toast({
+                        title: "Config Exported!",
+                        description: "Conflicts resolved and config exported. Check Downloads for the .json file.",
+                      });
+                    }
+                  } catch (err) {
+                    console.error("Apply after resolve failed:", err);
+                  }
+                }, 100);
+              }}
+              className="bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)]"
+            >
+              <Wrench className="h-3.5 w-3.5 mr-1.5" />
+              Auto-Resolve & Apply
             </Button>
           </DialogFooter>
         </DialogContent>

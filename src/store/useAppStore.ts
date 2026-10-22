@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { sections, builtinProfiles, clientScenarios, type Profile, type ClientScenario } from "@/data/settings";
+import { sections, builtinProfiles, clientScenarios, getAllConflicts, type Profile, type ClientScenario } from "@/data/settings";
 
 interface UndoEntry {
   id: string;
@@ -408,6 +408,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const state = get();
     const totalEnabled = Object.values(state.settings).filter(Boolean).length;
     if (totalEnabled === 0 && state.selectedSoftware.length === 0) return false;
+
+    // Safety guard: refuse to apply if there are unresolved conflicts
+    const conflicts = getAllConflicts(state.settings);
+    if (conflicts.length > 0) {
+      return false as unknown as boolean; // callers should check for false
+    }
 
     const config = state.generateConfig();
     const fullConfig = { ...config, createRestorePoint };
