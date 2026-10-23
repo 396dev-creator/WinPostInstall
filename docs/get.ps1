@@ -163,6 +163,29 @@ if (-not (Test-Path $TempExe)) {
 
 Write-OK "Download complete"
 
+# ── Step 5b: Download the PowerShell script alongside the exe ────────────────
+Write-Status "Downloading WinPostInstall.ps1 ..."
+
+$Ps1Url = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/scripts/WinPostInstall.ps1"
+$TempPs1 = Join-Path $TempDir "WinPostInstall.ps1"
+
+try {
+    Invoke-WebRequest -Uri $Ps1Url -OutFile $TempPs1 -UseBasicParsing
+    Write-OK "WinPostInstall.ps1 downloaded"
+} catch {
+    Write-Warn "Could not download WinPostInstall.ps1: $($_.Exception.Message)"
+    Write-Warn "The app will attempt to download it automatically when you Apply"
+}
+
+# Also download the CMD launcher if available
+$CmdUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/download/WinPostInstall.cmd"
+$TempCmd = Join-Path $TempDir "WinPostInstall.cmd"
+try {
+    Invoke-WebRequest -Uri $CmdUrl -OutFile $TempCmd -UseBasicParsing
+} catch {
+    # Non-essential, skip silently
+}
+
 # ── Step 6: Run the executable and WAIT for it to exit ───────────────────────
 Write-Status "Launching $ExeName ..."
 Write-Host ""

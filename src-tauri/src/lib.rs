@@ -22,6 +22,88 @@ fn get_exe_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
+/// Resolve the path to the WinPostInstall.ps1 script.
+/// Search order:
+///   1. Next to the exe
+///   2. In the Tauri resource directory (when bundled via NSIS installer)
+///   3. Download from GitHub and place next to the exe
+fn resolve_script(app_handle: Option<&tauri::AppHandle>) -> Result<String, String> {
+    let dir = get_exe_dir()?;
+
+    // 1. Check next to the exe
+    let ps1_path = dir.join("WinPostInstall.ps1");
+    let cmd_path = dir.join("WinPostInstall.cmd");
+
+    if ps1_path.exists() {
+        return Ok(ps1_path.to_string_lossy().to_string());
+    }
+    if cmd_path.exists() {
+        return Ok(cmd_path.to_string_lossy().to_string());
+    }
+
+    // 2. Check Tauri resource directory (when installed via NSIS)
+    if let Some(app) = app_handle {
+        if let Ok(resource_dir) = app.path().resource_dir() {
+            let res_ps1 = resource_dir.join("WinPostInstall.ps1");
+            let res_cmd = resource_dir.join("WinPostInstall.cmd");
+            if res_ps1.exists() {
+                // Copy to exe dir for future use
+                let _ = fs::copy(&res_ps1, &ps1_path);
+                return Ok(ps1_path.to_string_lossy().to_string());
+            }
+            if res_cmd.exists() {
+                let _ = fs::copy(&res_cmd, &cmd_path);
+                return Ok(cmd_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    // 3. Also check common subdirectories that the NSIS installer might create
+    let subdirs = ["resources", "scripts", "bin"];
+    for sub in &subdirs {
+        let sub_ps1 = dir.join(sub).join("WinPostInstall.ps1");
+        let sub_cmd = dir.join(sub).join("WinPostInstall.cmd");
+        if sub_ps1.exists() {
+            let _ = fs::copy(&sub_ps1, &ps1_path);
+            return Ok(ps1_path.to_string_lossy().to_string());
+        }
+        if sub_cmd.exists() {
+            let _ = fs::copy(&sub_cmd, &cmd_path);
+            return Ok(cmd_path.to_string_lossy().to_string());
+        }
+    }
+
+    // 4. Fallback: download from GitHub and place next to the exe
+    eprintln!("[WinPostInstall] PS1 script not found locally, downloading from GitHub...");
+    let github_url = "https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/scripts/WinPostInstall.ps1";
+
+    let download_result = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-NonInteractive",
+            "-Command",
+            &format!("Invoke-WebRequest -Uri '{}' -OutFile '{}' -UseBasicParsing", github_url, ps1_path.to_string_lossy()),
+        ])
+        .output();
+
+    match download_result {
+        Ok(output) if output.status.success() && ps1_path.exists() => {
+            eprintln!("[WinPostInstall] PS1 script downloaded successfully");
+            Ok(ps1_path.to_string_lossy().to_string())
+        }
+        _ => {
+            Err(format!(
+                "WinPostInstall.ps1 not found locally and could not be downloaded.\n\
+                 Searched: {}\n\
+                 Also tried Tauri resources and GitHub download.\n\
+                 Please place WinPostInstall.ps1 next to WinPostInstall.exe",
+                dir.to_string_lossy()
+            ))
+        }
+    }
+}
+
 /// Save the generated config JSON to a file next to the exe/PS1 script
 #[tauri::command]
 fn save_config(config_json: String, filename: String) -> Result<String, String> {
@@ -34,19 +116,8 @@ fn save_config(config_json: String, filename: String) -> Result<String, String> 
 
 /// Run WinPostInstall.ps1 with the given config file path
 #[tauri::command]
-async fn run_script(config_path: String) -> Result<ApplyResult, String> {
-    let dir = get_exe_dir()?;
-
-    let ps1_path = dir.join("WinPostInstall.ps1");
-    let cmd_path = dir.join("WinPostInstall.cmd");
-
-    let script_path = if ps1_path.exists() {
-        ps1_path.to_string_lossy().to_string()
-    } else if cmd_path.exists() {
-        cmd_path.to_string_lossy().to_string()
-    } else {
-        return Err("WinPostInstall.ps1 not found. Place it next to WinPostInstall.exe".to_string());
-    };
+async fn run_script(app_handle: tauri::AppHandle, config_path: String) -> Result<ApplyResult, String> {
+    let script_path = resolve_script(Some(&app_handle))?;
 
     let output = std::process::Command::new("powershell")
         .args([
@@ -74,7 +145,7 @@ async fn run_script(config_path: String) -> Result<ApplyResult, String> {
 
 /// Save config JSON and immediately run the script — single-step "Apply" workflow
 #[tauri::command]
-async fn apply_config(config_json: String, create_restore_point: bool) -> Result<ApplyResult, String> {
+async fn apply_config(app_handle: tauri::AppHandle, config_json: String, create_restore_point: bool) -> Result<ApplyResult, String> {
     let dir = get_exe_dir()?;
 
     // 1. Save config file next to the exe
@@ -83,22 +154,18 @@ async fn apply_config(config_json: String, create_restore_point: bool) -> Result
         .map_err(|e| format!("Failed to write config: {}", e))?;
     let config_path_str = config_path.to_string_lossy().to_string();
 
-    // 2. Look for the PowerShell script next to the exe
-    let ps1_path = dir.join("WinPostInstall.ps1");
-    let cmd_path = dir.join("WinPostInstall.cmd");
-
-    let script_path = if ps1_path.exists() {
-        ps1_path.to_string_lossy().to_string()
-    } else if cmd_path.exists() {
-        cmd_path.to_string_lossy().to_string()
-    } else {
-        return Ok(ApplyResult {
-            success: false,
-            message: "WinPostInstall.ps1 not found. Place it next to WinPostInstall.exe".to_string(),
-            config_path: config_path_str,
-            stdout: String::new(),
-            stderr: "WinPostInstall.ps1 not found next to executable".to_string(),
-        });
+    // 2. Resolve the PS1 script (searches multiple locations, downloads if needed)
+    let script_path = match resolve_script(Some(&app_handle)) {
+        Ok(path) => path,
+        Err(msg) => {
+            return Ok(ApplyResult {
+                success: false,
+                message: "WinPostInstall.ps1 not found".to_string(),
+                config_path: config_path_str,
+                stdout: String::new(),
+                stderr: msg,
+            });
+        }
     };
 
     // 3. Build the PowerShell command
