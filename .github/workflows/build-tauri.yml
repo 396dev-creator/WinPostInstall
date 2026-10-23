@@ -1,0 +1,65 @@
+name: Build & Release Tauri App
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "*.md"
+      - "tool-results/**"
+      - "skills/**"
+      - "examples/**"
+
+concurrency:
+  group: build-tauri-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install frontend deps
+        run: npm install
+
+      - name: Build Next.js frontend (Tauri mode)
+        run: npx next build
+        env:
+          BUILD_MODE: tauri
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "WinPostInstall v__VERSION__"
+          releaseBody: |
+            Auto-built from commit ${{ github.sha }}
+
+            **Download the installer (.exe) or portable .zip below.**
+          releaseDraft: false
+          prerelease: false
+          bundler: nsis
