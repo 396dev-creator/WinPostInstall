@@ -162,7 +162,7 @@ async fn save_config_dialog(config_json: String) -> Result<String, String> {
 // ═══════════════════════════════════════════════════════════════════
 
 /// Wipe all artifacts from the client machine:
-///   - Config JSON files (WinPostInstall-Config*.json)
+///   - Config JSON files (WinPostInstall-Config*.json) in exe dir, %TEMP%, Downloads, and OneDrive Downloads
 ///   - PowerShell script (WinPostInstall.ps1, .cmd)
 ///   - PS1 log files in %TEMP% and C:\Temp
 ///   - The exe itself (via detached cmd process)
@@ -212,7 +212,39 @@ fn cleanup_artifacts() {
             }
         }
 
-        // 4. Self-delete the exe (Windows: a process can't delete its own exe while running)
+        // 4. Clean up downloaded config JSON files from the user's Downloads folder
+        //    (the JS downloadConfig() function saves timestamped copies there)
+        if let Ok(user_profile) = std::env::var("USERPROFILE") {
+            let downloads_path = PathBuf::from(&user_profile).join("Downloads");
+            if downloads_path.exists() {
+                if let Ok(entries) = fs::read_dir(&downloads_path) {
+                    for entry in entries.flatten() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.starts_with("WinPostInstall-Config") && name.ends_with(".json") {
+                                let _ = fs::remove_file(entry.path());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Also check OneDrive Downloads if present
+        if let Ok(user_profile) = std::env::var("USERPROFILE") {
+            let onedrive_downloads = PathBuf::from(&user_profile).join("OneDrive").join("Downloads");
+            if onedrive_downloads.exists() {
+                if let Ok(entries) = fs::read_dir(&onedrive_downloads) {
+                    for entry in entries.flatten() {
+                        if let Some(name) = entry.file_name().to_str() {
+                            if name.starts_with("WinPostInstall-Config") && name.ends_with(".json") {
+                                let _ = fs::remove_file(entry.path());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 5. Self-delete the exe (Windows: a process can't delete its own exe while running)
         //    Spawn a detached `cmd /c` that waits ~3 seconds, then force-deletes the exe.
         if let Ok(exe_path) = std::env::current_exe() {
             let exe_str = exe_path.to_string_lossy().to_string();
@@ -239,7 +271,7 @@ fn cleanup_artifacts() {
             }
         }
 
-        // 5. If the app directory is now empty (and not a system dir), remove it too
+        // 6. If the app directory is now empty (and not a system dir), remove it too
         if let Ok(entries) = fs::read_dir(&dir) {
             let remaining: Vec<_> = entries.flatten().collect();
             if remaining.is_empty() {
