@@ -25,7 +25,7 @@
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    4.1.0
+    4.1.2
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -38,6 +38,18 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v4.1.2 - Execution reliability + browser extension expansion:
+             [Fix] Self-elevation now works when script runs from memory (irm | iex)
+                   - $PSCommandPath is empty in that context; script now re-downloads
+                   itself into the elevated session instead of flashing and dying
+             [Fix] Invocations from the desktop app now use single-quoted PS paths
+             [New] Office version selection (2019/2021/2024/365) + architecture,
+                   all driven by JSON config (Off_V2019/Off_V2021/Off_V2024/Off_V365,
+                   Off_Arch64/Off_Arch32, Off_Act activation toggle)
+             [New] 10 browser extensions config-driven (adblock, YouTube adblock,
+                   popup blocking, privacy) for Chrome/Edge/Brave/Opera/Firefox
+             [New] Edge security & privacy hardening section (EdgeHardening)
+             [Compat] Without a JSON config, defaults to uBlock Origin + Privacy Badger
     v4.1.0 - Safety audit + interactive tooltips:
              [Safety] 3-tier classification (Safe/Moderate/Risky) for ALL settings
              [Safety] Risky settings default OFF — must opt-in via -AllowRisky or menu
@@ -93,7 +105,7 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "4.1.1"
+$ScriptVersion = "4.1.2"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Undo command tracker (for rollback script generation)

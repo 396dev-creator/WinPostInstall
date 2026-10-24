@@ -211,7 +211,7 @@ export default function WinPostInstallPage() {
       <footer className="border-t border-[var(--wpi-border)] bg-[var(--wpi-bg)] mt-auto">
         <div className="mx-auto max-w-7xl px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
           <p className="text-[10px] text-[var(--wpi-muted)]/50">
-            WinPostInstall v4.1.0
+            WinPostInstall v4.1.2
           </p>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-[9px] text-[var(--wpi-muted)]/30">
