@@ -119,13 +119,17 @@ fn save_config(config_json: String, filename: String) -> Result<String, String> 
 async fn run_script(app_handle: tauri::AppHandle, config_path: String) -> Result<ApplyResult, String> {
     let script_path = resolve_script(Some(&app_handle))?;
 
-    let output = std::process::Command::new("powershell")
+    // Wrap with UTF-8 encoding preamble + chcp 65001 so PowerShell output
+    // is UTF-8 and Rust can decode it losslessly via String::from_utf8_lossy
+    let wrapped_command = format!(
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & \"{}\" -ConfigFile \"{}\" -Silent",
+        script_path, config_path
+    );
+    let output = std::process::Command::new("cmd")
         .args([
-            "-NoProfile",
-            "-ExecutionPolicy", "Bypass",
-            "-File", &script_path,
-            "-ConfigFile", &config_path,
-            "-Silent",
+            "/C",
+            "chcp 65001 >nul 2>&1 & powershell -NoProfile -ExecutionPolicy Bypass -NonInteractive -Command",
+            &wrapped_command,
         ])
         .output()
         .map_err(|e| format!("Failed to run script: {}", e))?;
@@ -168,7 +172,21 @@ async fn apply_config(app_handle: tauri::AppHandle, config_json: String, create_
         }
     };
 
-    // 3. Build the PowerShell command
+    // 3. Build the PowerShell command with UTF-8 encoding preamble
+    let encoding_preamble = r#"
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+        $OutputEncoding = [System.Text.Encoding]::UTF8
+    "#;
+
+    // Self-elevation check: if not admin, warn (the PS1 script has its own
+    // self-elevation, and the app manifest should also request elevation)
+    let elevation_check = r#"
+        if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+            Write-Warning "[WARN] Not running as Administrator. Restore point and some settings may fail."
+        }
+    "#;
+
     let restore_script = if create_restore_point {
         r#"
         try {
@@ -184,16 +202,16 @@ async fn apply_config(app_handle: tauri::AppHandle, config_json: String, create_
     };
 
     let full_script = format!(
-        "{}\n& \"{}\" -ConfigFile \"{}\" -Silent",
-        restore_script, script_path, config_path_str
+        "{}\n{}\n{}\n& \"{}\" -ConfigFile \"{}\" -Silent",
+        encoding_preamble, elevation_check, restore_script, script_path, config_path_str
     );
 
-    let output = std::process::Command::new("powershell")
+    // Set console codepage to UTF-8 (65001) BEFORE launching PowerShell
+    let output = std::process::Command::new("cmd")
         .args([
-            "-NoProfile",
-            "-ExecutionPolicy", "Bypass",
-            "-NonInteractive",
-            "-Command", &full_script,
+            "/C",
+            "chcp 65001 >nul 2>&1 & powershell -NoProfile -ExecutionPolicy Bypass -NonInteractive -Command",
+            &full_script,
         ])
         .output()
         .map_err(|e| format!("Failed to run script: {}", e))?;

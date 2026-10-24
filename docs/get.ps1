@@ -4,6 +4,26 @@
 #  Users run:    irm https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1 | iex
 # ============================================================================
 
+# ── UTF-8 Encoding Bootstrap ──────────────────────────────────────────────────
+# MUST be the first executable code. Ensures all console output is UTF-8 so that
+# Unicode characters (em dashes, box-drawing, smart quotes) in the PS1 script are
+# preserved when downloaded and executed.
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    chcp 65001 > $null 2>&1
+} catch { }
+
+# ── Self-Elevation ────────────────────────────────────────────────────────────
+# The app needs admin for Checkpoint-Computer (restore points), service control,
+# registry writes, etc. If not elevated, re-launch elevated and exit.
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "[*] Requesting administrator elevation..." -ForegroundColor Yellow
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    return
+}
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 $RepoOwner = "396dev-creator"
 $RepoName  = "WinPostInstall"
@@ -191,7 +211,8 @@ Write-Status "Launching $ExeName ..."
 Write-Host ""
 
 try {
-    $Process = Start-Process -FilePath $TempExe -Wait -PassThru -ErrorAction Stop
+    # Launch with -Verb RunAs to ensure the app inherits admin privileges.
+    $Process = Start-Process -FilePath $TempExe -Verb RunAs -Wait -PassThru -ErrorAction Stop
     Write-Host ""
     Write-OK "$ExeName exited (code: $($Process.ExitCode))"
 } catch {

@@ -127,6 +127,17 @@ if ($PSCommandPath) {
     try { Unblock-File -Path $PSCommandPath -ErrorAction SilentlyContinue } catch { }
 }
 
+# ══════════════════════════════════════════════════════════════
+# UTF-8 ENCODING: Ensure console output is UTF-8 for parent process capture
+# This prevents mojibake / replacement chars when Rust reads stdout/stderr
+# Must be set BEFORE any Write-Host/Write-Output calls produce output
+# ══════════════════════════════════════════════════════════════
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+} catch { }
+
 # Self-elevate: If not running as Administrator, re-launch in an elevated window
 # This allows the user to simply double-click the script
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {

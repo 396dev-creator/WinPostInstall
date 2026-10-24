@@ -4,6 +4,21 @@
 #  Users run:    irm https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1 | iex
 # ============================================================================
 
+# ── UTF-8 Encoding Bootstrap ──────────────────────────────────────────────────
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
+    $OutputEncoding = [System.Text.Encoding]::UTF8
+    chcp 65001 > $null 2>&1
+} catch { }
+
+# ── Self-Elevation ────────────────────────────────────────────────────────────
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "[*] Requesting administrator elevation..." -ForegroundColor Yellow
+    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    return
+}
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 # Replace these with your actual GitHub repo details
 $RepoOwner = "396dev-creator"
@@ -102,7 +117,8 @@ Write-Status "Launching $ExeName ..."
 Write-Host ""
 
 try {
-    $Process = Start-Process -FilePath $TempExe -Wait -PassThru -ErrorAction Stop
+    # Launch with -Verb RunAs to ensure the app inherits admin privileges.
+    $Process = Start-Process -FilePath $TempExe -Verb RunAs -Wait -PassThru -ErrorAction Stop
     Write-Host ""
     Write-OK "$ExeName exited (code: $($Process.ExitCode))"
 } catch {
