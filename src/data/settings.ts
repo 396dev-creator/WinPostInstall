@@ -324,19 +324,38 @@ export const sections: Section[] = [
   },
   {
     id: "EdgeHardening",
-    name: "Edge Hardening",
+    name: "Edge Security & Privacy",
     icon: "Globe",
-    description: "Harden Microsoft Edge browser settings",
+    description: "Harden Microsoft Edge — the default Windows browser — with privacy, security, and anti-tracking policies",
     settings: [
-      { id: "Edge_1", name: "Disable Edge telemetry", safety: "Safe", desc: "Stops Edge from sending diagnostic and usage data." },
-      { id: "Edge_2", name: "Disable Edge suggestions", safety: "Safe", desc: "Removes suggestions and recommendations in Edge." },
-      { id: "Edge_3", name: "Block Edge shopping assistant", safety: "Safe", desc: "Disables the shopping/coupons feature in Edge." },
+      // --- Telemetry & Data Collection ---
+      { id: "Edge_1", name: "Disable Edge telemetry", safety: "Safe", desc: "Stops Edge from sending diagnostic, usage, and crash data to Microsoft." },
+      { id: "Edge_2", name: "Disable Edge suggestions", safety: "Safe", desc: "Removes search suggestions, recommendations, and NTP content suggestions." },
+      { id: "Edge_10", name: "Disable Edge experiments", safety: "Safe", desc: "Blocks A/B testing and experimental feature flags from Microsoft." },
+      { id: "Edge_11", name: "Disable Edge diagnostic data", safety: "Safe", desc: "Sets diagnostic data level to 0 (required minimum). Prevents sending optional diagnostic data." },
+      // --- Anti-Tracking & Privacy ---
+      { id: "Edge_7", name: "Enable strict tracking prevention", safety: "Safe", desc: "Sets Edge tracking prevention to Strict. Blocks most trackers, fingerprinting, and cryptomining." },
+      { id: "Edge_12", name: "Block third-party cookies", safety: "Moderate", desc: "Blocks third-party cookies in Edge. May break some site logins and embedded content." },
+      { id: "Edge_13", name: "Send Do Not Track header", safety: "Safe", desc: "Sends the DNT signal to websites. Honored by some sites, ignored by others." },
+      { id: "Edge_14", name: "Enable HTTPS-Only mode", safety: "Safe", desc: "Forces HTTPS connections. Upgrades HTTP requests to HTTPS automatically." },
+      { id: "Edge_15", name: "Block WebRTC local IP", safety: "Moderate", desc: "Prevents WebRTC from leaking your local IP address. May break video calls in Edge." },
+      // --- Security Hardening ---
+      { id: "Edge_16", name: "Disable password saving", safety: "Moderate", desc: "Prevents Edge from saving passwords. Use a dedicated password manager instead." },
+      { id: "Edge_17", name: "Disable payment autofill", safety: "Safe", desc: "Prevents Edge from saving and autofilling credit card and payment info." },
+      { id: "Edge_18", name: "Disable address autofill", safety: "Safe", desc: "Prevents Edge from saving and autofilling addresses and contact info." },
+      { id: "Edge_19", name: "Disable browser sign-in", safety: "Moderate", desc: "Prevents signing into Edge with a Microsoft account. Disables sync." },
+      { id: "Edge_20", name: "Enhanced Safe Browsing", safety: "Safe", desc: "Enables Enhanced Safe Browsing for proactive protection against malicious sites and downloads." },
+      { id: "Edge_21", name: "Block insecure content", safety: "Moderate", desc: "Blocks mixed content (HTTP resources on HTTPS pages). May break some older sites." },
+      // --- Bloat & Annoyances ---
+      { id: "Edge_3", name: "Block Edge shopping assistant", safety: "Safe", desc: "Disables the shopping/coupons/price comparison feature in Edge." },
       { id: "Edge_4", name: "Disable Edge Collections", safety: "Safe", desc: "Removes the Collections feature from Edge." },
-      { id: "Edge_5", name: "Disable Edge EdgeDefender", safety: "Moderate", desc: "Prevents Edge from running at startup and in background." },
-      { id: "Edge_6", name: "Disable Edge sidebar", safety: "Safe", desc: "Removes the Edge sidebar (Copilot, etc.) from the browser." },
-      { id: "Edge_7", name: "Enable strict tracking prevention", safety: "Safe", desc: "Sets Edge tracking prevention to Strict level." },
-      { id: "Edge_8", name: "Disable Edge auto-fill", safety: "Moderate", desc: "Disables auto-fill for passwords and payment info. Less convenient but more private." },
+      { id: "Edge_5", name: "Disable Edge background mode", safety: "Moderate", desc: "Prevents Edge from running at startup and in background when closed." },
+      { id: "Edge_6", name: "Disable Edge sidebar (Copilot)", safety: "Safe", desc: "Removes the Edge sidebar including Copilot AI assistant." },
+      { id: "Edge_8", name: "Disable Edge autofill", safety: "Moderate", desc: "Disables all autofill for passwords, payments, and addresses." },
       { id: "Edge_9", name: "Disable Edge startup boost", safety: "Safe", desc: "Disables Edge startup boost to reduce background resource usage." },
+      { id: "Edge_22", name: "Disable Edge first-run experience", safety: "Safe", desc: "Skips the Edge welcome screen and onboarding on first launch." },
+      { id: "Edge_23", name: "Hide Edge default browser prompt", safety: "Safe", desc: "Suppresses the 'Set Edge as default browser' prompt." },
+      { id: "Edge_24", name: "Disable Edge tab preloading", safety: "Safe", desc: "Prevents Edge from preloading tabs in the background at startup." },
     ],
   },
   {
@@ -734,7 +753,7 @@ export const builtinProfiles: Profile[] = [
       Net_7: true, Net_8: true,
       WU_1: true, WU_2: true,
       Disk_1: true, Disk_2: true,
-      Edge_1: true, Edge_2: true, Edge_7: true,
+      Edge_1: true, Edge_2: true, Edge_7: true, Edge_10: true, Edge_12: true, Edge_14: true, Edge_17: true, Edge_18: true, Edge_20: true, Edge_22: true,
       BH_4: true, BH_5: true,
       // Browser Extensions — essential adblocking + YouTube
       BE_1: true, BE_4: true, BE_6: true,
@@ -773,7 +792,9 @@ export const builtinProfiles: Profile[] = [
       Sec_2: true, Sec_4: true, Sec_6: true, Sec_7: true, Sec_8: true, Sec_9: true,
       Net_4: true, Net_5: true, Net_7: true, Net_8: true, Net_9: true,
       WU_1: true, WU_3: true,
-      Edge_1: true, Edge_2: true, Edge_3: true, Edge_4: true, Edge_6: true, Edge_7: true, Edge_8: true, Edge_9: true,
+      Edge_1: true, Edge_2: true, Edge_3: true, Edge_4: true, Edge_5: true, Edge_6: true, Edge_7: true, Edge_8: true, Edge_9: true,
+      Edge_10: true, Edge_11: true, Edge_12: true, Edge_13: true, Edge_14: true, Edge_15: true, Edge_16: true,
+      Edge_17: true, Edge_18: true, Edge_19: true, Edge_20: true, Edge_21: true, Edge_22: true, Edge_23: true, Edge_24: true,
       BH_1: true, BH_2: true, BH_4: true, BH_5: true, BH_6: true, BH_7: true, BH_8: true, BH_9: true,
       // Browser Extensions — full privacy suite
       BE_1: true, BE_2: true, BE_4: true, BE_5: true, BE_6: true, BE_7: true, BE_8: true, BE_9: true, BE_10: true,
@@ -823,8 +844,9 @@ export const builtinProfiles: Profile[] = [
       Net_2: true, Net_4: true, Net_7: true, Net_8: true, Net_9: true,
       // Windows Update — sane defaults
       WU_1: true, WU_2: true, WU_3: true,
-      // Edge — privacy only (don't remove or disable Edge)
+      // Edge — privacy & security (don't remove Edge, but harden it thoroughly)
       Edge_1: true, Edge_2: true, Edge_3: true, Edge_6: true, Edge_7: true, Edge_9: true,
+      Edge_10: true, Edge_11: true, Edge_12: true, Edge_14: true, Edge_17: true, Edge_18: true, Edge_20: true, Edge_22: true,
       // Browser hardening — Safe items
       BH_4: true, BH_5: true, BH_6: true, BH_7: true,
       // Browser Extensions — adblocking + YouTube + privacy
@@ -855,8 +877,9 @@ export const builtinProfiles: Profile[] = [
       WU_2: true, // Set active hours
       // OneDrive — just stop startup nag (keep OneDrive functional)
       OD_5: true, // Disable OneDrive ad notifications
-      // Edge — minimal privacy (keep Edge fully functional)
-      Edge_7: true, // Strict tracking prevention
+      // Edge — privacy & security for the default browser
+      Edge_1: true, Edge_2: true, Edge_7: true, Edge_9: true, Edge_10: true, Edge_12: true, Edge_14: true,
+      Edge_17: true, Edge_18: true, Edge_20: true, Edge_22: true, Edge_23: true,
       // Browser Extensions — essential adblocking for all users
       BE_1: true, BE_2: true, BE_4: true, BE_5: true, BE_6: true, BE_7: true,
       // Final touches

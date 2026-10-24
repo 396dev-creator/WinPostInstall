@@ -2522,45 +2522,165 @@ function Invoke-EdgeHardening {
     Write-Host ""
 
     $edgePath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge"
-    $edgePolicies = @{
-        "MetricsReportingEnabled"       = 0
-        "SendSiteInfoToImproveServices" = 0
-        "PersonalizationReportingEnabled" = 0
-        "DiagnosticData"                = 0
-        "UserFeedbackAllowed"           = 0
-        "EdgeShoppingAssistantEnabled"  = 0
-        "ShowRecommendationsEnabled"    = 0
-        "SearchSuggestEnabled"          = 0
-        "HubsSidebarEnabled"            = 0
-        "CopilotPageContext"            = 0
-        "CopilotCDPPageContext"         = 0
-        "BlockThirdPartyCookies"        = 1
-        "BackgroundModeEnabled"         = 0
-        "SyncDisabled"                  = 1
-        "AutofillCreditCardEnabled"     = 0
-        "HideRestoreDialogForSycProfiles" = 1
+
+    # ================================================================
+    # Config-driven Edge policies (Edge_1 through Edge_24)
+    # ================================================================
+
+    # Default: all off (config will enable specific ones)
+    $edge1_Telemetry      = $false   # Edge_1
+    $edge2_Suggestions    = $false   # Edge_2
+    $edge3_Shopping       = $false   # Edge_3
+    $edge4_Collections    = $false   # Edge_4
+    $edge5_Background     = $false   # Edge_5
+    $edge6_Sidebar        = $false   # Edge_6
+    $edge7_StrictTracking = $false   # Edge_7
+    $edge8_Autofill       = $false   # Edge_8
+    $edge9_StartupBoost   = $false   # Edge_9
+    $edge10_Experiments   = $false   # Edge_10
+    $edge11_DiagData      = $false   # Edge_11
+    $edge12_3rdCookies    = $false   # Edge_12
+    $edge13_DNT           = $false   # Edge_13
+    $edge14_HTTPSOnly     = $false   # Edge_14
+    $edge15_WebRTC        = $false   # Edge_15
+    $edge16_NoPassSave    = $false   # Edge_16
+    $edge17_NoPayFill     = $false   # Edge_17
+    $edge18_NoAddrFill    = $false   # Edge_18
+    $edge19_NoSignIn      = $false   # Edge_19
+    $edge20_SafeBrowsing  = $false   # Edge_20
+    $edge21_BlockMixed    = $false   # Edge_21
+    $edge22_NoFirstRun    = $false   # Edge_22
+    $edge23_NoDefPrompt  = $false   # Edge_23
+    $edge24_NoTabPreload  = $false   # Edge_24
+
+    if ($script:ConfigSettings) {
+        $edge1_Telemetry      = [bool]$script:ConfigSettings["Edge_1"]
+        $edge2_Suggestions    = [bool]$script:ConfigSettings["Edge_2"]
+        $edge3_Shopping       = [bool]$script:ConfigSettings["Edge_3"]
+        $edge4_Collections    = [bool]$script:ConfigSettings["Edge_4"]
+        $edge5_Background     = [bool]$script:ConfigSettings["Edge_5"]
+        $edge6_Sidebar        = [bool]$script:ConfigSettings["Edge_6"]
+        $edge7_StrictTracking = [bool]$script:ConfigSettings["Edge_7"]
+        $edge8_Autofill       = [bool]$script:ConfigSettings["Edge_8"]
+        $edge9_StartupBoost   = [bool]$script:ConfigSettings["Edge_9"]
+        $edge10_Experiments   = [bool]$script:ConfigSettings["Edge_10"]
+        $edge11_DiagData      = [bool]$script:ConfigSettings["Edge_11"]
+        $edge12_3rdCookies    = [bool]$script:ConfigSettings["Edge_12"]
+        $edge13_DNT           = [bool]$script:ConfigSettings["Edge_13"]
+        $edge14_HTTPSOnly     = [bool]$script:ConfigSettings["Edge_14"]
+        $edge15_WebRTC        = [bool]$script:ConfigSettings["Edge_15"]
+        $edge16_NoPassSave    = [bool]$script:ConfigSettings["Edge_16"]
+        $edge17_NoPayFill     = [bool]$script:ConfigSettings["Edge_17"]
+        $edge18_NoAddrFill    = [bool]$script:ConfigSettings["Edge_18"]
+        $edge19_NoSignIn      = [bool]$script:ConfigSettings["Edge_19"]
+        $edge20_SafeBrowsing  = [bool]$script:ConfigSettings["Edge_20"]
+        $edge21_BlockMixed    = [bool]$script:ConfigSettings["Edge_21"]
+        $edge22_NoFirstRun    = [bool]$script:ConfigSettings["Edge_22"]
+        $edge23_NoDefPrompt  = [bool]$script:ConfigSettings["Edge_23"]
+        $edge24_NoTabPreload  = [bool]$script:ConfigSettings["Edge_24"]
     }
 
-    Write-Step "Applying Edge hardening policies..."
-    foreach ($prop in $edgePolicies.Keys) {
-        Set-Registry -Path $edgePath -Name $prop -Value $edgePolicies[$prop] -Type DWord `
-            -SafetyLevel "Safe" -Description "Hardens Edge browser privacy/security — reduces Edge data collection" -SettingID "EdgeHardening_$($prop)"
+    Write-Step "Applying Edge security & privacy policies..."
+
+    # --- Telemetry & Data Collection ---
+    if ($edge1_Telemetry) {
+        Set-Registry -Path $edgePath -Name "MetricsReportingEnabled"       -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Stops Edge diagnostic/usage data" -SettingID "EdgeHardening_MetricsReporting"
+        Set-Registry -Path $edgePath -Name "SendSiteInfoToImproveServices" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Stops Edge site info sharing" -SettingID "EdgeHardening_SendSiteInfo"
+        Set-Registry -Path $edgePath -Name "PersonalizationReportingEnabled" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Stops Edge personalization reporting" -SettingID "EdgeHardening_Personalization"
+    }
+    if ($edge2_Suggestions) {
+        Set-Registry -Path $edgePath -Name "SearchSuggestEnabled"          -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge search suggestions" -SettingID "EdgeHardening_SearchSuggest"
+        Set-Registry -Path $edgePath -Name "ShowRecommendationsEnabled"    -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge recommendations" -SettingID "EdgeHardening_Recommendations"
+    }
+    if ($edge10_Experiments) {
+        Set-Registry -Path $edgePath -Name "EdgeShoppingAssistantEnabled"  -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge experiments/feature flags" -SettingID "EdgeHardening_Experiments"
+    }
+    if ($edge11_DiagData) {
+        Set-Registry -Path $edgePath -Name "DiagnosticData"               -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Sets Edge diagnostic data to required minimum" -SettingID "EdgeHardening_DiagnosticData"
     }
 
-    # Disable Edge prelaunch and tab preloading
-    Write-Step "Disabling Edge prelaunch and tab preloading..."
-    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
-        -Name "AllowPrelaunch" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge prelaunch — prevents Edge running in background at startup" -SettingID "EdgeHardening_NoEdgePrelaunch"
-    Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader" `
-        -Name "AllowTabPreloading" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge tab preloading — reduces background resource usage" -SettingID "EdgeHardening_NoEdgeTabPreload"
+    # --- Anti-Tracking & Privacy ---
+    if ($edge7_StrictTracking) {
+        Set-Registry -Path $edgePath -Name "TrackingPrevention"            -Value 3 -Type DWord -SafetyLevel "Safe" -Description "Sets Edge tracking prevention to Strict (3)" -SettingID "EdgeHardening_StrictTracking"
+    }
+    if ($edge12_3rdCookies) {
+        Set-Registry -Path $edgePath -Name "BlockThirdPartyCookies"        -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Blocks third-party cookies in Edge" -SettingID "EdgeHardening_Block3rdCookies"
+    }
+    if ($edge13_DNT) {
+        Set-Registry -Path $edgePath -Name "SendSiteSettingsDoNotTrack"    -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Enables Do Not Track header in Edge" -SettingID "EdgeHardening_DNT"
+    }
+    if ($edge14_HTTPSOnly) {
+        Set-Registry -Path $edgePath -Name "HttpsOnlyMode"                -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Forces HTTPS-Only mode in Edge" -SettingID "EdgeHardening_HTTPSOnly"
+    }
+    if ($edge15_WebRTC) {
+        Set-Registry -Path $edgePath -Name "WebRtcLocalhostIpHandling"     -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Prevents WebRTC local IP leak in Edge" -SettingID "EdgeHardening_WebRTC"
+    }
 
-    # Disable first-run experience
-    Write-Step "Disabling Edge first-run..."
+    # --- Security Hardening ---
+    if ($edge16_NoPassSave) {
+        Set-Registry -Path $edgePath -Name "PasswordManagerEnabled"        -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Edge password saving" -SettingID "EdgeHardening_NoPasswordSave"
+    }
+    if ($edge17_NoPayFill) {
+        Set-Registry -Path $edgePath -Name "AutofillCreditCardEnabled"     -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge payment autofill" -SettingID "EdgeHardening_NoPayFill"
+    }
+    if ($edge18_NoAddrFill) {
+        Set-Registry -Path $edgePath -Name "AutofillAddressEnabled"        -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge address autofill" -SettingID "EdgeHardening_NoAddrFill"
+    }
+    if ($edge19_NoSignIn) {
+        Set-Registry -Path $edgePath -Name "BrowserSignin"                 -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Edge browser sign-in" -SettingID "EdgeHardening_NoSignIn"
+        Set-Registry -Path $edgePath -Name "SyncDisabled"                  -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Disables Edge sync" -SettingID "EdgeHardening_NoSync"
+    }
+    if ($edge20_SafeBrowsing) {
+        Set-Registry -Path $edgePath -Name "SafeBrowsingLevel"             -Value 2 -Type DWord -SafetyLevel "Safe" -Description "Enables Enhanced Safe Browsing in Edge" -SettingID "EdgeHardening_EnhancedSafeBrowsing"
+    }
+    if ($edge21_BlockMixed) {
+        Set-Registry -Path $edgePath -Name "BlockInsecurePrivateNetworkRequests" -Value 1 -Type DWord -SafetyLevel "Moderate" -Description "Blocks insecure/mixed content in Edge" -SettingID "EdgeHardening_BlockMixed"
+    }
+
+    # --- Bloat & Annoyances ---
+    if ($edge3_Shopping) {
+        Set-Registry -Path $edgePath -Name "EdgeShoppingAssistantEnabled"  -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge shopping assistant" -SettingID "EdgeHardening_NoShopping"
+    }
+    if ($edge4_Collections) {
+        Set-Registry -Path $edgePath -Name "CollectionsEnabled"           -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge Collections" -SettingID "EdgeHardening_NoCollections"
+    }
+    if ($edge5_Background) {
+        Set-Registry -Path $edgePath -Name "BackgroundModeEnabled"        -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Edge background mode" -SettingID "EdgeHardening_NoBackground"
+    }
+    if ($edge6_Sidebar) {
+        Set-Registry -Path $edgePath -Name "HubsSidebarEnabled"           -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge sidebar/Copilot" -SettingID "EdgeHardening_NoSidebar"
+        Set-Registry -Path $edgePath -Name "CopilotPageContext"            -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge Copilot page context" -SettingID "EdgeHardening_NoCopilot"
+        Set-Registry -Path $edgePath -Name "CopilotCDPPageContext"         -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge Copilot CDP context" -SettingID "EdgeHardening_NoCopilotCDP"
+    }
+    if ($edge8_Autofill) {
+        Set-Registry -Path $edgePath -Name "AutofillCreditCardEnabled"     -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Edge autofill" -SettingID "EdgeHardening_NoAutofill"
+        Set-Registry -Path $edgePath -Name "AutofillAddressEnabled"        -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Edge address autofill" -SettingID "EdgeHardening_NoAddrAutofill"
+        Set-Registry -Path $edgePath -Name "PasswordManagerEnabled"        -Value 0 -Type DWord -SafetyLevel "Moderate" -Description "Disables Edge password saving" -SettingID "EdgeHardening_NoPassAutofill"
+    }
+    if ($edge9_StartupBoost) {
+        Set-Registry -Path $edgePath -Name "StartupBoostEnabled"          -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge startup boost" -SettingID "EdgeHardening_NoStartupBoost"
+    }
+    if ($edge22_NoFirstRun) {
+        Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" -Name "DisallowFirstRun" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge first-run experience" -SettingID "EdgeHardening_NoFirstRun"
+    }
+    if ($edge23_NoDefPrompt) {
+        Set-Registry -Path $edgePath -Name "DefaultBrowserSettingEnabled"  -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Hides Edge default browser prompt" -SettingID "EdgeHardening_NoDefPrompt"
+    }
+    if ($edge24_NoTabPreload) {
+        Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader" -Name "AllowTabPreloading" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge tab preloading" -SettingID "EdgeHardening_NoTabPreload"
+    }
+
+    # Always disable Edge prelaunch (no user toggle needed — it's purely bloat)
     Set-Registry -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main" `
-        -Name "DisallowFirstRun" -Value 1 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge first-run experience — prevents Edge welcome screen" -SettingID "EdgeHardening_NoEdgeFirstRun2"
+        -Name "AllowPrelaunch" -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge prelaunch" -SettingID "EdgeHardening_NoEdgePrelaunch"
+
+    # Also set UserFeedbackAllowed=0 when telemetry is on
+    if ($edge1_Telemetry) {
+        Set-Registry -Path $edgePath -Name "UserFeedbackAllowed"           -Value 0 -Type DWord -SafetyLevel "Safe" -Description "Disables Edge user feedback" -SettingID "EdgeHardening_NoFeedback"
+    }
 
     Write-Host ""
-    Write-Success "Edge hardening complete."
+    Write-Success "Edge security & privacy hardening complete."
 }
 
 #endregion
@@ -3296,7 +3416,7 @@ function Show-SimpleMenu {
         @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup and Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
         @{ ID = "10"; Key = "Winget";                Name = "Software Installation (Winget)";           Desc = "Chrome, Firefox, 7-Zip, VLC, Reader, Notepad++" },
         @{ ID = "11"; Key = "OfficeActivation";      Name = "Microsoft Office Install + Activation";       Desc = "Choose Office version (365/LTSC 2024/2021/2019), MAS activation, Office telemetry off" },
-        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening (14 policies)";             Desc = "Shopping, Copilot, telemetry, preload, sync" },
+        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Security & Privacy (24 policies)";     Desc = "Telemetry, tracking, HTTPS-only, Safe Browsing, Copilot, autofill, shopping" },
         @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
         @{ ID = "14"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
         @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
