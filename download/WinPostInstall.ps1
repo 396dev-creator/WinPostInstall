@@ -100,8 +100,10 @@ trap {
     Write-Host "  [FATAL ERROR] $($_.Exception.Message)" -ForegroundColor Red
     Write-Host "  at line $($_.InvocationInfo.ScriptLineNumber): $($_.InvocationInfo.Line.Trim())" -ForegroundColor Yellow
     Write-Host ""
-    Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
-    Read-Host "  "
+    if (-not $Silent) {
+        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+        try { Read-Host "  " } catch { }
+    }
     exit 1
 }
 
@@ -187,7 +189,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
         Write-Host "    Right-click PowerShell -> Run as Administrator, then:" -ForegroundColor Yellow
         Write-Host "    .\WinPostInstall.ps1" -ForegroundColor Cyan
         Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
-        Read-Host "  "
+        try { Read-Host "  " } catch { }
     }
     exit 0
 }
@@ -290,7 +292,7 @@ function Initialize-Script {
         Write-Host "  Then re-run this script." -ForegroundColor Yellow
         Write-Host ""
         Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
-        Read-Host "  "
+        try { Read-Host "  " } catch { }
         exit 1
     }
 
@@ -2391,8 +2393,10 @@ function Invoke-OfficeActivation {
             Write-Host "    4. You manually choose: [1] HWID for Windows, [2] Ohook for Office" -ForegroundColor White
         }
         Write-Host ""
-        $confirm = Read-Host "  Proceed with Office install? (Y/n)"
-        if ($confirm -eq 'n' -or $confirm -eq 'N') { Write-Warn "Skipped."; return }
+        if (-not $Silent) {
+            $confirm = Read-Host "  Proceed with Office install? (Y/n)"
+            if ($confirm -eq 'n' -or $confirm -eq 'N') { Write-Warn "Skipped."; return }
+        }
     }
 
     # Check if Office is already installed
@@ -3945,17 +3949,20 @@ try {
         Write-Step "Loading configuration from: $ConfigFile"
         try {
             $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
-            if ($config.Sections) {
-                $selectedSections = @($config.Sections)
+            if ($config.sections) {
+                # sections is a JSON object with section names as keys and setting maps as values
+                # Extract section names from the object's properties
+                $selectedSections = @($config.sections.PSObject.Properties.Name)
                 Write-Success "Loaded sections from config: $($selectedSections -join ', ')"
             }
             # Parse per-section settings into flat ConfigSettings map
-            if ($config.sections -is [System.Collections.Specialized.OrderedDictionary] -or $config.sections -is [hashtable]) {
-                foreach ($sectionKey in $config.sections.Keys) {
-                    $sectionData = $config.sections[$sectionKey]
-                    if ($sectionData -is [System.Collections.Specialized.OrderedDictionary] -or $sectionData -is [hashtable]) {
-                        foreach ($settingKey in $sectionData.Keys) {
-                            $script:ConfigSettings[$settingKey] = [bool]$sectionData[$settingKey]
+            # ConvertFrom-Json returns PSCustomObject, not hashtable/OrderedDictionary
+            if ($config.sections) {
+                foreach ($sectionProp in $config.sections.PSObject.Properties) {
+                    $sectionData = $sectionProp.Value
+                    if ($sectionData -and $sectionData.PSObject.Properties) {
+                        foreach ($settingProp in $sectionData.PSObject.Properties) {
+                            $script:ConfigSettings[$settingProp.Name] = [bool]$settingProp.Value
                         }
                     }
                 }
@@ -4350,8 +4357,10 @@ try {
     }
 
     try { Stop-Transcript | Out-Null } catch { }
-    Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
-    Read-Host "  "
+    if (-not $Silent) {
+        Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
+        try { Read-Host "  " } catch { }
+    }
 }
 
 #endregion
