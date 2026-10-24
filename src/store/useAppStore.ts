@@ -592,7 +592,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const enabledSoftware = state.selectedSoftware;
 
     return {
-      version: "4.1.0",
+      version: "4.1.2",
       generatedAt: new Date().toISOString(),
       sections: configSections,
       software: enabledSoftware,

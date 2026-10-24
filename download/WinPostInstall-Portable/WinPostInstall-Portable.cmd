@@ -1,8 +1,8 @@
 @echo off
-title WinPostInstall v4.1.0 - Launcher
+title WinPostInstall v4.1.2 - Launcher
 echo.
 echo  ============================================
-echo   WinPostInstall v4.1.0 - Portable Launcher
+echo   WinPostInstall v4.1.2 - Portable Launcher
 echo  ============================================
 echo.
 echo  Starting local server...

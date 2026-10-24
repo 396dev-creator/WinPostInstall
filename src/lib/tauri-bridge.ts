@@ -202,7 +202,7 @@ export async function liveApply(
   });
 
   const config = {
-    version: "4.1.0",
+    version: "4.1.2",
     generatedAt: new Date().toISOString(),
     createRestorePoint,
     sections: configSections,

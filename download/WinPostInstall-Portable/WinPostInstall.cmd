@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul 2>&1
-title WinPostInstall v4.1.0
+title WinPostInstall v4.1.2
 cls
 echo.
 echo   ╔═══════════════════════════════════════════════╗
-echo   ║  WinPostInstall v4.1.0                        ║
+echo   ║  WinPostInstall v4.1.2                        ║
 echo   ║  Windows Post-Installation Configurator        ║
 echo   ╚═══════════════════════════════════════════════╝
 echo.

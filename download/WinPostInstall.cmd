@@ -67,7 +67,7 @@ goto :eof
     .\WinPostInstall.ps1 -Sections Privacy,Debloat,Performance
     Runs only the specified sections. Useful for targeted fixes.
 .VERSION
-    4.1.0
+    4.1.2
 .NOTES
     Author:             Post-Install Optimizer (IT Technician Tooling)
     Category:           System Administration / IT Operations / OS Deployment
@@ -80,7 +80,7 @@ goto :eof
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
-    v4.1.0 - Safety audit + interactive tooltips:
+    v4.1.2 - Safety audit + interactive tooltips:
              [Safety] 3-tier classification (Safe/Moderate/Risky) for ALL settings
              [Safety] Risky settings default OFF — must opt-in via -AllowRisky or menu
              [Safety] Service dependency checks before disabling — warns if dependents exist
@@ -135,7 +135,7 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "4.1.0"
+$ScriptVersion = "4.1.2"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Undo command tracker (for rollback script generation)
