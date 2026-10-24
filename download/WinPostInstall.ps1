@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Windows Post-Installation Optimization Script
 .DESCRIPTION
@@ -799,8 +799,9 @@ function Set-Registry {
         $valueMatches = $false
         if ($null -ne $currentValue) {
             if ($Type -eq "DWord" -or $Type -eq "QWord") {
-                # Numeric comparison (handle both int and string inputs)
-                $valueMatches = ([int]$currentValue -eq [int]$Value)
+                # Numeric comparison - use [long] to handle values > Int32.MaxValue
+                # (e.g. NetworkThrottlingIndex = 0xFFFFFFFF = 4294967295)
+                $valueMatches = ([long]$currentValue -eq [long]$Value)
             } elseif ($Type -eq "String" -or $Type -eq "ExpandString") {
                 $valueMatches = ([string]$currentValue -eq [string]$Value)
             } else {
@@ -824,7 +825,33 @@ function Set-Registry {
             $null = $script:UndoDescriptions.Add("Remove registry key that was added: $Path\$Name")
         }
 
-        Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
+        # Set-ItemProperty cannot handle DWord values > Int32.MaxValue (2147483647).
+        # For such values (e.g. NetworkThrottlingIndex = 0xFFFFFFFF), use reg.exe instead.
+        if ($Type -eq "DWord" -and [long]$Value -gt [int]::MaxValue) {
+            # Convert registry path to HKLM/HKCU short form for reg.exe
+            $regKey = $Path -replace '^HKLM:\\', 'HKLM\' -replace '^HKCU:\\', 'HKCU\' `
+                                -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM\' -replace '^HKEY_CURRENT_USER\\', 'HKCU\' `
+                                -replace '\\', '\'
+            $hexVal = '0x{0:X}' -f [long]$Value
+            $regArgs = @('add', $regKey, '/v', $Name, '/t', 'REG_DWORD', '/d', $hexVal, '/f')
+            $regResult = & reg.exe @regArgs 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "reg.exe failed: $regResult"
+            }
+        } elseif ($Type -eq "QWord" -and [long]$Value -gt [long]::MaxValue) {
+            # QWord values exceeding [long]::MaxValue are extremely rare; fallback to reg.exe
+            $regKey = $Path -replace '^HKLM:\\', 'HKLM\' -replace '^HKCU:\\', 'HKCU\' `
+                                -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM\' -replace '^HKEY_CURRENT_USER\\', 'HKCU\' `
+                                -replace '\\', '\'
+            $hexVal = '0x{0:X}' -f [long]$Value
+            $regArgs = @('add', $regKey, '/v', $Name, '/t', 'REG_QWORD', '/d', $hexVal, '/f')
+            $regResult = & reg.exe @regArgs 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "reg.exe failed: $regResult"
+            }
+        } else {
+            Set-ItemProperty -Path $Path -Name $Name -Value $Value -Type $Type -Force -ErrorAction Stop
+        }
         Write-Success "Registry: $Path\$Name = $Value"
         $script:TotalChanged++
     }
