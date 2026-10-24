@@ -1,4 +1,4 @@
-﻿# ============================================================================
+# ============================================================================
 #  publish-release.ps1  -  One-command release publisher
 #  Just run:  .\publish-release.ps1
 #  Everything is auto-detected: version, exe path, changelog

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Windows Post-Installation Optimization Script
 .DESCRIPTION

@@ -1,4 +1,4 @@
-﻿# ============================================================================
+# ============================================================================
 #  boot.ps1  -  Bootstrap script for irm | iex distribution
 #  Host this at: https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1
 #  Users run:    irm https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1 | iex
