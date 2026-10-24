@@ -1,20 +1,20 @@
-# ============================================================================
-#  publish-release.ps1 — One-command release publisher
+﻿# ============================================================================
+#  publish-release.ps1  -  One-command release publisher
 #  Just run:  .\publish-release.ps1
 #  Everything is auto-detected: version, exe path, changelog
 # ============================================================================
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+# -- Configuration --------------------------------------------------------------
 $RepoOwner = "396dev-creator"
 $RepoName  = "WinPostInstall"
 $ExeName   = "WinPostInstall.exe"
 
-# ── Helper functions ──────────────────────────────────────────────────────────
+# -- Helper functions ----------------------------------------------------------
 function Write-Status($msg) { Write-Host "[*] $msg" -ForegroundColor Cyan }
 function Write-OK($msg)     { Write-Host "[+] $msg" -ForegroundColor Green }
 function Write-Err($msg)    { Write-Host "[-] $msg" -ForegroundColor Red }
 
-# ── Step 1: Auto-detect version from tauri.conf.json ─────────────────────────
+# -- Step 1: Auto-detect version from tauri.conf.json -------------------------
 Write-Status "Detecting version ..."
 
 $Version = ""
@@ -42,7 +42,7 @@ if (-not $Version) {
 
 Write-OK "Version: $Version (auto-detected from $(if (Test-Path $TauriConf) { 'tauri.conf.json' } else { 'Cargo.toml' }))"
 
-# ── Step 2: Auto-find the built executable ───────────────────────────────────
+# -- Step 2: Auto-find the built executable -----------------------------------
 Write-Status "Locating built executable ..."
 
 $ExePath = ""
@@ -68,7 +68,7 @@ if (-not $ExePath) {
 $FileSize = [math]::Round((Get-Item $ExePath).Length / 1MB, 2)
 Write-OK "Found: $ExePath ($FileSize MB)"
 
-# ── Step 3: Auto-generate changelog from recent git log ──────────────────────
+# -- Step 3: Auto-generate changelog from recent git log ----------------------
 Write-Status "Generating changelog ..."
 
 $Changelog = ""
@@ -83,7 +83,7 @@ if (-not $Changelog) {
     $Changelog = "Release $Version"
 }
 
-# ── Step 4: Check GitHub CLI ──────────────────────────────────────────────────
+# -- Step 4: Check GitHub CLI --------------------------------------------------
 $GhCli = Get-Command "gh" -ErrorAction SilentlyContinue
 if (-not $GhCli) {
     Write-Err "GitHub CLI (gh) not found."
@@ -104,7 +104,7 @@ try {
 
 Write-OK "GitHub CLI authenticated"
 
-# ── Step 5: Check if tag already exists ──────────────────────────────────────
+# -- Step 5: Check if tag already exists --------------------------------------
 $ExistingRelease = gh release view $Version --repo "$RepoOwner/$RepoName" 2>$null
 if ($LASTEXITCODE -eq 0) {
     Write-Err "Release $Version already exists!"
@@ -115,7 +115,7 @@ if ($LASTEXITCODE -eq 0) {
     exit 1
 }
 
-# ── Step 6: Create the release ────────────────────────────────────────────────
+# -- Step 6: Create the release ------------------------------------------------
 Write-Status "Publishing release $Version ..."
 
 $TempChangelog = [System.IO.Path]::GetTempFileName()

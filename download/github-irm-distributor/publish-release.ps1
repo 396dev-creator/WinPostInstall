@@ -1,20 +1,20 @@
-# ============================================================================
-#  publish-release.ps1 — Build & publish a GitHub Release with your .exe
+﻿# ============================================================================
+#  publish-release.ps1  -  Build & publish a GitHub Release with your .exe
 #  Run this from your project root after building the executable
 # ============================================================================
 
 param(
-    [string]$Version = "",          # e.g. "v1.2.0" — auto-detected if empty
-    [string]$ExePath = "",          # Path to the built .exe — defaults to standard location
+    [string]$Version = "",          # e.g. "v1.2.0"  -  auto-detected if empty
+    [string]$ExePath = "",          # Path to the built .exe  -  defaults to standard location
     [string]$Changelog = ""         # Release notes
 )
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+# -- Configuration --------------------------------------------------------------
 $RepoOwner = "396dev-creator"
 $RepoName  = "WinPostInstall"
 $ExeName   = "WinPostInstall.exe"
 
-# ── Validate ───────────────────────────────────────────────────────────────────
+# -- Validate -------------------------------------------------------------------
 if (-not $ExePath) {
     # Default: look in src-tauri/target/release/
     $ExePath = "src-tauri/target/release/$ExeName"
@@ -40,7 +40,7 @@ if (-not $Changelog) {
     $Changelog = "Release $Version"
 }
 
-# ── Check for GitHub CLI ──────────────────────────────────────────────────────
+# -- Check for GitHub CLI ------------------------------------------------------
 $GhCli = Get-Command "gh" -ErrorAction SilentlyContinue
 if (-not $GhCli) {
     Write-Host "[-] GitHub CLI (gh) not found." -ForegroundColor Red
@@ -51,7 +51,7 @@ if (-not $GhCli) {
     exit 1
 }
 
-# ── Verify authentication ─────────────────────────────────────────────────────
+# -- Verify authentication -----------------------------------------------------
 try {
     $AuthStatus = gh auth status 2>&1
     if ($LASTEXITCODE -ne 0) {
@@ -64,7 +64,7 @@ try {
     exit 1
 }
 
-# ── Create release and upload asset ───────────────────────────────────────────
+# -- Create release and upload asset -------------------------------------------
 Write-Host "[*] Creating release $Version ..." -ForegroundColor Cyan
 
 gh release create $Version `

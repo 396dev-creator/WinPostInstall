@@ -1,10 +1,10 @@
-# ============================================================================
-#  boot.ps1 — Bootstrap script for irm | iex distribution
+﻿# ============================================================================
+#  boot.ps1  -  Bootstrap script for irm | iex distribution
 #  Host this at: https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1
 #  Users run:    irm https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1 | iex
 # ============================================================================
 
-# ── UTF-8 Encoding Bootstrap ──────────────────────────────────────────────────
+# -- UTF-8 Encoding Bootstrap --------------------------------------------------
 # MUST be the first executable code. Ensures all console output is UTF-8 so that
 # Unicode characters (em dashes, box-drawing, smart quotes) in the PS1 script are
 # preserved when downloaded and executed.
@@ -15,22 +15,22 @@ try {
     chcp 65001 > $null 2>&1
 } catch { }
 
-# ── Self-Elevation ────────────────────────────────────────────────────────────
+# -- Self-Elevation ------------------------------------------------------------
 # The app needs admin for WebView2 install, and so the launched EXE inherits
 # admin privileges without a second UAC prompt. If not elevated, re-launch.
 #
 # CRITICAL: When run via `irm URL | iex`, $PSCommandPath is EMPTY because the
 # script executes from memory (not from a file on disk). Using -File with an
-# empty path causes PowerShell to open and immediately close — which is the
+# empty path causes PowerShell to open and immediately close  -  which is the
 # "blue window flashes and dies" bug. We detect this and use -Command to
 # re-download + re-execute the script in the elevated session instead.
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "[*] Requesting administrator elevation..." -ForegroundColor Yellow
     if ($PSCommandPath -and (Test-Path -Path $PSCommandPath -ErrorAction SilentlyContinue)) {
-        # Running from a file on disk (e.g. .\boot.ps1) — re-launch the same file elevated
+        # Running from a file on disk (e.g. .\boot.ps1)  -  re-launch the same file elevated
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     } else {
-        # Running from memory (irm | iex) — cannot use -File with empty $PSCommandPath.
+        # Running from memory (irm | iex)  -  cannot use -File with empty $PSCommandPath.
         # Re-download and execute the boot script inside the elevated session.
         # This avoids the "window opens and immediately closes" bug.
         $BootUrls = @(
@@ -55,18 +55,18 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     return
 }
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+# -- Configuration --------------------------------------------------------------
 $RepoOwner = "396dev-creator"
 $RepoName  = "WinPostInstall"
 $ExeName   = "WinPostInstall.exe"
 
-# ── Helper: Write colored output ──────────────────────────────────────────────
+# -- Helper: Write colored output ----------------------------------------------
 function Write-Status($msg)  { Write-Host "[*] $msg" -ForegroundColor Cyan }
 function Write-OK($msg)      { Write-Host "[+] $msg" -ForegroundColor Green }
 function Write-Warn($msg)    { Write-Host "[!] $msg" -ForegroundColor Yellow }
 function Write-Err($msg)     { Write-Host "[-] $msg" -ForegroundColor Red }
 
-# ── Helper: Check if WebView2 is actually available ───────────────────────────
+# -- Helper: Check if WebView2 is actually available ---------------------------
 function Test-WebView2Available {
     # Method 1: Check registry (most reliable)
     $RegPaths = @(
@@ -98,7 +98,7 @@ function Test-WebView2Available {
     return $false
 }
 
-# ── Step 1: Query GitHub Releases API for latest release ─────────────────────
+# -- Step 1: Query GitHub Releases API for latest release ---------------------
 Write-Status "Fetching latest release from $RepoOwner/$RepoName ..."
 
 try {
@@ -109,7 +109,7 @@ try {
     return
 }
 
-# ── Step 2: Find the download URL for the exe ────────────────────────────────
+# -- Step 2: Find the download URL for the exe --------------------------------
 $Asset = $Release.assets | Where-Object { $_.name -eq $ExeName } | Select-Object -First 1
 
 if (-not $Asset) {
@@ -124,7 +124,7 @@ $Version     = $Release.tag_name
 
 Write-OK "Found $ExeName v$Version ($FileSize MB)"
 
-# ── Step 3: Check & install WebView2 if missing ──────────────────────────────
+# -- Step 3: Check & install WebView2 if missing ------------------------------
 Write-Status "Checking WebView2 runtime ..."
 
 if (Test-WebView2Available) {
@@ -166,13 +166,13 @@ if (Test-WebView2Available) {
     }
 }
 
-# ── Step 4: Create a temporary directory ──────────────────────────────────────
+# -- Step 4: Create a temporary directory --------------------------------------
 $TempDir = Join-Path $env:TEMP "WinPostInstall_$(New-Guid)"
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
 $TempExe = Join-Path $TempDir $ExeName
 
-# ── Step 5: Download the binary with progress ────────────────────────────────
+# -- Step 5: Download the binary with progress --------------------------------
 Write-Status "Downloading to temporary location..."
 
 try {
@@ -214,7 +214,7 @@ if (-not (Test-Path $TempExe)) {
 
 Write-OK "Download complete"
 
-# ── Step 5b: Download the PowerShell script alongside the exe ────────────────
+# -- Step 5b: Download the PowerShell script alongside the exe ----------------
 Write-Status "Downloading WinPostInstall.ps1 ..."
 
 $Ps1Url = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/scripts/WinPostInstall.ps1"
@@ -237,7 +237,7 @@ try {
     # Non-essential, skip silently
 }
 
-# ── Step 6: Run the executable and WAIT for it to exit ───────────────────────
+# -- Step 6: Run the executable and WAIT for it to exit -----------------------
 Write-Status "Launching $ExeName ..."
 Write-Host ""
 
@@ -250,7 +250,7 @@ try {
     Write-Err "Failed to launch: $($_.Exception.Message)"
 }
 
-# ── Step 7: CLEANUP — Delete all traces ──────────────────────────────────────
+# -- Step 7: CLEANUP  -  Delete all traces --------------------------------------
 Write-Status "Cleaning up temporary files..."
 
 Start-Sleep -Milliseconds 500

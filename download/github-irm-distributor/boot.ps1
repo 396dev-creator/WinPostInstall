@@ -1,10 +1,10 @@
-# ============================================================================
-#  boot.ps1 — Bootstrap script for irm | iex distribution
+﻿# ============================================================================
+#  boot.ps1  -  Bootstrap script for irm | iex distribution
 #  Host this at: https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1
 #  Users run:    irm https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1 | iex
 # ============================================================================
 
-# ── UTF-8 Encoding Bootstrap ──────────────────────────────────────────────────
+# -- UTF-8 Encoding Bootstrap --------------------------------------------------
 try {
     [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
     [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
@@ -12,7 +12,7 @@ try {
     chcp 65001 > $null 2>&1
 } catch { }
 
-# ── Self-Elevation ────────────────────────────────────────────────────────────
+# -- Self-Elevation ------------------------------------------------------------
 # CRITICAL: When run via `irm URL | iex`, $PSCommandPath is EMPTY because the
 # script executes from memory. Using -File with empty path causes PowerShell to
 # open and immediately close. We detect this and use -Command to re-download
@@ -20,10 +20,10 @@ try {
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "[*] Requesting administrator elevation..." -ForegroundColor Yellow
     if ($PSCommandPath -and (Test-Path -Path $PSCommandPath -ErrorAction SilentlyContinue)) {
-        # Running from a file on disk — re-launch the same file elevated
+        # Running from a file on disk  -  re-launch the same file elevated
         Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
     } else {
-        # Running from memory (irm | iex) — re-download and execute in elevated session
+        # Running from memory (irm | iex)  -  re-download and execute in elevated session
         $BootUrls = @(
             'https://get.techdepot.ke/get.ps1',
             'https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1'
@@ -46,19 +46,19 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     return
 }
 
-# ── Configuration ──────────────────────────────────────────────────────────────
+# -- Configuration --------------------------------------------------------------
 # Replace these with your actual GitHub repo details
 $RepoOwner = "396dev-creator"
 $RepoName  = "WinPostInstall"
 $ExeName   = "WinPostInstall.exe"          # The binary name in your release
 
-# ── Helper: Write colored output ──────────────────────────────────────────────
+# -- Helper: Write colored output ----------------------------------------------
 function Write-Status($msg)  { Write-Host "[*] $msg" -ForegroundColor Cyan }
 function Write-OK($msg)      { Write-Host "[+] $msg" -ForegroundColor Green }
 function Write-Warn($msg)    { Write-Host "[!] $msg" -ForegroundColor Yellow }
 function Write-Err($msg)     { Write-Host "[-] $msg" -ForegroundColor Red }
 
-# ── Step 1: Query GitHub Releases API for latest release ─────────────────────
+# -- Step 1: Query GitHub Releases API for latest release ---------------------
 Write-Status "Fetching latest release from $RepoOwner/$RepoName ..."
 
 try {
@@ -69,7 +69,7 @@ try {
     return
 }
 
-# ── Step 2: Find the download URL for the exe ────────────────────────────────
+# -- Step 2: Find the download URL for the exe --------------------------------
 $Asset = $Release.assets | Where-Object { $_.name -eq $ExeName } | Select-Object -First 1
 
 if (-not $Asset) {
@@ -84,14 +84,14 @@ $Version     = $Release.tag_name
 
 Write-OK "Found $ExeName v$Version ($FileSize MB)"
 
-# ── Step 3: Create a temporary directory ──────────────────────────────────────
+# -- Step 3: Create a temporary directory --------------------------------------
 # Using a GUID-based name under $env:TEMP to avoid collisions
 $TempDir = Join-Path $env:TEMP "WinPostInstall_$(New-Guid)"
 New-Item -ItemType Directory -Path $TempDir -Force | Out-Null
 
 $TempExe = Join-Path $TempDir $ExeName
 
-# ── Step 4: Download the binary with progress ────────────────────────────────
+# -- Step 4: Download the binary with progress --------------------------------
 Write-Status "Downloading to temporary location..."
 
 try {
@@ -139,7 +139,7 @@ if (-not (Test-Path $TempExe)) {
 
 Write-OK "Download complete"
 
-# ── Step 5: Run the executable and WAIT for it to exit ───────────────────────
+# -- Step 5: Run the executable and WAIT for it to exit -----------------------
 Write-Status "Launching $ExeName ..."
 Write-Host ""
 
@@ -152,7 +152,7 @@ try {
     Write-Err "Failed to launch: $($_.Exception.Message)"
 }
 
-# ── Step 6: CLEANUP — Delete all traces ──────────────────────────────────────
+# -- Step 6: CLEANUP  -  Delete all traces --------------------------------------
 Write-Status "Cleaning up temporary files..."
 
 # Small delay to ensure file handles are released

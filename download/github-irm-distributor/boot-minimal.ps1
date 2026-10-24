@@ -1,5 +1,5 @@
-# ============================================================================
-#  boot-minimal.ps1 — Minimal bootstrap (no progress bar, simpler cleanup)
+﻿# ============================================================================
+#  boot-minimal.ps1  -  Minimal bootstrap (no progress bar, simpler cleanup)
 #  For users who prefer a lean, fast loader
 # ============================================================================
 
