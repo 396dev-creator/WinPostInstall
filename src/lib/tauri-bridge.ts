@@ -31,6 +31,30 @@ export interface ExecutionResult {
 }
 
 /**
+ * Encode a PowerShell script for the -EncodedCommand parameter.
+ * PowerShell expects Base64 of the script encoded as UTF-16LE.
+ *
+ * WHY: -Command with multi-line scripts and embedded quotes is fragile on
+ * Windows (quoting/newline corruption => "A command must follow -Command").
+ * -EncodedCommand carries the script as opaque Base64 — zero quoting issues.
+ * JS strings are already UTF-16 code units, so charCodeAt gives us the
+ * UTF-16LE bytes directly (surrogate pairs handled naturally).
+ */
+function encodePsCommand(script: string): string {
+  const bytes: number[] = [];
+  for (let i = 0; i < script.length; i++) {
+    const code = script.charCodeAt(i);
+    bytes.push(code & 0xff, (code >> 8) & 0xff);
+  }
+  let binary = "";
+  const CHUNK = 0x8000; // avoid arg-length limits in String.fromCharCode.apply
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.slice(i, i + CHUNK));
+  }
+  return btoa(binary);
+}
+
+/**
  * Execute a PowerShell command via Tauri shell
  */
 export async function executePowerShell(script: string): Promise<ExecutionResult> {
@@ -45,11 +69,15 @@ export async function executePowerShell(script: string): Promise<ExecutionResult
   }
 
   try {
+    // Wrap user script with a UTF-8 console encoding preamble (try/catch: the
+    // [Console] API can throw when stdout is redirected with no console).
+    const fullScript = `try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }\n${script}`;
+
     const command = shell.Command.create("powershell", [
       "-NoProfile",
       "-NonInteractive",
       "-ExecutionPolicy", "Bypass",
-      "-Command", script,
+      "-EncodedCommand", encodePsCommand(fullScript),
     ]);
 
     const result = await command.execute();
@@ -97,7 +125,9 @@ export async function applyWithConfig(configPath: string, scriptPath: string): P
   const script = `
     try {
       # Run WinPostInstall.ps1 with the config file
-      & "${scriptPath}" -ConfigFile "${configPath}" -NonInteractive
+      # NOTE: -Silent is a valid script param; -NonInteractive is NOT and would
+      # cause a parameter binding error.
+      & '${scriptPath.replace(/'/g, "''")}' -ConfigFile '${configPath.replace(/'/g, "''")}' -Silent
       Write-Output "WinPostInstall applied successfully"
     } catch {
       Write-Error "Failed to apply: $_"
@@ -209,7 +239,7 @@ ${configJson}
     
     if (Test-Path $scriptPath) {
       Write-Output "[OK] Executing WinPostInstall.ps1 with config..."
-      & $scriptPath -ConfigFile $configPath -NonInteractive
+      & $scriptPath -ConfigFile $configPath -Silent
       Write-Output "[OK] Application complete"
     } else {
       Write-Error "[ERROR] WinPostInstall.ps1 not found. Please ensure it is in the temp directory or current path."
