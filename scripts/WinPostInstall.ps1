@@ -140,6 +140,12 @@ try {
 
 # Self-elevate: If not running as Administrator, re-launch in an elevated window
 # This allows the user to simply double-click the script
+#
+# CRITICAL: When invoked via `powershell -Command "& 'script.ps1' ..."`, $PSCommandPath
+# is EMPTY because the script is dot-sourced from memory, not loaded from a file.
+# Using -File with an empty path causes PowerShell to open and immediately close.
+# We detect this and either: (a) save self to temp and re-launch from file, or
+# (b) fall back to a helpful error message.
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "  Not running as Administrator. Requesting elevation..." -ForegroundColor Yellow
     $scriptArgs = @()
@@ -150,10 +156,24 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     if ($AllowRisky) { $scriptArgs += "-AllowRisky" }
     if ($SimpleMenu) { $scriptArgs += "-SimpleMenu" }
     try {
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $scriptArgs" -Verb RunAs -ErrorAction Stop
-        Write-Host "  Elevated window opened. This window can be closed." -ForegroundColor Green
+        if ($PSCommandPath -and (Test-Path -Path $PSCommandPath -ErrorAction SilentlyContinue)) {
+            # Running from a file on disk — standard -File elevation (preferred)
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" $scriptArgs" -Verb RunAs -ErrorAction Stop
+            Write-Host "  Elevated window opened. This window can be closed." -ForegroundColor Green
+        } else {
+            # $PSCommandPath is empty — script is running from memory (irm | iex or -Command).
+            # Attempt to re-download from GitHub and execute in the elevated session.
+            $Ps1Url = 'https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/scripts/WinPostInstall.ps1'
+            $argStr = $scriptArgs -join ' '
+            $elevatedCmd = "irm '$Ps1Url' | iex"
+            if ($argStr) { $elevatedCmd = "& (irm '$Ps1Url') $argStr" }
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"$elevatedCmd`"" -Verb RunAs -ErrorAction Stop
+            Write-Host "  Elevated window opened (re-downloaded from GitHub). This window can be closed." -ForegroundColor Green
+        }
     } catch {
-        Write-Host "  Could not self-elevate. Please right-click -> Run as Administrator." -ForegroundColor Red
+        Write-Host "  Could not self-elevate. Please run as Administrator:" -ForegroundColor Red
+        Write-Host "    Right-click PowerShell -> Run as Administrator, then:" -ForegroundColor Yellow
+        Write-Host "    .\WinPostInstall.ps1" -ForegroundColor Cyan
         Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
         Read-Host "  "
     }

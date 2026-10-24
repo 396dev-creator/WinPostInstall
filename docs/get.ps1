@@ -16,11 +16,42 @@ try {
 } catch { }
 
 # ── Self-Elevation ────────────────────────────────────────────────────────────
-# The app needs admin for Checkpoint-Computer (restore points), service control,
-# registry writes, etc. If not elevated, re-launch elevated and exit.
+# The app needs admin for WebView2 install, and so the launched EXE inherits
+# admin privileges without a second UAC prompt. If not elevated, re-launch.
+#
+# CRITICAL: When run via `irm URL | iex`, $PSCommandPath is EMPTY because the
+# script executes from memory (not from a file on disk). Using -File with an
+# empty path causes PowerShell to open and immediately close — which is the
+# "blue window flashes and dies" bug. We detect this and use -Command to
+# re-download + re-execute the script in the elevated session instead.
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "[*] Requesting administrator elevation..." -ForegroundColor Yellow
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    if ($PSCommandPath -and (Test-Path -Path $PSCommandPath -ErrorAction SilentlyContinue)) {
+        # Running from a file on disk (e.g. .\boot.ps1) — re-launch the same file elevated
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    } else {
+        # Running from memory (irm | iex) — cannot use -File with empty $PSCommandPath.
+        # Re-download and execute the boot script inside the elevated session.
+        # This avoids the "window opens and immediately closes" bug.
+        $BootUrls = @(
+            'https://get.techdepot.ke/get.ps1',
+            'https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/docs/get.ps1'
+        )
+        $elevated = $false
+        foreach ($url in $BootUrls) {
+            try {
+                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm '$url' | iex`"" -Verb RunAs -ErrorAction Stop
+                $elevated = $true
+                break
+            } catch { continue }
+        }
+        if (-not $elevated) {
+            Write-Host "[!] Auto-elevation failed. Please run as Administrator manually:" -ForegroundColor Red
+            Write-Host "    Right-click PowerShell -> Run as Administrator, then:" -ForegroundColor Yellow
+            Write-Host "    irm https://get.techdepot.ke/get.ps1 | iex" -ForegroundColor Cyan
+            Read-Host "Press Enter to exit"
+        }
+    }
     return
 }
 

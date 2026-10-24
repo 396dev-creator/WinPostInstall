@@ -13,9 +13,36 @@ try {
 } catch { }
 
 # ── Self-Elevation ────────────────────────────────────────────────────────────
+# CRITICAL: When run via `irm URL | iex`, $PSCommandPath is EMPTY because the
+# script executes from memory. Using -File with empty path causes PowerShell to
+# open and immediately close. We detect this and use -Command to re-download
+# + re-execute in the elevated session instead.
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "[*] Requesting administrator elevation..." -ForegroundColor Yellow
-    Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    if ($PSCommandPath -and (Test-Path -Path $PSCommandPath -ErrorAction SilentlyContinue)) {
+        # Running from a file on disk — re-launch the same file elevated
+        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+    } else {
+        # Running from memory (irm | iex) — re-download and execute in elevated session
+        $BootUrls = @(
+            'https://get.techdepot.ke/get.ps1',
+            'https://raw.githubusercontent.com/396dev-creator/WinPostInstall/main/boot.ps1'
+        )
+        $elevated = $false
+        foreach ($url in $BootUrls) {
+            try {
+                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"irm '$url' | iex`"" -Verb RunAs -ErrorAction Stop
+                $elevated = $true
+                break
+            } catch { continue }
+        }
+        if (-not $elevated) {
+            Write-Host "[!] Auto-elevation failed. Please run as Administrator manually:" -ForegroundColor Red
+            Write-Host "    Right-click PowerShell -> Run as Administrator, then:" -ForegroundColor Yellow
+            Write-Host "    irm https://get.techdepot.ke/get.ps1 | iex" -ForegroundColor Cyan
+            Read-Host "Press Enter to exit"
+        }
+    }
     return
 }
 
