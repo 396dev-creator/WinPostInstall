@@ -93,7 +93,7 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "4.1.0"
+$ScriptVersion = "4.1.1"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Undo command tracker (for rollback script generation)
