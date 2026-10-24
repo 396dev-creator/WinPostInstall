@@ -2313,24 +2313,53 @@ function Invoke-OfficeActivation {
     $script:CurrentSection = "OfficeActivation"
     Write-Host ""
 
-    $officeSetupUrl = "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=O365ProPlusRetail&platform=x64&language=en-us&version=O16GA"
     $masUrl = "https://get.activate.win"
     $officeSetupPath = "$env:TEMP\OfficeSetup.exe"
     $masScriptPath = "$env:TEMP\MAS.ps1"
     $skipToActivation = $false
 
-    # --- Step 1: Download Office 365 ProPlus installer ---
-    Write-Host "  [Step 1/3] Office 365 Installation" -ForegroundColor Yellow
+    # ================================================================
+    # Determine Office version, architecture from config
+    # ================================================================
+    # Default: Office 365 ProPlus x64
+    $officeProductID = "O365ProPlusRetail"
+    $officeVersion   = "O16GA"
+    $officePlatform  = "x64"
+    $officeLang      = "en-us"
+    $officeLabel     = "Office 365 ProPlus"
+    $doActivation    = $true
+
+    # Read config-driven selections
+    if ($script:ConfigSettings) {
+        # Version selection (mutually exclusive — first enabled wins)
+        if ($script:ConfigSettings["Off_V365"])  { $officeProductID = "O365ProPlusRetail"; $officeLabel = "Office 365 ProPlus" }
+        elseif ($script:ConfigSettings["Off_V2024"]) { $officeProductID = "OfficeLtsc2024Volume"; $officeLabel = "Office LTSC 2024" }
+        elseif ($script:ConfigSettings["Off_V2021"]) { $officeProductID = "OfficeLtsc2021Volume"; $officeLabel = "Office LTSC 2021" }
+        elseif ($script:ConfigSettings["Off_V2019"]) { $officeProductID = "Office2019Volume"; $officeLabel = "Office 2019" }
+
+        # Architecture
+        if ($script:ConfigSettings["Off_Arch32"]) { $officePlatform = "x86" }
+
+        # Activation
+        if (-not $script:ConfigSettings["Off_Act"]) { $doActivation = $false }
+    }
+
+    $officeSetupUrl = "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=$officeProductID&platform=$officePlatform&language=$officeLang&version=$officeVersion"
+
+    # --- Step 1: Download Office installer ---
+    Write-Host "  [Step 1/3] $officeLabel ($officePlatform) Installation" -ForegroundColor Yellow
     Write-Host ""
 
     if (-not $Silent) {
         Write-Host "  This will:" -ForegroundColor White
-        Write-Host "    1. Download Office 365 ProPlus (x64, English) installer (~4MB)" -ForegroundColor White
+        Write-Host "    1. Download $officeLabel ($officePlatform, $officeLang) installer (~4MB)" -ForegroundColor White
         Write-Host "    2. Run the Office deployment (downloads apps, may take 10-20 min)" -ForegroundColor White
-        Write-Host "    3. Download and launch Microsoft Activation Scripts (MAS)" -ForegroundColor White
-        Write-Host "    4. You manually choose: [1] HWID for Windows, [2] Ohook for Office" -ForegroundColor White
+        if ($doActivation) {
+            Write-Host "    3. Download and launch Microsoft Activation Scripts (MAS)" -ForegroundColor White
+            Write-Host "    4. You manually choose: [1] HWID for Windows, [2] Ohook for Office" -ForegroundColor White
+        }
         Write-Host ""
-        $confirm = Read-Host "  Proceed with Office install + activation? (Y/n)"
+        $confirm = Read-Host "  Proceed with Office install? (Y/n)"
         if ($confirm -eq 'n' -or $confirm -eq 'N') { Write-Warn "Skipped."; return }
     }
 
@@ -2345,7 +2374,7 @@ function Invoke-OfficeActivation {
     }
 
     if ($officeInstalled) {
-        Write-Step "Office 365/2019+ detected. Skipping download."
+        Write-Step "$officeLabel detected. Skipping download."
         if (-not $Silent) {
             $skip = Read-Host "  Office found. Skip to activation? (Y/n)"
             if ($skip -ne 'n' -and $skip -ne 'N') {
@@ -2360,7 +2389,7 @@ function Invoke-OfficeActivation {
 
     if (-not $skipToActivation) {
         # Download Office Setup
-        Write-Step "Downloading Office 365 ProPlus installer..."
+        Write-Step "Downloading $officeLabel ($officePlatform) installer..."
         try {
             $webClient = New-Object System.Net.WebClient
             $webClient.DownloadFile($officeSetupUrl, $officeSetupPath)
@@ -2375,13 +2404,13 @@ function Invoke-OfficeActivation {
         }
 
         # Run Office Setup (silent install)
-        Write-Step "Running Office 365 installation (this takes 10-20 minutes)..."
+        Write-Step "Running $officeLabel installation (this takes 10-20 minutes)..."
         Write-Host "  Please wait... Office apps are being installed in the background." -ForegroundColor DarkGray
         try {
             $officeProcess = Start-Process -FilePath $officeSetupPath -ArgumentList "/quiet /norestart" `
                 -Wait -PassThru -ErrorAction Stop
             if ($officeProcess.ExitCode -eq 0) {
-                Write-Success "Office 365 ProPlus installed successfully."
+                Write-Success "$officeLabel installed successfully."
             } else {
                 Write-Warn "Office setup exited with code $($officeProcess.ExitCode). It may still be installing."
             }
@@ -2394,53 +2423,58 @@ function Invoke-OfficeActivation {
     }
 
     # --- Step 2: Download & Launch Microsoft Activation Scripts ---
-    Write-Host ""
-    Write-Host "  [Step 2/3] Windows and Office Activation (MAS)" -ForegroundColor Yellow
-    Write-Host ""
-
-    Write-Step "Downloading Microsoft Activation Scripts..."
-    try {
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($masUrl, $masScriptPath)
-        if (Test-Path $masScriptPath) {
-            Write-Success "MAS downloaded: $masScriptPath"
-        } else {
-            throw "Download completed but file not found."
-        }
-    } catch {
-        Write-Err "Failed to download MAS: $_"
+    if ($doActivation) {
         Write-Host ""
-        Write-Host "  You can run manually: irm https://get.activate.win | iex" -ForegroundColor Yellow
+        Write-Host "  [Step 2/3] Windows and Office Activation (MAS)" -ForegroundColor Yellow
         Write-Host ""
-        return
-    }
 
-    # --- Step 3: Launch MAS interactively ---
-    Write-Host ""
-    Write-Host "  [Step 3/3] Launching MAS activation menu..." -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "  ================================================" -ForegroundColor Cyan
-    Write-Host "  MAS is opening in a NEW window." -ForegroundColor Cyan
-    Write-Host "  In the MAS window:" -ForegroundColor White
-    Write-Host "    [1] HWID     - Activate Windows" -ForegroundColor Green
-    Write-Host "    [2] Ohook    - Activate Office" -ForegroundColor Green
-    Write-Host "    [0] Exit     - Close MAS when done" -ForegroundColor Gray
-    Write-Host "  ================================================" -ForegroundColor Cyan
-    Write-Host ""
-
-    try {
-        # Launch MAS in a new elevated PowerShell window
-        Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
-            -Verb RunAs -ErrorAction Stop
-        Write-Success "MAS launched in a new Administrator window."
-    } catch {
-        # Fallback: launch in current window if UAC elevation fails
-        Write-Warn "Could not open new window. Running MAS in current session..."
+        Write-Step "Downloading Microsoft Activation Scripts..."
         try {
-            & $masScriptPath
+            $webClient = New-Object System.Net.WebClient
+            $webClient.DownloadFile($masUrl, $masScriptPath)
+            if (Test-Path $masScriptPath) {
+                Write-Success "MAS downloaded: $masScriptPath"
+            } else {
+                throw "Download completed but file not found."
+            }
         } catch {
-            Write-Err "MAS execution failed: $_"
+            Write-Err "Failed to download MAS: $_"
+            Write-Host ""
+            Write-Host "  You can run manually: irm https://get.activate.win | iex" -ForegroundColor Yellow
+            Write-Host ""
+            return
         }
+
+        # --- Step 3: Launch MAS interactively ---
+        Write-Host ""
+        Write-Host "  [Step 3/3] Launching MAS activation menu..." -ForegroundColor Yellow
+        Write-Host ""
+        Write-Host "  ================================================" -ForegroundColor Cyan
+        Write-Host "  MAS is opening in a NEW window." -ForegroundColor Cyan
+        Write-Host "  In the MAS window:" -ForegroundColor White
+        Write-Host "    [1] HWID     - Activate Windows" -ForegroundColor Green
+        Write-Host "    [2] Ohook    - Activate Office" -ForegroundColor Green
+        Write-Host "    [0] Exit     - Close MAS when done" -ForegroundColor Gray
+        Write-Host "  ================================================" -ForegroundColor Cyan
+        Write-Host ""
+
+        try {
+            # Launch MAS in a new elevated PowerShell window
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
+                -Verb RunAs -ErrorAction Stop
+            Write-Success "MAS launched in a new Administrator window."
+        } catch {
+            # Fallback: launch in current window if UAC elevation fails
+            Write-Warn "Could not open new window. Running MAS in current session..."
+            try {
+                & $masScriptPath
+            } catch {
+                Write-Err "MAS execution failed: $_"
+            }
+        }
+    } else {
+        Write-Host ""
+        Write-Step "Office activation skipped (not selected in config)."
     }
 
     # Disable Office telemetry while we're here
@@ -2473,7 +2507,7 @@ function Invoke-OfficeActivation {
     Write-Success "Office telemetry disabled (18 keys)."
 
     Write-Host ""
-    Write-Success "Office section complete. Complete activation in the MAS window."
+    Write-Success "Office section complete."
     Write-Host ""
 }
 
@@ -2681,24 +2715,78 @@ function Invoke-BrowserHardening {
     # ================================================================
     # Extension IDs and install URLs
     # ================================================================
-    # uBlock Origin
+    # uBlock Origin (BE_1)
     $ublockChromeID    = "cjpalhdlnbpafiamejdnhcphjbkeiagm"
     $ublockFirefoxID   = "uBlock0@raymondhill.net"
     $ublockAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/addon-607454-latest.xpi"
-    # Privacy Badger
+    # AdGuard AdBlocker (BE_2)
+    $adguardChromeID   = "bgnkhhnnicmohppcllllhnncibipnjak"
+    $adguardFirefoxID  = "adguardadblocker@adguard.com"
+    $adguardAMOUrl     = "https://addons.mozilla.org/firefox/downloads/latest/adguard-adblocker/addon-864033-latest.xpi"
+    # AdBlock Plus (BE_3)
+    $abpChromeID       = "cfhdojbkjhnklbpkdlldjfndllcbknp"
+    $abpFirefoxID      = "d10d0cv8z3sbk65modnq@jetpack"
+    $abpAMOUrl         = "https://addons.mozilla.org/firefox/downloads/latest/adblock-plus/addon-1865-latest.xpi"
+    # SponsorBlock for YouTube (BE_4)
+    $sponsorChromeID   = "mnjggcdcoclljnjhpdikcjddbnhijjkh"
+    $sponsorFirefoxID  = "sponsorBlocker@ajay.app"
+    $sponsorAMOUrl     = "https://addons.mozilla.org/firefox/downloads/latest/sponsorblock/addon-722678-latest.xpi"
+    # YouTube NonStop (BE_5)
+    $ytNonStopChromeID = "hdbidhplkcgchohbgbgkablbmpkljiki"
+    $ytNonStopFirefoxID= "{0e33e5ae-2e58-4342-bc82-e3a776e97e6e}"
+    $ytNonStopAMOUrl   = "https://addons.mozilla.org/firefox/downloads/latest/youtube-nonstop/addon-744421-latest.xpi"
+    # Privacy Badger (BE_6)
     $badgerChromeID    = "pkehgijcmpdhfbdbbnkijodmdjhbjlgp"
     $badgerFirefoxID   = "jid1-MnnxcxisBPnSXQ@jetpack"
     $badgerAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/privacy-badger17/addon-576858-latest.xpi"
+    # Popup Blocker (strict) (BE_7) - uBlock Origin with strict mode handles this, plus Poper Blocker
+    $poperChromeID     = "bbmhgpmolkhfmfgepgbokjolhcbgbhol"
+    $poperFirefoxID    = "{75459c04-9d63-4a18-958e-86e37d07ab52}"
+    $poperAMOUrl       = "https://addons.mozilla.org/firefox/downloads/latest/poper-blocker/addon-635728-latest.xpi"
+    # Cookie AutoDelete (BE_8)
+    $cookieAutoDelChromeID = "fhcgjignffcepefcmhkjgbeibmifglpj"
+    $cookieAutoDelFirefoxID= "CookieAutoDelete@kennydo"
+    $cookieAutoDelAMOUrl   = "https://addons.mozilla.org/firefox/downloads/latest/cookie-autodelete/addon-576858-latest.xpi"
+    # HTTPS Everywhere (BE_9) - Note: mostly superseded by browser built-in HTTPS-Only
+    $httpsEChromeID    = "gcbommkclmepnbljdpbkmdhdhpkblhdb"
+    $httpsEFirefoxID   = "https-everywhere@eff.org"
+    $httpsEAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/https-everywhere/addon-3706-latest.xpi"
+    # Decentraleyes (BE_10)
+    $decentChromeID    = "ldpochfccmkkmhnbpcgljndlmkfmokom"
+    $decentFirefoxID   = "jid1-MnnxcxisBPnSXQ@jetpack-decentraleyes"
+    $decentAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/decentraleyes/addon-641469-latest.xpi"
 
     # Chromium extension update URLs
     $chromeWebStoreUrl = "https://clients2.google.com/service/update2/crx"
     $edgeAddonsUrl    = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
 
     # ================================================================
-    # PART A: Force-install extensions via Group Policy
+    # Build extension lists from config (BE_1..BE_10)
     # ================================================================
-    Write-Host "  [Extensions]" -ForegroundColor Yellow
-    Write-Host ""
+    # Default: if no config, enable uBlock Origin + Privacy Badger (backward compat)
+    $extUblock    = $true   # BE_1
+    $extAdguard   = $false  # BE_2
+    $extABP       = $false  # BE_3
+    $extSponsor   = $false  # BE_4
+    $extYTNonStop = $false  # BE_5
+    $extBadger    = $true   # BE_6
+    $extPoper     = $false  # BE_7
+    $extCookieAD  = $false  # BE_8
+    $extHTTPSE    = $false  # BE_9
+    $extDecent    = $false  # BE_10
+
+    if ($script:ConfigSettings) {
+        $extUblock    = [bool]$script:ConfigSettings["BE_1"]
+        $extAdguard   = [bool]$script:ConfigSettings["BE_2"]
+        $extABP       = [bool]$script:ConfigSettings["BE_3"]
+        $extSponsor   = [bool]$script:ConfigSettings["BE_4"]
+        $extYTNonStop = [bool]$script:ConfigSettings["BE_5"]
+        $extBadger    = [bool]$script:ConfigSettings["BE_6"]
+        $extPoper     = [bool]$script:ConfigSettings["BE_7"]
+        $extCookieAD  = [bool]$script:ConfigSettings["BE_8"]
+        $extHTTPSE    = [bool]$script:ConfigSettings["BE_9"]
+        $extDecent    = [bool]$script:ConfigSettings["BE_10"]
+    }
 
     # --- Helper: Add extension to Chromium ExtensionInstallForcelist ---
     function Add-ChromiumExtension {
@@ -2736,37 +2824,51 @@ function Invoke-BrowserHardening {
         }
     }
 
+    # --- Helper: Apply selected extensions to a Chromium-based browser ---
+    function Add-SelectedChromiumExtensions {
+        param(
+            [string]$RegPath,
+            [string]$UpdateUrl,
+            [string]$BrowserName
+        )
+        if ($extUblock)    { Add-ChromiumExtension -RegPath $RegPath -ExtID $ublockChromeID    -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "uBlock Origin" }
+        if ($extAdguard)   { Add-ChromiumExtension -RegPath $RegPath -ExtID $adguardChromeID   -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "AdGuard AdBlocker" }
+        if ($extABP)       { Add-ChromiumExtension -RegPath $RegPath -ExtID $abpChromeID       -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "AdBlock Plus" }
+        if ($extSponsor)   { Add-ChromiumExtension -RegPath $RegPath -ExtID $sponsorChromeID   -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "SponsorBlock" }
+        if ($extYTNonStop) { Add-ChromiumExtension -RegPath $RegPath -ExtID $ytNonStopChromeID -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "YouTube NonStop" }
+        if ($extBadger)    { Add-ChromiumExtension -RegPath $RegPath -ExtID $badgerChromeID    -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Privacy Badger" }
+        if ($extPoper)     { Add-ChromiumExtension -RegPath $RegPath -ExtID $poperChromeID     -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Popup Blocker" }
+        if ($extCookieAD)  { Add-ChromiumExtension -RegPath $RegPath -ExtID $cookieAutoDelChromeID -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Cookie AutoDelete" }
+        if ($extHTTPSE)    { Add-ChromiumExtension -RegPath $RegPath -ExtID $httpsEChromeID    -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "HTTPS Everywhere" }
+        if ($extDecent)    { Add-ChromiumExtension -RegPath $RegPath -ExtID $decentChromeID    -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Decentraleyes" }
+    }
+
     # --- Google Chrome ---
     Write-Step "Configuring Google Chrome extensions..."
     $chromeInstalled = Test-Path "HKLM:\SOFTWARE\Google\Chrome\MBL" -ErrorAction SilentlyContinue
     $chromeInstalled2 = Test-Path "HKLM:\SOFTWARE\WOW6432Node\Google\Chrome\MBL" -ErrorAction SilentlyContinue
     $chromePolicyPath = "HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist"
     if ($chromeInstalled -or $chromeInstalled2 -or (Test-Path "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe") -or (Test-Path "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe")) {
-        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
-        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+        Add-SelectedChromiumExtensions -RegPath $chromePolicyPath -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome"
     } else {
         Write-Step "Google Chrome not detected. Setting policies anyway (applies if installed later)."
-        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "uBlock Origin"
-        Add-ChromiumExtension -RegPath $chromePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome" -ExtName "Privacy Badger"
+        Add-SelectedChromiumExtensions -RegPath $chromePolicyPath -UpdateUrl $chromeWebStoreUrl -BrowserName "Chrome"
     }
 
     # --- Microsoft Edge ---
     Write-Step "Configuring Microsoft Edge extensions..."
     $edgePolicyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist"
-    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $ublockChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "uBlock Origin"
-    Add-ChromiumExtension -RegPath $edgePolicyPath -ExtID $badgerChromeID -UpdateUrl $edgeAddonsUrl -BrowserName "Edge" -ExtName "Privacy Badger"
+    Add-SelectedChromiumExtensions -RegPath $edgePolicyPath -UpdateUrl $edgeAddonsUrl -BrowserName "Edge"
 
     # --- Brave ---
     Write-Step "Configuring Brave extensions..."
     $bravePolicyPath = "HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist"
     $braveInstalled = (Test-Path "${env:LOCALAPPDATA}\BraveSoftware\Brave-Browser\Application\brave.exe") -or (Test-Path "${env:ProgramFiles}\BraveSoftware\Brave-Browser\Application\brave.exe")
     if ($braveInstalled) {
-        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
-        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+        Add-SelectedChromiumExtensions -RegPath $bravePolicyPath -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave"
     } else {
         Write-Step "Brave not detected. Setting policies anyway (applies if installed later)."
-        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "uBlock Origin"
-        Add-ChromiumExtension -RegPath $bravePolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave" -ExtName "Privacy Badger"
+        Add-SelectedChromiumExtensions -RegPath $bravePolicyPath -UpdateUrl $chromeWebStoreUrl -BrowserName "Brave"
     }
 
     # --- Opera (uses Chrome Web Store, limited policy support) ---
@@ -2774,12 +2876,10 @@ function Invoke-BrowserHardening {
     $operaPolicyPath = "HKLM:\SOFTWARE\Policies\Opera\ExtensionInstallForcelist"
     $operaInstalled = (Test-Path "${env:ProgramFiles}\Opera\launcher.exe") -or (Test-Path "${env:LOCALAPPDATA}\Programs\Opera\launcher.exe")
     if ($operaInstalled) {
-        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
-        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+        Add-SelectedChromiumExtensions -RegPath $operaPolicyPath -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera"
     } else {
         Write-Step "Opera not detected. Setting policies (may not apply - Opera has limited policy support)."
-        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $ublockChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "uBlock Origin"
-        Add-ChromiumExtension -RegPath $operaPolicyPath -ExtID $badgerChromeID -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera" -ExtName "Privacy Badger"
+        Add-SelectedChromiumExtensions -RegPath $operaPolicyPath -UpdateUrl $chromeWebStoreUrl -BrowserName "Opera"
     }
 
     # --- Firefox (uses policies.json - different mechanism) ---
@@ -2807,29 +2907,42 @@ function Invoke-BrowserHardening {
         if (-not $p.ContainsKey("ExtensionSettings")) { $p["ExtensionSettings"] = @{} }
         $extSettings = $p["ExtensionSettings"]
 
-        $extSettings[$ublockFirefoxID] = @{
-            "installation_mode" = "force_installed"
-            "install_url"       = $ublockAMOUrl
-        }
-        $extSettings[$badgerFirefoxID] = @{
-            "installation_mode" = "force_installed"
-            "install_url"       = $badgerAMOUrl
-        }
+        if ($extUblock)    { $extSettings[$ublockFirefoxID]    = @{ "installation_mode" = "force_installed"; "install_url" = $ublockAMOUrl } }
+        if ($extAdguard)   { $extSettings[$adguardFirefoxID]   = @{ "installation_mode" = "force_installed"; "install_url" = $adguardAMOUrl } }
+        if ($extABP)       { $extSettings[$abpFirefoxID]       = @{ "installation_mode" = "force_installed"; "install_url" = $abpAMOUrl } }
+        if ($extSponsor)   { $extSettings[$sponsorFirefoxID]   = @{ "installation_mode" = "force_installed"; "install_url" = $sponsorAMOUrl } }
+        if ($extYTNonStop) { $extSettings[$ytNonStopFirefoxID] = @{ "installation_mode" = "force_installed"; "install_url" = $ytNonStopAMOUrl } }
+        if ($extBadger)    { $extSettings[$badgerFirefoxID]    = @{ "installation_mode" = "force_installed"; "install_url" = $badgerAMOUrl } }
+        if ($extPoper)     { $extSettings[$poperFirefoxID]     = @{ "installation_mode" = "force_installed"; "install_url" = $poperAMOUrl } }
+        if ($extCookieAD)  { $extSettings[$cookieAutoDelFirefoxID] = @{ "installation_mode" = "force_installed"; "install_url" = $cookieAutoDelAMOUrl } }
+        if ($extHTTPSE)    { $extSettings[$httpsEFirefoxID]    = @{ "installation_mode" = "force_installed"; "install_url" = $httpsEAMOUrl } }
+        if ($extDecent)    { $extSettings[$decentFirefoxID]    = @{ "installation_mode" = "force_installed"; "install_url" = $decentAMOUrl } }
 
         $firefoxPolicy["policies"] = $p
         $jsonOutput = $firefoxPolicy | ConvertTo-Json -Depth 10 -Compress
         Set-Content -Path $policyFile -Value $jsonOutput -Encoding UTF8 -Force
-        Write-Success "Firefox: Force-installed uBlock Origin + Privacy Badger via policies.json"
+        $ffExtList = @()
+        if ($extUblock)    { $ffExtList += "uBlock Origin" }
+        if ($extAdguard)   { $ffExtList += "AdGuard" }
+        if ($extABP)       { $ffExtList += "AdBlock Plus" }
+        if ($extSponsor)   { $ffExtList += "SponsorBlock" }
+        if ($extYTNonStop) { $ffExtList += "YouTube NonStop" }
+        if ($extBadger)    { $ffExtList += "Privacy Badger" }
+        if ($extPoper)     { $ffExtList += "Popup Blocker" }
+        if ($extCookieAD)  { $ffExtList += "Cookie AutoDelete" }
+        if ($extHTTPSE)    { $ffExtList += "HTTPS Everywhere" }
+        if ($extDecent)    { $ffExtList += "Decentraleyes" }
+        Write-Success "Firefox: Force-installed $($ffExtList -join ', ') via policies.json"
     } else {
         # Fallback: set via registry (Firefox also supports this)
         Write-Step "Firefox not found in Program Files. Setting registry-based policies..."
         $ffPolicyPath = "HKLM:\SOFTWARE\Policies\Mozilla\Firefox\ExtensionSettings"
         try {
             if (-not (Test-Path $ffPolicyPath)) { New-Item -Path $ffPolicyPath -Force -ErrorAction Stop | Out-Null }
-            $ublockJson = '{"installation_mode":"force_installed","install_url":"' + $ublockAMOUrl + '"}'
-            $badgerJson = '{"installation_mode":"force_installed","install_url":"' + $badgerAMOUrl + '"}'
-            Set-ItemProperty -Path $ffPolicyPath -Name $ublockFirefoxID -Value $ublockJson -Force -ErrorAction Stop
-            Set-ItemProperty -Path $ffPolicyPath -Name $badgerFirefoxID -Value $badgerJson -Force -ErrorAction Stop
+            if ($extUblock)  { Set-ItemProperty -Path $ffPolicyPath -Name $ublockFirefoxID  -Value ('{"installation_mode":"force_installed","install_url":"' + $ublockAMOUrl + '"}') -Force -ErrorAction Stop }
+            if ($extBadger)  { Set-ItemProperty -Path $ffPolicyPath -Name $badgerFirefoxID  -Value ('{"installation_mode":"force_installed","install_url":"' + $badgerAMOUrl + '"}') -Force -ErrorAction Stop }
+            if ($extAdguard) { Set-ItemProperty -Path $ffPolicyPath -Name $adguardFirefoxID -Value ('{"installation_mode":"force_installed","install_url":"' + $adguardAMOUrl + '"}') -Force -ErrorAction Stop }
+            if ($extSponsor) { Set-ItemProperty -Path $ffPolicyPath -Name $sponsorFirefoxID -Value ('{"installation_mode":"force_installed","install_url":"' + $sponsorAMOUrl + '"}') -Force -ErrorAction Stop }
             Write-Success "Firefox: Extension policies set via registry (applies when Firefox is installed)."
         } catch {
             Write-Warn "Firefox: Could not set extension policies: $_"
@@ -3182,12 +3295,13 @@ function Show-SimpleMenu {
         @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update Configuration";           Desc = "Active hours, no auto-reboot, no delivery opt." },
         @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup and Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
         @{ ID = "10"; Key = "Winget";                Name = "Software Installation (Winget)";           Desc = "Chrome, Firefox, 7-Zip, VLC, Reader, Notepad++" },
-        @{ ID = "11"; Key = "OfficeActivation";      Name = "Office 365 Install + Activation";            Desc = "Download Office, MAS activation, Office telemetry off" },
+        @{ ID = "11"; Key = "OfficeActivation";      Name = "Microsoft Office Install + Activation";       Desc = "Choose Office version (365/LTSC 2024/2021/2019), MAS activation, Office telemetry off" },
         @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening (14 policies)";             Desc = "Shopping, Copilot, telemetry, preload, sync" },
         @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
         @{ ID = "14"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
         @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
-        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Extensions and Privacy";              Desc = "uBlock Origin + Privacy Badger on 5 browsers + privacy policies" },
+        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Privacy Policies";                  Desc = "WebRTC, cookies, autofill, HTTPS-only, telemetry, experiments" },
+        @{ ID = "16b"; Key = "BrowserExtensions";    Name = "Browser Extensions";                        Desc = "uBlock, AdGuard, SponsorBlock, Privacy Badger + 6 more on 5 browsers" },
         @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" },
         @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features Removal";                  Desc = "Remove IE, WMP, PSv2, Fax, Paint3D, XPS, Work Folders" }
     )
@@ -3254,6 +3368,7 @@ function Show-DetailedMenu {
         @{ ID = "14"; Key = "Gaming";                Name = "Gaming / DVR" },
         @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks" },
         @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Privacy" },
+        @{ ID = "16b"; Key = "BrowserExtensions";    Name = "Browser Extensions" },
         @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches" },
         @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features" }
     )
@@ -3671,6 +3786,8 @@ try {
     New-SystemRestorePoint
 
     $selectedSections = @()
+    $script:ConfigSettings = @{}   # Merged settings from all config sections (SettingID -> bool)
+
     if ($ConfigFile -and (Test-Path $ConfigFile -ErrorAction SilentlyContinue)) {
         # Load configuration from JSON file
         Write-Step "Loading configuration from: $ConfigFile"
@@ -3679,6 +3796,19 @@ try {
             if ($config.Sections) {
                 $selectedSections = @($config.Sections)
                 Write-Success "Loaded sections from config: $($selectedSections -join ', ')"
+            }
+            # Parse per-section settings into flat ConfigSettings map
+            if ($config.sections -is [System.Collections.Specialized.OrderedDictionary] -or $config.sections -is [hashtable]) {
+                foreach ($sectionKey in $config.sections.Keys) {
+                    $sectionData = $config.sections[$sectionKey]
+                    if ($sectionData -is [System.Collections.Specialized.OrderedDictionary] -or $sectionData -is [hashtable]) {
+                        foreach ($settingKey in $sectionData.Keys) {
+                            $script:ConfigSettings[$settingKey] = [bool]$sectionData[$settingKey]
+                        }
+                    }
+                }
+                $enabledCount = ($script:ConfigSettings.Values | Where-Object { $_ -eq $true }).Count
+                Write-Success "Loaded $enabledCount setting toggles from config."
             }
             # Override Winget app list if specified
             if ($config.AppList) {
@@ -3698,7 +3828,7 @@ try {
     } elseif ($Silent) {
         $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                               "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                              "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
+                              "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","BrowserExtensions","FinalTouches","WindowsFeatures")
         Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
         if ($AllowRisky) {
             $script:AllowRisky = $true
@@ -3755,6 +3885,7 @@ try {
             "Gaming"            { Invoke-GamingDisable }
             "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
             "BrowserHardening"  { Invoke-BrowserHardening }
+            "BrowserExtensions" { Invoke-BrowserHardening }   # Alias — extensions config (BE_1..BE_10) is read inside the function
             "FinalTouches"      { Invoke-FinalTouches }
             "WindowsFeatures"   { Invoke-WindowsFeaturesRemoval }
             default { Write-Warn "Unknown section: $section (skipped)" }

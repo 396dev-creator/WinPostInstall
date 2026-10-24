@@ -298,10 +298,20 @@ export const sections: Section[] = [
   },
   {
     id: "OfficeActivation",
-    name: "Office 365",
+    name: "Microsoft Office",
     icon: "FileSpreadsheet",
-    description: "Configure Microsoft Office 365 settings",
+    description: "Install, activate, and configure Microsoft Office",
     settings: [
+      // --- Office Version Selection (mutually exclusive group) ---
+      { id: "Off_V365", name: "Install Office 365 ProPlus", safety: "Safe", desc: "Office 365 ProPlus (subscription) — always latest features, Click-to-Run." },
+      { id: "Off_V2024", name: "Install Office LTSC 2024", safety: "Safe", desc: "Office LTSC 2024 — long-term servicing channel, no feature updates, for stability." },
+      { id: "Off_V2021", name: "Install Office LTSC 2021", safety: "Safe", desc: "Office LTSC 2021 — previous long-term version, extended support until 2026." },
+      { id: "Off_V2019", name: "Install Office 2019", safety: "Safe", desc: "Office 2019 — perpetual license, feature-frozen, security updates only." },
+      // --- Architecture & Language ---
+      { id: "Off_Arch64", name: "64-bit architecture (x64)", safety: "Safe", desc: "Install 64-bit Office. Recommended for modern systems with 4GB+ RAM." },
+      { id: "Off_Arch32", name: "32-bit architecture (x86)", safety: "Safe", desc: "Install 32-bit Office. Only needed for legacy 32-bit COM add-in compatibility." },
+      // --- Activation & Configuration ---
+      { id: "Off_Act", name: "Activate Office (MAS Ohook)", safety: "Moderate", desc: "Launch Microsoft Activation Scripts for Office activation after install." },
       { id: "Off_1", name: "Disable Office telemetry", safety: "Safe", desc: "Stops Office from sending usage and diagnostic data to Microsoft." },
       { id: "Off_2", name: "Disable Office feedback", safety: "Safe", desc: "Removes feedback prompts and telemetry in Office apps." },
       { id: "Off_3", name: "Disable Office auto-updates", safety: "Moderate", desc: "Prevents Office from automatically downloading and installing updates." },
@@ -393,6 +403,28 @@ export const sections: Section[] = [
       { id: "BH_7", name: "Disable browser suggestions", safety: "Safe", desc: "Removes search suggestions and URL autocomplete from browsers." },
       { id: "BH_8", name: "Clear browser data on exit", safety: "Moderate", desc: "Configures browsers to clear browsing data on exit. History won't persist." },
       { id: "BH_9", name: "Disable password saving", safety: "Moderate", desc: "Prevents browsers from saving passwords. Use a dedicated password manager." },
+    ],
+  },
+  {
+    id: "BrowserExtensions",
+    name: "Browser Extensions",
+    icon: "Puzzle",
+    description: "Force-install privacy and ad-blocking extensions on all browsers",
+    settings: [
+      // --- Ad Blocking ---
+      { id: "BE_1", name: "uBlock Origin", safety: "Safe", desc: "Wide-spectrum content blocker. Blocks ads, trackers, and malware domains. Lightweight and efficient." },
+      { id: "BE_2", name: "AdGuard AdBlocker", safety: "Safe", desc: "Advanced ad blocker with custom filter support. Blocks video ads, social widgets, and annoyances." },
+      { id: "BE_3", name: "AdBlock Plus", safety: "Safe", desc: "Popular ad blocker with acceptable ads policy. Good for users who want some ads whitelisted." },
+      // --- YouTube Ad Blocking ---
+      { id: "BE_4", name: "SponsorBlock for YouTube", safety: "Safe", desc: "Skips YouTube video sponsors, intros, outros, and non-music segments. Community-driven." },
+      { id: "BE_5", name: "YouTube NonStop", safety: "Safe", desc: "Bypasses YouTube 'Video paused. Are you still watching?' checks. Prevents playback interruptions." },
+      // --- Popup & Tracker Blocking ---
+      { id: "BE_6", name: "Privacy Badger", safety: "Safe", desc: "Learns to block invisible trackers. Heuristic-based, no filter lists needed." },
+      { id: "BE_7", name: "Popup Blocker (strict)", safety: "Moderate", desc: "Blocks popups, pop-unders, and redirect ads. May break some legitimate popup-based sites." },
+      { id: "BE_8", name: "Cookie AutoDelete", safety: "Moderate", desc: "Auto-deletes cookies from closed tabs. Keeps cookies for whitelisted sites only." },
+      // --- Extra Privacy ---
+      { id: "BE_9", name: "HTTPS Everywhere", safety: "Safe", desc: "Forces HTTPS connections where supported. Redirects HTTP to HTTPS automatically." },
+      { id: "BE_10", name: "Decentraleyes", safety: "Safe", desc: "Emulates CDN resources locally. Blocks tracking via CDN-delivered content." },
     ],
   },
   {
@@ -504,7 +536,7 @@ export const settingDependencies: Record<string, SettingDependency> = {
 
   // Debloat
   Deb_6: { conflicts: ["OD_1"], conflictMessage: "Removing OneDrive app conflicts with OneDrive settings. Disable OneDrive instead of removing it." },
-  Deb_7: { conflicts: ["Office_1"], conflictMessage: "Removing Microsoft Office apps will conflict with Office 365 activation." },
+  Deb_7: { conflicts: ["Off_Act"], conflictMessage: "Removing Microsoft Office apps will conflict with Office activation." },
 
   // Explorer/UI
   Exp_5: { requires: ["Exp_1"], conflictMessage: "Classic context menu requires Show file extensions to be enabled." },
@@ -530,8 +562,16 @@ export const settingDependencies: Record<string, SettingDependency> = {
   OD_1: { conflicts: ["Deb_6"], conflictMessage: "Disabling OneDrive conflicts with removing OneDrive app. Choose one approach." },
   OD_2: { conflicts: ["Deb_6"], conflictMessage: "Preventing OneDrive auto-start conflicts with removing OneDrive. Choose one approach." },
 
-  // Office
-  Office_1: { conflicts: ["Deb_7"], conflictMessage: "Office 365 activation conflicts with removing Microsoft Office apps." },
+  // Office version — mutually exclusive (can only install one)
+  Off_V365: { conflicts: ["Off_V2024", "Off_V2019", "Off_V2021"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+  Off_V2024: { conflicts: ["Off_V365", "Off_V2019", "Off_V2021"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+  Off_V2021: { conflicts: ["Off_V365", "Off_V2024", "Off_V2019"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+  Off_V2019: { conflicts: ["Off_V365", "Off_V2024", "Off_V2021"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+  // Office architecture — mutually exclusive
+  Off_Arch64: { conflicts: ["Off_Arch32"], conflictMessage: "You can only select one architecture. 64-bit is recommended for most systems." },
+  Off_Arch32: { conflicts: ["Off_Arch64"], conflictMessage: "You can only select one architecture. 32-bit is only for legacy COM add-ins." },
+  // Office activation conflict with debloat
+  Off_Act: { conflicts: ["Deb_7"], conflictMessage: "Office activation conflicts with removing Microsoft Office apps." },
 
   // Edge
   Edge_5: { conflicts: ["Edge_1"], conflictMessage: "Enabling Edge Superfetch conflicts with disabling Edge background processes." },
@@ -696,6 +736,8 @@ export const builtinProfiles: Profile[] = [
       Disk_1: true, Disk_2: true,
       Edge_1: true, Edge_2: true, Edge_7: true,
       BH_4: true, BH_5: true,
+      // Browser Extensions — essential adblocking + YouTube
+      BE_1: true, BE_4: true, BE_6: true,
       FT_1: true, FT_6: true,
     },
     software: ["sw_2", "sw_5", "sw_7", "sw_23", "sw_24", "sw_21", "sw_26"],
@@ -733,6 +775,8 @@ export const builtinProfiles: Profile[] = [
       WU_1: true, WU_3: true,
       Edge_1: true, Edge_2: true, Edge_3: true, Edge_4: true, Edge_6: true, Edge_7: true, Edge_8: true, Edge_9: true,
       BH_1: true, BH_2: true, BH_4: true, BH_5: true, BH_6: true, BH_7: true, BH_8: true, BH_9: true,
+      // Browser Extensions — full privacy suite
+      BE_1: true, BE_2: true, BE_4: true, BE_5: true, BE_6: true, BE_7: true, BE_8: true, BE_9: true, BE_10: true,
       OD_2: true, OD_3: true, OD_5: true,
       FT_1: true, FT_6: true,
     },
@@ -783,6 +827,8 @@ export const builtinProfiles: Profile[] = [
       Edge_1: true, Edge_2: true, Edge_3: true, Edge_6: true, Edge_7: true, Edge_9: true,
       // Browser hardening — Safe items
       BH_4: true, BH_5: true, BH_6: true, BH_7: true,
+      // Browser Extensions — adblocking + YouTube + privacy
+      BE_1: true, BE_4: true, BE_6: true, BE_10: true,
       // OneDrive — privacy only (don't uninstall)
       OD_2: true, OD_5: true,
       // Office — privacy only
@@ -811,6 +857,8 @@ export const builtinProfiles: Profile[] = [
       OD_5: true, // Disable OneDrive ad notifications
       // Edge — minimal privacy (keep Edge fully functional)
       Edge_7: true, // Strict tracking prevention
+      // Browser Extensions — essential adblocking for all users
+      BE_1: true, BE_2: true, BE_4: true, BE_5: true, BE_6: true, BE_7: true,
       // Final touches
       FT_6: true, // Create restore point
     },
