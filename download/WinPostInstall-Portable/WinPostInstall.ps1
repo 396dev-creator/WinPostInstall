@@ -2305,16 +2305,36 @@ function Invoke-WingetInstall {
     $script:CurrentSection = "Winget"
     Write-Host ""
 
-    $appList = @(
-        @{ ID = "Google.Chrome";           Name = "Google Chrome" },
-        @{ ID = "Mozilla.Firefox";         Name = "Mozilla Firefox" },
-        @{ ID = "7zip.7zip";              Name = "7-Zip" },
-        @{ ID = "VideoLAN.VLC";           Name = "VLC Media Player" },
-        @{ ID = "Adobe.Acrobat.Reader.64-bit"; Name = "Adobe Acrobat Reader" },
-        @{ ID = "Notepad++.Notepad++";    Name = "Notepad++" },
-        @{ ID = "voidtools.Everything";   Name = "Everything Search" },
-        @{ ID = "RARLab.WinRAR";         Name = "WinRAR" }
-    )
+    # Build the app list from config-driven software array (if available),
+    # otherwise fall back to the hardcoded default list.
+    $appList = @()
+
+    if ($script:CustomAppList -and $script:CustomAppList.Count -gt 0) {
+        # Config-driven: the JSON "software" array contains objects with {id, name, wingetId, category}
+        foreach ($item in $script:CustomAppList) {
+            if ($item.wingetId) {
+                $appList += @{ ID = $item.wingetId; Name = $item.name }
+            }
+        }
+        if ($appList.Count -gt 0) {
+            Write-Success "Using config-driven software list ($($appList.Count) apps)."
+        }
+    }
+
+    # Fallback: if no config-driven list, use hardcoded defaults
+    if ($appList.Count -eq 0) {
+        $appList = @(
+            @{ ID = "Google.Chrome";           Name = "Google Chrome" },
+            @{ ID = "Mozilla.Firefox";         Name = "Mozilla Firefox" },
+            @{ ID = "7zip.7zip";              Name = "7-Zip" },
+            @{ ID = "VideoLAN.VLC";           Name = "VLC Media Player" },
+            @{ ID = "Adobe.Acrobat.Reader.64-bit"; Name = "Adobe Acrobat Reader" },
+            @{ ID = "Notepad++.Notepad++";    Name = "Notepad++" },
+            @{ ID = "voidtools.Everything";   Name = "Everything Search" },
+            @{ ID = "RARLab.WinRAR";         Name = "WinRAR" }
+        )
+        Write-Step "Using default software list ($($appList.Count) apps)."
+    }
 
     try { $null = Get-Command winget -ErrorAction Stop; Write-Success "Winget found." }
     catch {
@@ -2485,56 +2505,16 @@ function Invoke-OfficeActivation {
         if (Test-Path $officeSetupPath) { Remove-Item $officeSetupPath -Force -ErrorAction SilentlyContinue }
     }
 
-    # --- Step 2: Download & Launch Microsoft Activation Scripts ---
-    if ($doActivation) {
+    # --- Step 2: Office activation is now handled by the Activation section ---
+    # The Off_Act toggle in the Office section enables Act_Off in the Activation section.
+    # If Off_Act is enabled, auto-enable Act_Off for convenience.
+    if ($doActivation -and $script:ConfigSettings) {
+        $script:ConfigSettings["Act_Off"] = $true
+        Write-Step "Office activation enabled - will run in Activation section."
+    } elseif ($doActivation) {
         Write-Host ""
-        Write-Host "  [Step 2/3] Windows and Office Activation (MAS)" -ForegroundColor Yellow
-        Write-Host ""
-
-        Write-Step "Downloading Microsoft Activation Scripts..."
-        try {
-            $webClient = New-Object System.Net.WebClient
-            $webClient.DownloadFile($masUrl, $masScriptPath)
-            if (Test-Path $masScriptPath) {
-                Write-Success "MAS downloaded: $masScriptPath"
-            } else {
-                throw "Download completed but file not found."
-            }
-        } catch {
-            Write-Err "Failed to download MAS: $_"
-            Write-Host ""
-            Write-Host "  You can run manually: irm https://get.activate.win | iex" -ForegroundColor Yellow
-            Write-Host ""
-            return
-        }
-
-        # --- Step 3: Launch MAS interactively ---
-        Write-Host ""
-        Write-Host "  [Step 3/3] Launching MAS activation menu..." -ForegroundColor Yellow
-        Write-Host ""
-        Write-Host "  ================================================" -ForegroundColor Cyan
-        Write-Host "  MAS is opening in a NEW window." -ForegroundColor Cyan
-        Write-Host "  In the MAS window:" -ForegroundColor White
-        Write-Host "    [1] HWID     - Activate Windows" -ForegroundColor Green
-        Write-Host "    [2] Ohook    - Activate Office" -ForegroundColor Green
-        Write-Host "    [0] Exit     - Close MAS when done" -ForegroundColor Gray
-        Write-Host "  ================================================" -ForegroundColor Cyan
-        Write-Host ""
-
-        try {
-            # Launch MAS in a new elevated PowerShell window
-            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
-                -Verb RunAs -ErrorAction Stop
-            Write-Success "MAS launched in a new Administrator window."
-        } catch {
-            # Fallback: launch in current window if UAC elevation fails
-            Write-Warn "Could not open new window. Running MAS in current session..."
-            try {
-                & $masScriptPath
-            } catch {
-                Write-Err "MAS execution failed: $_"
-            }
-        }
+        Write-Step "Office activation requested. Use the Activation section for MAS activation."
+        Write-Host "  You can run manually: irm https://get.activated.win | iex" -ForegroundColor Yellow
     } else {
         Write-Host ""
         Write-Step "Office activation skipped (not selected in config)."
@@ -2577,7 +2557,238 @@ function Invoke-OfficeActivation {
 #endregion
 
 #region ============================================================
-# SECTION 12: EDGE HARDENING
+# SECTION 12: WINDOWS & OFFICE ACTIVATION (MAS)
+# ============================================================
+
+function Test-WindowsActivation {
+    # Check if Windows is permanently activated by examining the license status
+    # Returns $true if already permanently activated, $false otherwise
+    try {
+        $wmi = Get-CimInstance -ClassName SoftwareLicensingProduct -Namespace root\cimv2 `
+            -Filter "PartialProductKey IS NOT NULL" -ErrorAction Stop
+        foreach ($product in $wmi) {
+            # LicenseStatus 1 = Licensed (permanently activated)
+            # GracePeriodRemaining = 0 means no expiration (permanent)
+            if ($product.LicenseStatus -eq 1 -and $product.GracePeriodRemaining -eq 0) {
+                return $true
+            }
+        }
+    } catch {
+        # Fallback: try slmgr.vbs
+        try {
+            $slmgr = & cscript //nologo "$env:SystemRoot\System32\slmgr.vbs" /dli 2>&1
+            if ($slmgr -match "permanently") {
+                return $true
+            }
+        } catch { }
+    }
+    return $false
+}
+
+function Test-OfficeActivation {
+    # Check if any Office product is licensed/activated
+    # Returns $true if Office appears to be activated, $false otherwise
+    try {
+        $officeProducts = Get-CimInstance -ClassName SoftwareLicensingProduct -Namespace root\cimv2 `
+            -Filter "Name LIKE '%Office%' AND PartialProductKey IS NOT NULL" -ErrorAction Stop
+        foreach ($product in $officeProducts) {
+            if ($product.LicenseStatus -eq 1) {
+                return $true
+            }
+        }
+    } catch {
+        # Fallback: check registry for Office license keys
+        $officeRegPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Office\16.0",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\16.0"
+        )
+        foreach ($path in $officeRegPaths) {
+            if (Test-Path $path) {
+                # Office is installed but we can't confirm activation status via registry alone
+                # This is not a positive activation confirmation, so return $false
+                return $false
+            }
+        }
+    }
+    return $false
+}
+
+function Invoke-Activation {
+    $script:CurrentSection = "Activation"
+    Write-Host ""
+
+    $masUrl = "https://get.activated.win"
+    $masScriptPath = "$env:TEMP\MAS.ps1"
+
+    # Determine what to activate from config settings
+    $doWinActivation = $false
+    $doOffActivation = $false
+
+    if ($script:ConfigSettings) {
+        if ($script:ConfigSettings["Act_Win"]) { $doWinActivation = $true }
+        if ($script:ConfigSettings["Act_Off"]) { $doOffActivation = $true }
+    }
+
+    if (-not $doWinActivation -and -not $doOffActivation) {
+        Write-Step "No activation requested. Skipping."
+        return
+    }
+
+    Write-Host "  --- ACTIVATION (MAS - Microsoft Activation Scripts) ---" -ForegroundColor Yellow
+    Write-Host ""
+
+    # ================================================================
+    # Pre-check: Is Windows already activated?
+    # ================================================================
+    if ($doWinActivation) {
+        Write-Step "Checking Windows activation status..."
+        $winActivated = Test-WindowsActivation
+        if ($winActivated) {
+            Write-Success "Windows is already permanently activated. Skipping HWID activation."
+            $doWinActivation = $false
+        } else {
+            Write-Step "Windows is NOT permanently activated. HWID activation will proceed."
+        }
+    }
+
+    # ================================================================
+    # Pre-check: Is Office already activated?
+    # ================================================================
+    if ($doOffActivation) {
+        Write-Step "Checking Office activation status..."
+        $offActivated = Test-OfficeActivation
+        if ($offActivated) {
+            Write-Success "Office is already activated. Skipping Ohook activation."
+            $doOffActivation = $false
+        } else {
+            Write-Step "Office is NOT activated. Ohook activation will proceed."
+        }
+    }
+
+    # If both are already activated, nothing to do
+    if (-not $doWinActivation -and -not $doOffActivation) {
+        Write-Host ""
+        Write-Success "Both Windows and Office are already activated. Nothing to do."
+        return
+    }
+
+    # ================================================================
+    # Download MAS
+    # ================================================================
+    Write-Host ""
+    Write-Step "Downloading Microsoft Activation Scripts (MAS)..."
+    try {
+        $webClient = New-Object System.Net.WebClient
+        $webClient.DownloadFile($masUrl, $masScriptPath)
+        if (Test-Path $masScriptPath) {
+            Write-Success "MAS downloaded: $masScriptPath"
+        } else {
+            throw "Download completed but file not found."
+        }
+    } catch {
+        Write-Err "Failed to download MAS: $_"
+        Write-Host ""
+        Write-Host "  You can run manually: irm https://get.activated.win | iex" -ForegroundColor Yellow
+        Write-Host ""
+        return
+    }
+
+    # ================================================================
+    # Perform activation
+    # ================================================================
+
+    if ($doWinActivation) {
+        Write-Host ""
+        Write-Host "  [1/2] Activating Windows (HWID)..." -ForegroundColor Yellow
+        Write-Host ""
+
+        if ($Silent) {
+            # Silent mode: run MAS with HWID activation directly
+            # MAS supports unattended mode via the $args or env vars
+            try {
+                $hwidScript = @"
+& '$masScriptPath'
+"@
+                # Launch in elevated window for HWID
+                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& '$masScriptPath'`"" `
+                    -Verb RunAs -Wait -ErrorAction Stop
+                Write-Success "Windows HWID activation launched."
+            } catch {
+                Write-Warn "Could not launch MAS elevated. Attempting in current session..."
+                try {
+                    & $masScriptPath
+                } catch {
+                    Write-Err "MAS execution failed: $_"
+                }
+            }
+        } else {
+            # Interactive mode: launch MAS in new window with instructions
+            Write-Host "  ================================================" -ForegroundColor Cyan
+            Write-Host "  MAS is opening in a NEW Administrator window." -ForegroundColor Cyan
+            Write-Host "  In the MAS window, choose:" -ForegroundColor White
+            Write-Host "    [1] HWID  -  Activate Windows" -ForegroundColor Green
+            Write-Host "    [0] Exit  -  Close MAS when done" -ForegroundColor Gray
+            Write-Host "  ================================================" -ForegroundColor Cyan
+            Write-Host ""
+
+            try {
+                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
+                    -Verb RunAs -ErrorAction Stop
+                Write-Success "MAS launched for Windows activation."
+            } catch {
+                Write-Warn "Could not open new window. Running MAS in current session..."
+                try { & $masScriptPath } catch { Write-Err "MAS failed: $_" }
+            }
+        }
+    }
+
+    if ($doOffActivation) {
+        Write-Host ""
+        Write-Host "  [2/2] Activating Office (Ohook)..." -ForegroundColor Yellow
+        Write-Host ""
+
+        if ($Silent) {
+            # Silent: launch MAS for Ohook
+            try {
+                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& '$masScriptPath'`"" `
+                    -Verb RunAs -Wait -ErrorAction Stop
+                Write-Success "Office Ohook activation launched."
+            } catch {
+                Write-Warn "Could not launch MAS elevated. Attempting in current session..."
+                try { & $masScriptPath } catch { Write-Err "MAS failed: $_" }
+            }
+        } else {
+            Write-Host "  ================================================" -ForegroundColor Cyan
+            Write-Host "  MAS is opening in a NEW Administrator window." -ForegroundColor Cyan
+            Write-Host "  In the MAS window, choose:" -ForegroundColor White
+            Write-Host "    [2] Ohook  -  Activate Office" -ForegroundColor Green
+            Write-Host "    [0] Exit   -  Close MAS when done" -ForegroundColor Gray
+            Write-Host "  ================================================" -ForegroundColor Cyan
+            Write-Host ""
+
+            try {
+                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
+                    -Verb RunAs -ErrorAction Stop
+                Write-Success "MAS launched for Office activation."
+            } catch {
+                Write-Warn "Could not open new window. Running MAS in current session..."
+                try { & $masScriptPath } catch { Write-Err "MAS failed: $_" }
+            }
+        }
+    }
+
+    # Clean up MAS script
+    if (Test-Path $masScriptPath) { Remove-Item $masScriptPath -Force -ErrorAction SilentlyContinue }
+
+    Write-Host ""
+    Write-Success "Activation section complete."
+    Write-Host ""
+}
+
+#endregion
+
+#region ============================================================
+# SECTION 13: EDGE HARDENING
 # ============================================================
 
 function Invoke-EdgeHardening {
@@ -4001,6 +4212,12 @@ try {
                 Write-Success "Custom AppList loaded from config ($($config.AppList.Count) apps)."
                 $script:CustomAppList = $config.AppList
             }
+            # Config-driven software selection (from the frontend Software Install tab)
+            # The "software" array contains objects: {id, name, wingetId, category}
+            if ($config.software -and $config.software.Count -gt 0) {
+                Write-Success "Software selection loaded from config ($($config.software.Count) apps)."
+                $script:CustomAppList = $config.software
+            }
             # Override bloatware list if specified
             if ($config.BloatwareList) {
                 Write-Success "Custom BloatwareList loaded from config ($($config.BloatwareList.Count) items)."
@@ -4014,7 +4231,7 @@ try {
     } elseif ($Silent) {
         $selectedSections = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                               "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                              "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","BrowserExtensions","FinalTouches","WindowsFeatures")
+                              "OfficeActivation","Activation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","BrowserExtensions","FinalTouches","WindowsFeatures")
         Write-Host "  Silent mode: running all sections." -ForegroundColor DarkGray
         if ($AllowRisky) {
             $script:AllowRisky = $true
@@ -4066,6 +4283,7 @@ try {
             "DiskCleanup"       { Invoke-DiskCleanup }
             "Winget"            { Invoke-WingetInstall }
             "OfficeActivation"  { Invoke-OfficeActivation }
+            "Activation"        { Invoke-Activation }
             "EdgeHardening"     { Invoke-EdgeHardening }
             "OneDrive"          { Invoke-OneDriveManagement }
             "Gaming"            { Invoke-GamingDisable }
@@ -4128,7 +4346,7 @@ try {
     Write-Host "================================================================" -ForegroundColor Cyan
     Write-Host ""
 
-    $restartSections = @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation")
+    $restartSections = @("DiskCleanup","Security","ServiceStartup","Performance","ScheduledTasks","Gaming","BrowserHardening","OfficeActivation","Activation")
     if ($selectedSections | Where-Object { $restartSections -contains $_ }) {
         Write-Host "  A RESTART is recommended to apply all changes." -ForegroundColor Yellow
         Write-Host ""

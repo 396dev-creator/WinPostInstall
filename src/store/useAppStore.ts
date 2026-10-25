@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { sections, builtinProfiles, clientScenarios, getAllConflicts, type Profile, type ClientScenario } from "@/data/settings";
+import { sections, builtinProfiles, clientScenarios, softwareApps, getAllConflicts, type Profile, type ClientScenario } from "@/data/settings";
 
 interface UndoEntry {
   id: string;
@@ -589,13 +589,21 @@ export const useAppStore = create<AppState>((set, get) => ({
       configSections[section.id] = sectionSettings;
     });
 
+    // Build software list with wingetId mapping so the PS1 can install them
     const enabledSoftware = state.selectedSoftware;
+    const softwareWithIds = enabledSoftware
+      .map((id) => {
+        const app = softwareApps.find((a) => a.id === id);
+        if (!app) return null;
+        return { id: app.id, name: app.name, wingetId: app.wingetId, category: app.category };
+      })
+      .filter(Boolean);
 
     return {
       version: "4.1.2",
       generatedAt: new Date().toISOString(),
       sections: configSections,
-      software: enabledSoftware,
+      software: softwareWithIds,
       activeProfile: state.activeProfileId,
       activeScenario: state.activeScenarioId,
     };

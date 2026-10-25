@@ -311,7 +311,7 @@ export const sections: Section[] = [
       { id: "Off_Arch64", name: "64-bit architecture (x64)", safety: "Safe", desc: "Install 64-bit Office. Recommended for modern systems with 4GB+ RAM." },
       { id: "Off_Arch32", name: "32-bit architecture (x86)", safety: "Safe", desc: "Install 32-bit Office. Only needed for legacy 32-bit COM add-in compatibility." },
       // --- Activation & Configuration ---
-      { id: "Off_Act", name: "Activate Office (MAS Ohook)", safety: "Moderate", desc: "Launch Microsoft Activation Scripts for Office activation after install." },
+      { id: "Off_Act", name: "Activate Office (MAS Ohook)", safety: "Moderate", desc: "Enable Office activation via MAS Ohook. The actual activation runs in the Activation section. This is a convenience toggle." },
       { id: "Off_1", name: "Disable Office telemetry", safety: "Safe", desc: "Stops Office from sending usage and diagnostic data to Microsoft." },
       { id: "Off_2", name: "Disable Office feedback", safety: "Safe", desc: "Removes feedback prompts and telemetry in Office apps." },
       { id: "Off_3", name: "Disable Office auto-updates", safety: "Moderate", desc: "Prevents Office from automatically downloading and installing updates." },
@@ -483,6 +483,16 @@ export const sections: Section[] = [
       { id: "WF_11", name: "Disable Media Features", safety: "Risky", desc: "Removes Windows Media Player and media features. Breaks media playback." },
     ],
   },
+  {
+    id: "Activation",
+    name: "Windows & Office Activation",
+    icon: "Lock",
+    description: "Activate Windows and Microsoft Office via MAS (Microsoft Activation Scripts). Checks existing licenses first to avoid tampering.",
+    settings: [
+      { id: "Act_Win", name: "Activate Windows (HWID)", safety: "Moderate", desc: "Permanently activate Windows using HWID digital license method. Skipped if Windows is already permanently activated." },
+      { id: "Act_Off", name: "Activate Office (Ohook)", safety: "Moderate", desc: "Activate Microsoft Office using Ohook method. Skipped if Office is already licensed. Runs after Office install if Office section is enabled." },
+    ],
+  },
 ];
 
 export const softwareApps: SoftwareApp[] = [
@@ -591,6 +601,7 @@ export const settingDependencies: Record<string, SettingDependency> = {
   Off_Arch32: { conflicts: ["Off_Arch64"], conflictMessage: "You can only select one architecture. 32-bit is only for legacy COM add-ins." },
   // Office activation conflict with debloat
   Off_Act: { conflicts: ["Deb_7"], conflictMessage: "Office activation conflicts with removing Microsoft Office apps." },
+  Act_Off: { conflicts: ["Deb_7"], conflictMessage: "Office activation conflicts with removing Microsoft Office apps." },
 
   // Edge
   Edge_5: { conflicts: ["Edge_1"], conflictMessage: "Enabling Edge Superfetch conflicts with disabling Edge background processes." },
