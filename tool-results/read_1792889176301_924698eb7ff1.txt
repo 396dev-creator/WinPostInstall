@@ -1,0 +1,693 @@
+     1→"use client";
+     2→
+     3→import React, { useState } from "react";
+     4→import { motion } from "framer-motion";
+     5→import { Search, Download, Undo2, Terminal, ChevronDown, Sun, Moon, Globe, Sparkles, Save, CheckCircle2, AlertCircle, Loader2, Zap, Trash2, AlertTriangle, Wrench } from "lucide-react";
+     6→import { Input } from "@/components/ui/input";
+     7→import { Button } from "@/components/ui/button";
+     8→import { Badge } from "@/components/ui/badge";
+     9→import {
+    10→  DropdownMenu,
+    11→  DropdownMenuContent,
+    12→  DropdownMenuItem,
+    13→  DropdownMenuTrigger,
+    14→  DropdownMenuSeparator,
+    15→} from "@/components/ui/dropdown-menu";
+    16→import {
+    17→  Dialog,
+    18→  DialogContent,
+    19→  DialogDescription,
+    20→  DialogFooter,
+    21→  DialogHeader,
+    22→  DialogTitle,
+    23→} from "@/components/ui/dialog";
+    24→import { useAppStore } from "@/store/useAppStore";
+    25→import { useTheme } from "./ThemeProvider";
+    26→import { useI18n, localeNames, type Locale } from "@/lib/i18n";
+    27→import { toast } from "@/hooks/use-toast";
+    28→import { getAllConflicts, sections } from "@/data/settings";
+    29→
+    30→interface AppHeaderProps {
+    31→  onApply: () => Promise<boolean>;
+    32→  onUndo: () => void;
+    33→  onPreview: () => void;
+    34→  onResolveAndApply?: () => Promise<boolean>;
+    35→}
+    36→
+    37→export function AppHeader({ onApply, onUndo, onPreview, onResolveAndApply }: AppHeaderProps) {
+    38→  const {
+    39→    searchQuery, setSearchQuery, profiles, activeProfileId,
+    40→    loadProfile, saveProfile, updateProfile, activeScenarioId,
+    41→    setScenarioPickerOpen, settings, selectedSoftware,
+    42→    isApplying, applyResult, applyResultDialogOpen, setApplyResultDialogOpen, clearApplyResult,
+    43→    toggleSetting,
+    44→  } = useAppStore();
+    45→  const { theme, toggleTheme } = useTheme();
+    46→  const { locale, setLocale, t } = useI18n();
+    47→
+    48→  const activeProfile = profiles.find((p) => p.id === activeProfileId);
+    49→  const enabledCount = Object.values(settings).filter(Boolean).length;
+    50→
+    51→  // Save profile dialog state
+    52→  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+    53→  const [profileName, setProfileName] = useState("");
+    54→  const [profileDesc, setProfileDesc] = useState("");
+    55→  const [saveMode, setSaveMode] = useState<"new" | "update">("new");
+    56→  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+    57→
+    58→  const handleSaveProfile = () => {
+    59→    if (saveMode === "update" && activeProfileId && !activeProfile?.isBuiltin) {
+    60→      updateProfile(activeProfileId);
+    61→      toast({
+    62→        title: "Profile Updated",
+    63→        description: `"${activeProfile?.name}" has been updated with your current settings.`,
+    64→      });
+    65→      setSaveDialogOpen(false);
+    66→    } else {
+    67→      if (!profileName.trim()) return;
+    68→      saveProfile(profileName.trim(), profileDesc.trim());
+    69→      toast({
+    70→        title: "Profile Saved",
+    71→        description: `"${profileName.trim()}" has been saved with ${enabledCount} settings and ${selectedSoftware.length} apps.`,
+    72→      });
+    73→      setProfileName("");
+    74→      setProfileDesc("");
+    75→      setSaveDialogOpen(false);
+    76→    }
+    77→  };
+    78→
+    79→  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+    80→
+    81→  // Check for conflicts to show badge on Apply button
+    82→  const allConflicts = getAllConflicts(settings);
+    83→  const hasConflicts = allConflicts.length > 0;
+    84→
+    85→  // Helper: get safety level for a setting ID
+    86→  const getSafetyForId = (id: string): "Safe" | "Moderate" | "Risky" => {
+    87→    for (const section of sections) {
+    88→      const found = section.settings.find((s) => s.id === id);
+    89→      if (found) return found.safety;
+    90→    }
+    91→    return "Safe";
+    92→  };
+    93→
+    94→  const handleApplyWithFeedback = async () => {
+    95→    if (isApplying) return; // prevent double-click
+    96→    if (enabledCount === 0 && selectedSoftware.length === 0) {
+    97→      toast({
+    98→        title: "Nothing to apply",
+    99→        description: "Select some settings or software first, then click Apply.",
+   100→        variant: "destructive",
+   101→      });
+   102→      return;
+   103→    }
+   104→    // Check for conflicts before applying
+   105→    const conflicts = getAllConflicts(settings);
+   106→    if (conflicts.length > 0) {
+   107→      setConflictDialogOpen(true);
+   108→      return;
+   109→    }
+   110→    try {
+   111→      const success = await onApply();
+   112→      if (success === false) {
+   113→        toast({
+   114→          title: "Nothing to apply",
+   115→          description: "No settings or software were selected.",
+   116→          variant: "destructive",
+   117→        });
+   118→        return;
+   119→      }
+   120→      // In Tauri mode, the result dialog will show automatically
+   121→      // In browser mode, show a simple toast
+   122→      if (!isTauri) {
+   123→        toast({
+   124→          title: "Config Exported!",
+   125→          description: `${enabledCount} settings + ${selectedSoftware.length} software exported. Check Downloads for the .json file.`,
+   126→        });
+   127→      }
+   128→    } catch (err) {
+   129→      console.error("Apply failed:", err);
+   130→      toast({
+   131→        title: "Apply Failed",
+   132→        description: "Could not apply config. Check the browser console for details.",
+   133→        variant: "destructive",
+   134→      });
+   135→    }
+   136→  };
+   137→
+   138→  return (
+   139→    <motion.header
+   140→      initial={{ y: -20, opacity: 0 }}
+   141→      animate={{ y: 0, opacity: 1 }}
+   142→      transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+   143→      className="sticky top-0 z-40 border-b border-[var(--wpi-border)] bg-[var(--wpi-bg)]/80 backdrop-blur-xl"
+   144→    >
+   145→      <div className="mx-auto max-w-7xl px-4 py-2.5">
+   146→        <div className="flex items-center gap-3">
+   147→          {/* Logo / Title — Apple-style brand */}
+   148→          <div className="flex items-center gap-2.5 shrink-0">
+   149→            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--wpi-accent)]/10 border border-[var(--wpi-accent)]/20">
+   150→              <Terminal className="h-4.5 w-4.5 text-[var(--wpi-accent)]" />
+   151→            </div>
+   152→            <div className="hidden sm:block">
+   153→              <h1 className="text-base font-bold text-[var(--wpi-text)] leading-none tracking-tight">
+   154→                Win<span className="text-[var(--wpi-accent)]">PostInstall</span>
+   155→              </h1>
+   156→              <p className="text-[10px] text-[var(--wpi-muted)] leading-none mt-0.5">{t.appVersion}</p>
+   157→            </div>
+   158→          </div>
+   159→
+   160→          {/* Search — Apple-style prominent, centered */}
+   161→          <div className="relative flex-1 min-w-[160px] max-w-sm">
+   162→            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--wpi-muted)]" />
+   163→            <Input
+   164→              placeholder="Search settings..."
+   165→              value={searchQuery}
+   166→              onChange={(e) => setSearchQuery(e.target.value)}
+   167→              className="pl-9 h-8 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] text-sm placeholder:text-[var(--wpi-muted)] focus-visible:ring-[var(--wpi-accent)]/30 focus-visible:border-[var(--wpi-accent)]/40"
+   168→            />
+   169→          </div>
+   170→
+   171→          {/* Context controls — Scenario + Profile */}
+   172→          <div className="flex items-center gap-1.5">
+   173→            <Button
+   174→              variant="outline"
+   175→              size="sm"
+   176→              onClick={() => setScenarioPickerOpen(true)}
+   177→              className={`h-8 gap-1.5 text-xs ${
+   178→                activeScenarioId
+   179→                  ? "bg-[var(--wpi-accent)]/10 border-[var(--wpi-accent)]/25 text-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/15 hover:border-[var(--wpi-accent)]/35"
+   180→                  : "bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:text-[var(--wpi-text-secondary)] hover:border-[var(--wpi-accent)]/25"
+   181→              }`}
+   182→            >
+   183→              <Sparkles className="h-3.5 w-3.5" />
+   184→              <span className="hidden md:inline">Scenario</span>
+   185→              {activeScenarioId && (
+   186→                <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-[var(--wpi-accent)]/15 text-[var(--wpi-accent)] border-0">
+   187→                  Active
+   188→                </Badge>
+   189→              )}
+   190→            </Button>
+   191→
+   192→            {/* Profile selector */}
+   193→            <DropdownMenu>
+   194→              <DropdownMenuTrigger asChild>
+   195→                <Button
+   196→                  variant="outline"
+   197→                  size="sm"
+   198→                  className="h-8 gap-1.5 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] hover:bg-[var(--wpi-card)] hover:border-[var(--wpi-accent)]/25 text-xs"
+   199→                >
+   200→                  <span className="truncate max-w-[80px]">
+   201→                    {activeProfile ? activeProfile.name : "Profile"}
+   202→                  </span>
+   203→                  {activeProfile && (
+   204→                    <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)] border-[var(--wpi-accent)]/20">
+   205→                      On
+   206→                    </Badge>
+   207→                  )}
+   208→                  <ChevronDown className="h-3 w-3 text-[var(--wpi-muted)]" />
+   209→                </Button>
+   210→              </DropdownMenuTrigger>
+   211→              <DropdownMenuContent
+   212→                align="end"
+   213→                className="bg-[var(--wpi-surface-elevated)] border-[var(--wpi-border)] text-[var(--wpi-text)] min-w-[200px]"
+   214→              >
+   215→                {profiles.map((p) => (
+   216→                  <DropdownMenuItem
+   217→                    key={p.id}
+   218→                    onClick={() => loadProfile(p.id)}
+   219→                    className="text-sm focus:bg-[var(--wpi-accent)]/10 focus:text-[var(--wpi-accent)] cursor-pointer"
+   220→                  >
+   221→                    <span className="flex-1">{p.name}</span>
+   222→                    {p.isBuiltin && (
+   223→                      <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-[var(--wpi-info)]/10 text-[var(--wpi-info)]">
+   224→                        Built-in
+   225→                      </Badge>
+   226→                    )}
+   227→                  </DropdownMenuItem>
+   228→                ))}
+   229→                <DropdownMenuSeparator className="bg-[var(--wpi-border)]" />
+   230→                <DropdownMenuItem
+   231→                  onClick={() => loadProfile("")}
+   232→                  className="text-sm focus:bg-[var(--wpi-risky)]/10 focus:text-[var(--wpi-risky)] cursor-pointer"
+   233→                >
+   234→                  Clear Profile
+   235→                </DropdownMenuItem>
+   236→              </DropdownMenuContent>
+   237→            </DropdownMenu>
+   238→          </div>
+   239→
+   240→          {/* Preferences — Locale + Theme */}
+   241→          <div className="flex items-center gap-1">
+   242→            <DropdownMenu>
+   243→              <DropdownMenuTrigger asChild>
+   244→                <Button
+   245→                  variant="outline"
+   246→                  size="sm"
+   247→                  className="h-8 w-8 p-0 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:text-[var(--wpi-text)] hover:border-[var(--wpi-border)]"
+   248→                >
+   249→                  <Globe className="h-3.5 w-3.5" />
+   250→                </Button>
+   251→              </DropdownMenuTrigger>
+   252→              <DropdownMenuContent
+   253→                align="end"
+   254→                className="bg-[var(--wpi-surface-elevated)] border-[var(--wpi-border)] text-[var(--wpi-text)] min-w-[120px]"
+   255→              >
+   256→                {Object.entries(localeNames).map(([key, name]) => (
+   257→                  <DropdownMenuItem
+   258→                    key={key}
+   259→                    onClick={() => setLocale(key as Locale)}
+   260→                    className={`text-sm cursor-pointer ${locale === key ? "focus:bg-[var(--wpi-accent)]/10 focus:text-[var(--wpi-accent)]" : "focus:bg-[var(--wpi-card)] focus:text-[var(--wpi-text)]"}`}
+   261→                  >
+   262→                    <span className="flex-1">{name}</span>
+   263→                    {locale === key && (
+   264→                      <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-[var(--wpi-accent)]/10 text-[var(--wpi-accent)]">
+   265→                        Active
+   266→                      </Badge>
+   267→                    )}
+   268→                  </DropdownMenuItem>
+   269→                ))}
+   270→              </DropdownMenuContent>
+   271→            </DropdownMenu>
+   272→
+   273→            <Button
+   274→              variant="outline"
+   275→              size="sm"
+   276→              onClick={toggleTheme}
+   277→              className="h-8 w-8 p-0 bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:bg-[var(--wpi-card)] hover:text-[var(--wpi-moderate)] hover:border-[var(--wpi-moderate)]/25"
+   278→            >
+   279→              {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+   280→            </Button>
+   281→          </div>
+   282→
+   283→          {/* Separator */}
+   284→          <div className="h-5 w-px bg-[var(--wpi-border)] shrink-0" />
+   285→
+   286→          {/* Actions — Save Profile, Preview, Undo, Apply */}
+   287→          <div className="flex items-center gap-1.5 shrink-0">
+   288→            <Button
+   289→              variant="ghost"
+   290→              size="sm"
+   291→              onClick={() => {
+   292→                // If active custom profile, default to update mode; otherwise new
+   293→                if (activeProfileId && !activeProfile?.isBuiltin) {
+   294→                  setSaveMode("update");
+   295→                } else {
+   296→                  setSaveMode("new");
+   297→                }
+   298→                setSaveDialogOpen(true);
+   299→              }}
+   300→              className="h-8 gap-1.5 text-[var(--wpi-muted)] hover:text-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/10 text-xs"
+   301→            >
+   302→              <Save className="h-3.5 w-3.5" />
+   303→              <span className="hidden lg:inline">Save</span>
+   304→            </Button>
+   305→            <Button
+   306→              variant="ghost"
+   307→              size="sm"
+   308→              onClick={onPreview}
+   309→              className="h-8 gap-1.5 text-[var(--wpi-muted)] hover:text-[var(--wpi-text)] hover:bg-[var(--wpi-card)] text-xs"
+   310→            >
+   311→              {t.tabPreview}
+   312→            </Button>
+   313→            <Button
+   314→              variant="ghost"
+   315→              size="sm"
+   316→              onClick={onUndo}
+   317→              className="h-8 gap-1.5 text-[var(--wpi-muted)] hover:text-[var(--wpi-moderate)] hover:bg-[var(--wpi-moderate)]/10 text-xs"
+   318→            >
+   319→              <Undo2 className="h-3.5 w-3.5" />
+   320→              {t.tabUndo}
+   321→            </Button>
+   322→            <Button
+   323→              size="sm"
+   324→              onClick={handleApplyWithFeedback}
+   325→              disabled={isApplying}
+   326→              className={`h-8 gap-1.5 font-semibold text-xs shadow-[var(--wpi-accent-glow)] disabled:opacity-60 ${
+   327→                hasConflicts
+   328→                  ? "bg-[var(--wpi-risky)] hover:bg-[var(--wpi-risky)]/90 text-white"
+   329→                  : "bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-accent-foreground)]"
+   330→              }`}
+   331→            >
+   332→              {isApplying ? (
+   333→                <>
+   334→                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+   335→                  Applying...
+   336→                </>
+   337→              ) : hasConflicts ? (
+   338→                <>
+   339→                  <AlertTriangle className="h-3.5 w-3.5" />
+   340→                  Apply
+   341→                  <Badge variant="secondary" className="h-4 px-1 text-[9px] bg-white/20 text-white border-0 ml-0.5">
+   342→                    {allConflicts.length}
+   343→                  </Badge>
+   344→                </>
+   345→              ) : isTauri ? (
+   346→                <>
+   347→                  <Zap className="h-3.5 w-3.5" />
+   348→                  Apply
+   349→                </>
+   350→              ) : (
+   351→                <>
+   352→                  <Download className="h-3.5 w-3.5" />
+   353→                  Apply
+   354→                </>
+   355→              )}
+   356→            </Button>
+   357→            {/* Wipe & Exit — only in Tauri desktop mode (burn after reading) */}
+   358→            {isTauri && (
+   359→              <Button
+   360→                variant="ghost"
+   361→                size="sm"
+   362→                onClick={async () => {
+   363→                  try {
+   364→                    const { invoke } = await import("@tauri-apps/api/core");
+   365→                    localStorage.clear();
+   366→                    await invoke("cleanup_and_exit");
+   367→                  } catch {
+   368→                    window.close();
+   369→                  }
+   370→                }}
+   371→                className="h-8 gap-1.5 text-[var(--wpi-muted)] hover:text-[var(--wpi-risky)] hover:bg-[var(--wpi-risky)]/10 text-xs"
+   372→              >
+   373→                <Trash2 className="h-3.5 w-3.5" />
+   374→                <span className="hidden lg:inline">Wipe</span>
+   375→              </Button>
+   376→            )}
+   377→          </div>
+   378→        </div>
+   379→      </div>
+   380→
+   381→      {/* Save Profile Dialog */}
+   382→      <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+   383→        <DialogContent className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)]">
+   384→          <DialogHeader>
+   385→            <DialogTitle className="text-[var(--wpi-text)]">Save as Profile</DialogTitle>
+   386→            <DialogDescription className="text-[var(--wpi-muted)]">
+   387→              Save your current configuration so you can reload it anytime
+   388→            </DialogDescription>
+   389→          </DialogHeader>
+   390→          <div className="space-y-4 py-2">
+   391→            {/* Stats summary */}
+   392→            <div className="flex items-center gap-2 rounded-lg bg-[var(--wpi-card)] border border-[var(--wpi-border)] p-3">
+   393→              <CheckCircle2 className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+   394→              <span className="text-xs text-[var(--wpi-muted)]">
+   395→                <span className="font-semibold text-[var(--wpi-text)]">{enabledCount}</span> settings +{" "}
+   396→                <span className="font-semibold text-[var(--wpi-text)]">{selectedSoftware.length}</span> software selected
+   397→              </span>
+   398→            </div>
+   399→
+   400→            {/* Update existing profile option */}
+   401→            {activeProfileId && !activeProfile?.isBuiltin && (
+   402→              <div
+   403→                onClick={() => setSaveMode("update")}
+   404→                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
+   405→                  saveMode === "update"
+   406→                    ? "bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/30"
+   407→                    : "bg-[var(--wpi-card)] border-[var(--wpi-border)] hover:border-[var(--wpi-accent)]/20"
+   408→                }`}
+   409→              >
+   410→                <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${
+   411→                  saveMode === "update" ? "bg-[var(--wpi-accent)]/15" : "bg-[var(--wpi-deep)]"
+   412→                }`}>
+   413→                  <Save className={`h-4 w-4 ${saveMode === "update" ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
+   414→                </div>
+   415→                <div className="flex-1 min-w-0">
+   416→                  <p className={`text-sm font-medium ${saveMode === "update" ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
+   417→                    Update &quot;{activeProfile?.name}&quot;
+   418→                  </p>
+   419→                  <p className="text-[11px] text-[var(--wpi-muted)]/70">
+   420→                    Replace the current profile&apos;s settings with your selection
+   421→                  </p>
+   422→                </div>
+   423→                {saveMode === "update" && (
+   424→                  <CheckCircle2 className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+   425→                )}
+   426→              </div>
+   427→            )}
+   428→
+   429→            {/* Save as new profile option */}
+   430→            <div
+   431→              onClick={() => setSaveMode("new")}
+   432→              className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
+   433→                saveMode === "new"
+   434→                  ? "bg-[var(--wpi-accent)]/5 border-[var(--wpi-accent)]/30"
+   435→                  : "bg-[var(--wpi-card)] border-[var(--wpi-border)] hover:border-[var(--wpi-accent)]/20"
+   436→              }`}
+   437→            >
+   438→              <div className={`flex h-8 w-8 items-center justify-center rounded-lg shrink-0 ${
+   439→                saveMode === "new" ? "bg-[var(--wpi-accent)]/15" : "bg-[var(--wpi-deep)]"
+   440→              }`}>
+   441→                <Save className={`h-4 w-4 ${saveMode === "new" ? "text-[var(--wpi-accent)]" : "text-[var(--wpi-muted)]"}`} />
+   442→              </div>
+   443→              <div className="flex-1 min-w-0">
+   444→                <p className={`text-sm font-medium ${saveMode === "new" ? "text-[var(--wpi-text)]" : "text-[var(--wpi-muted)]"}`}>
+   445→                  Save as new profile
+   446→                </p>
+   447→                <p className="text-[11px] text-[var(--wpi-muted)]/70">
+   448→                  Create a new named profile from your current settings
+   449→                </p>
+   450→              </div>
+   451→              {saveMode === "new" && (
+   452→                <CheckCircle2 className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+   453→              )}
+   454→            </div>
+   455→
+   456→            {/* New profile name/desc inputs (only in "new" mode) */}
+   457→            {saveMode === "new" && (
+   458→              <motion.div
+   459→                initial={{ opacity: 0, height: 0 }}
+   460→                animate={{ opacity: 1, height: "auto" }}
+   461→                exit={{ opacity: 0, height: 0 }}
+   462→                className="space-y-2 overflow-hidden"
+   463→              >
+   464→                <Input
+   465→                  placeholder="Profile name"
+   466→                  value={profileName}
+   467→                  onChange={(e) => setProfileName(e.target.value)}
+   468→                  autoFocus
+   469→                  className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)]"
+   470→                />
+   471→                <Input
+   472→                  placeholder="Description (optional)"
+   473→                  value={profileDesc}
+   474→                  onChange={(e) => setProfileDesc(e.target.value)}
+   475→                  className="bg-[var(--wpi-card)] border-[var(--wpi-border)] text-[var(--wpi-text)] placeholder:text-[var(--wpi-muted)]"
+   476→                />
+   477→              </motion.div>
+   478→            )}
+   479→          </div>
+   480→          <DialogFooter>
+   481→            <Button
+   482→              variant="outline"
+   483→              onClick={() => setSaveDialogOpen(false)}
+   484→              className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:text-[var(--wpi-text)]"
+   485→            >
+   486→              Cancel
+   487→            </Button>
+   488→            <Button
+   489→              onClick={handleSaveProfile}
+   490→              disabled={saveMode === "new" && !profileName.trim()}
+   491→              className="bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)]"
+   492→            >
+   493→              <Save className="h-3.5 w-3.5 mr-1.5" />
+   494→              {saveMode === "update" ? "Update Profile" : "Save Profile"}
+   495→            </Button>
+   496→          </DialogFooter>
+   497→        </DialogContent>
+   498→      </Dialog>
+   499→
+   500→      {/* Apply Result Dialog — shows PowerShell execution output */}
+   501→      <Dialog open={applyResultDialogOpen} onOpenChange={(open) => { if (!open) clearApplyResult(); }}>
+   502→        <DialogContent className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-text)] max-w-lg">
+   503→          <DialogHeader>
+   504→            <DialogTitle className="flex items-center gap-2 text-[var(--wpi-text)]">
+   505→              {applyResult?.success ? (
+   506→                <CheckCircle2 className="h-5 w-5 text-[var(--wpi-safe)]" />
+   507→              ) : (
+   508→                <AlertCircle className="h-5 w-5 text-[var(--wpi-risky)]" />
+   509→              )}
+   510→              {applyResult?.success ? "Settings Applied Successfully" : "Apply Failed"}
+   511→            </DialogTitle>
+   512→            <DialogDescription className="text-[var(--wpi-muted)]">
+   513→              {applyResult?.message}
+   514→            </DialogDescription>
+   515→          </DialogHeader>
+   516→
+   517→          {applyResult && (
+   518→            <div className="space-y-3 py-2">
+   519→              {/* Config path */}
+   520→              <div className="flex items-center gap-2 rounded-lg bg-[var(--wpi-card)] border border-[var(--wpi-border)] p-3">
+   521→                <Terminal className="h-4 w-4 text-[var(--wpi-accent)] shrink-0" />
+   522→                <div className="flex-1 min-w-0">
+   523→                  <p className="text-[10px] text-[var(--wpi-muted)]">Config saved to</p>
+   524→                  <p className="text-xs font-mono text-[var(--wpi-text)] truncate">{applyResult.configPath}</p>
+   525→                </div>
+   526→              </div>
+   527→
+   528→              {/* PowerShell output */}
+   529→              {applyResult.stdout && (
+   530→                <div>
+   531→                  <p className="text-[10px] font-medium text-[var(--wpi-muted)] mb-1.5">Output</p>
+   532→                  <pre className="text-[11px] font-mono text-[var(--wpi-safe)] bg-[var(--wpi-card)] border border-[var(--wpi-border)] rounded-lg p-3 max-h-[200px] overflow-auto whitespace-pre-wrap break-words">
+   533→                    {applyResult.stdout}
+   534→                  </pre>
+   535→                </div>
+   536→              )}
+   537→
+   538→              {/* Error output */}
+   539→              {applyResult.stderr && (
+   540→                <div>
+   541→                  <p className="text-[10px] font-medium text-[var(--wpi-risky)] mb-1.5">Errors</p>
+   542→                  <pre className="text-[11px] font-mono text-[var(--wpi-risky)] bg-[var(--wpi-risky-5)] border border-[var(--wpi-risky-20)] rounded-lg p-3 max-h-[120px] overflow-auto whitespace-pre-wrap break-words">
+   543→                    {applyResult.stderr}
+   544→                  </pre>
+   545→                </div>
+   546→              )}
+   547→            </div>
+   548→          )}
+   549→
+   550→          <DialogFooter className="flex-col gap-2 sm:flex-row">
+   551→            {isTauri && (
+   552→              <Button
+   553→                variant="outline"
+   554→                onClick={async () => {
+   555→                  try {
+   556→                    const { invoke } = await import("@tauri-apps/api/core");
+   557→                    // Clear localStorage before cleanup
+   558→                    localStorage.clear();
+   559→                    await invoke("cleanup_and_exit");
+   560→                  } catch {
+   561→                    // fallback: just close
+   562→                    window.close();
+   563→                  }
+   564→                }}
+   565→                className="bg-[var(--wpi-risky-5)] border-[var(--wpi-risky-20)] text-[var(--wpi-risky)] hover:bg-[var(--wpi-risky)]/15 hover:text-[var(--wpi-risky)]"
+   566→              >
+   567→                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+   568→                Wipe & Exit
+   569→              </Button>
+   570→            )}
+   571→            <Button
+   572→              onClick={clearApplyResult}
+   573→              className="bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)]"
+   574→            >
+   575→              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+   576→              Done
+   577→            </Button>
+   578→          </DialogFooter>
+   579→        </DialogContent>
+   580→      </Dialog>
+   581→
+   582→      {/* Conflict Warning Dialog — shown when Apply is clicked with unresolved conflicts */}
+   583→      <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+   584→        <DialogContent className="bg-[var(--wpi-deep)] border-[var(--wpi-risky-20)] text-[var(--wpi-text)] max-w-md">
+   585→          <DialogHeader>
+   586→            <DialogTitle className="flex items-center gap-2 text-[var(--wpi-risky)]">
+   587→              <AlertTriangle className="h-5 w-5" />
+   588→              Unresolved Setting Conflicts
+   589→            </DialogTitle>
+   590→            <DialogDescription className="text-[var(--wpi-muted)]">
+   591→              You have {allConflicts.length} conflict{allConflicts.length !== 1 ? "s" : ""} that need to be resolved before applying. Applying with conflicts may cause unexpected behavior.
+   592→            </DialogDescription>
+   593→          </DialogHeader>
+   594→
+   595→          <div className="space-y-3 py-2">
+   596→            {/* Conflict summary list */}
+   597→            <div className="max-h-[180px] overflow-auto space-y-2">
+   598→              {allConflicts.slice(0, 5).map((c, i) => (
+   599→                <div
+   600→                  key={i}
+   601→                  className="flex items-start gap-2 rounded-lg bg-[var(--wpi-risky-5)] border border-[var(--wpi-risky-15)] p-2.5"
+   602→                >
+   603→                  <Badge variant="outline" className="h-4 shrink-0 text-[9px] bg-[var(--wpi-risky-10)] border-[var(--wpi-risky-20)] text-[var(--wpi-risky)] mt-0.5">
+   604→                    {c.type === "conflict" ? "Conflict" : "Dep"}
+   605→                  </Badge>
+   606→                  <span className="text-[11px] text-[var(--wpi-risky)]/80 leading-relaxed">{c.message}</span>
+   607→                </div>
+   608→              ))}
+   609→              {allConflicts.length > 5 && (
+   610→                <p className="text-[10px] text-[var(--wpi-muted)] text-center">
+   611→                  +{allConflicts.length - 5} more conflict{allConflicts.length - 5 !== 1 ? "s" : ""}…
+   612→                </p>
+   613→              )}
+   614→            </div>
+   615→          </div>
+   616→
+   617→          <DialogFooter className="flex-col gap-2 sm:flex-row">
+   618→            <Button
+   619→              variant="outline"
+   620→              onClick={() => setConflictDialogOpen(false)}
+   621→              className="bg-[var(--wpi-deep)] border-[var(--wpi-border)] text-[var(--wpi-muted)] hover:text-[var(--wpi-text)]"
+   622→            >
+   623→              Cancel
+   624→            </Button>
+   625→            <Button
+   626→              variant="outline"
+   627→              onClick={() => {
+   628→                setConflictDialogOpen(false);
+   629→                onPreview();
+   630→              }}
+   631→              className="bg-[var(--wpi-card)] border-[var(--wpi-accent)]/30 text-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/10 hover:border-[var(--wpi-accent)]/40"
+   632→            >
+   633→              <AlertCircle className="h-3.5 w-3.5 mr-1.5" />
+   634→              Go to Preview
+   635→            </Button>
+   636→            <Button
+   637→              onClick={async () => {
+   638→                // Auto-resolve conflicts then apply
+   639→                const resolved = new Set<string>();
+   640→                for (const conflict of allConflicts) {
+   641→                  if (conflict.type === "conflict") {
+   642→                    const settingSafety = getSafetyForId(conflict.settingId);
+   643→                    const targetSafety = getSafetyForId(conflict.targetId);
+   644→                    if (settingSafety === "Risky" || (settingSafety === "Moderate" && targetSafety === "Safe")) {
+   645→                      if (!resolved.has(conflict.settingId)) {
+   646→                        toggleSetting(conflict.settingId);
+   647→                        resolved.add(conflict.settingId);
+   648→                      }
+   649→                    } else {
+   650→                      if (!resolved.has(conflict.targetId)) {
+   651→                        toggleSetting(conflict.targetId);
+   652→                        resolved.add(conflict.targetId);
+   653→                      }
+   654→                    }
+   655→                  } else if (conflict.type === "unmet_require") {
+   656→                    if (!resolved.has(conflict.targetId)) {
+   657→                      toggleSetting(conflict.targetId);
+   658→                      resolved.add(conflict.targetId);
+   659→                    }
+   660→                  }
+   661→                }
+   662→                setConflictDialogOpen(false);
+   663→                toast({
+   664→                  title: "Conflicts Resolved",
+   665→                  description: `${resolved.size} settings adjusted. Applying now…`,
+   666→                });
+   667→                // Small delay to let state settle, then apply
+   668→                setTimeout(async () => {
+   669→                  try {
+   670→                    await onApply();
+   671→                    if (!isTauri) {
+   672→                      toast({
+   673→                        title: "Config Exported!",
+   674→                        description: "Conflicts resolved and config exported. Check Downloads for the .json file.",
+   675→                      });
+   676→                    }
+   677→                  } catch (err) {
+   678→                    console.error("Apply after resolve failed:", err);
+   679→                  }
+   680→                }, 100);
+   681→              }}
+   682→              className="bg-[var(--wpi-accent)] hover:bg-[var(--wpi-accent)]/90 text-[var(--wpi-bg)]"
+   683→            >
+   684→              <Wrench className="h-3.5 w-3.5 mr-1.5" />
+   685→              Auto-Resolve & Apply
+   686→            </Button>
+   687→          </DialogFooter>
+   688→        </DialogContent>
+   689→      </Dialog>
+   690→    </motion.header>
+   691→  );
+   692→}
+   693→
