@@ -360,11 +360,29 @@ export function SectionDetailPanel() {
                         </TooltipProvider>
                       </div>
 
-                      <Switch
-                        checked={isEnabled}
-                        onCheckedChange={() => toggleSetting(setting.id)}
-                        className="data-[state=checked]:bg-[var(--wpi-accent)] data-[state=unchecked]:bg-[var(--wpi-border)] shrink-0 scale-110"
-                      />
+                      {setting.exclusiveGroup ? (
+                        /* Radio-style indicator for mutually exclusive groups */
+                        <button
+                          role="radio"
+                          aria-checked={isEnabled}
+                          onClick={() => toggleSetting(setting.id)}
+                          className={`shrink-0 flex h-5 w-5 items-center justify-center rounded-full border-2 transition-all duration-200 ${
+                            isEnabled
+                              ? "border-[var(--wpi-accent)] bg-[var(--wpi-accent)]"
+                              : "border-[var(--wpi-border)] bg-[var(--wpi-deep)] hover:border-[var(--wpi-accent)]/40"
+                          }`}
+                        >
+                          {isEnabled && (
+                            <span className="h-2 w-2 rounded-full bg-white" />
+                          )}
+                        </button>
+                      ) : (
+                        <Switch
+                          checked={isEnabled}
+                          onCheckedChange={() => toggleSetting(setting.id)}
+                          className="data-[state=checked]:bg-[var(--wpi-accent)] data-[state=unchecked]:bg-[var(--wpi-border)] shrink-0 scale-110"
+                        />
+                      )}
                     </motion.div>
                   );
                 })}

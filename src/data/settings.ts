@@ -16,6 +16,8 @@ export interface Setting {
   desc: string;
   /** Dependencies and conflicts with other settings */
   deps?: SettingDependency;
+  /** Mutually exclusive group — enabling this setting auto-disables others in the same group */
+  exclusiveGroup?: string;
 }
 
 export interface Section {
@@ -303,13 +305,13 @@ export const sections: Section[] = [
     description: "Install, activate, and configure Microsoft Office",
     settings: [
       // --- Office Version Selection (mutually exclusive group) ---
-      { id: "Off_V365", name: "Install Office 365 ProPlus", safety: "Safe", desc: "Office 365 ProPlus (subscription) — always latest features, Click-to-Run." },
-      { id: "Off_V2024", name: "Install Office LTSC 2024", safety: "Safe", desc: "Office LTSC 2024 — long-term servicing channel, no feature updates, for stability." },
-      { id: "Off_V2021", name: "Install Office LTSC 2021", safety: "Safe", desc: "Office LTSC 2021 — previous long-term version, extended support until 2026." },
-      { id: "Off_V2019", name: "Install Office 2019", safety: "Safe", desc: "Office 2019 — perpetual license, feature-frozen, security updates only." },
+      { id: "Off_V365", name: "Install Office 365 ProPlus", safety: "Safe", desc: "Office 365 ProPlus (subscription) — always latest features, Click-to-Run.", exclusiveGroup: "officeVersion" },
+      { id: "Off_V2024", name: "Install Office LTSC 2024", safety: "Safe", desc: "Office LTSC 2024 — long-term servicing channel, no feature updates, for stability.", exclusiveGroup: "officeVersion" },
+      { id: "Off_V2021", name: "Install Office LTSC 2021", safety: "Safe", desc: "Office LTSC 2021 — previous long-term version, extended support until 2026.", exclusiveGroup: "officeVersion" },
+      { id: "Off_V2019", name: "Install Office 2019", safety: "Safe", desc: "Office 2019 — perpetual license, feature-frozen, security updates only.", exclusiveGroup: "officeVersion" },
       // --- Architecture & Language ---
-      { id: "Off_Arch64", name: "64-bit architecture (x64)", safety: "Safe", desc: "Install 64-bit Office. Recommended for modern systems with 4GB+ RAM." },
-      { id: "Off_Arch32", name: "32-bit architecture (x86)", safety: "Safe", desc: "Install 32-bit Office. Only needed for legacy 32-bit COM add-in compatibility." },
+      { id: "Off_Arch64", name: "64-bit architecture (x64)", safety: "Safe", desc: "Install 64-bit Office. Recommended for modern systems with 4GB+ RAM.", exclusiveGroup: "officeArch" },
+      { id: "Off_Arch32", name: "32-bit architecture (x86)", safety: "Safe", desc: "Install 32-bit Office. Only needed for legacy 32-bit COM add-in compatibility.", exclusiveGroup: "officeArch" },
       // --- Activation & Configuration ---
       { id: "Off_Act", name: "Activate Office (MAS Ohook)", safety: "Moderate", desc: "Enable Office activation via MAS Ohook. The actual activation runs in the Activation section. This is a convenience toggle." },
       { id: "Off_1", name: "Disable Office telemetry", safety: "Safe", desc: "Stops Office from sending usage and diagnostic data to Microsoft." },

@@ -154,6 +154,30 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const current = state.settings[settingId] ?? false;
       const newSettings = { ...state.settings, [settingId]: !current };
+
+      // Enforce exclusive groups (radio behavior):
+      // When enabling a setting that belongs to an exclusiveGroup,
+      // auto-disable all other settings in the same group.
+      if (!current) {
+        let exclusiveGroup: string | undefined;
+        for (const section of sections) {
+          const found = section.settings.find((s) => s.id === settingId);
+          if (found?.exclusiveGroup) {
+            exclusiveGroup = found.exclusiveGroup;
+            break;
+          }
+        }
+        if (exclusiveGroup) {
+          for (const section of sections) {
+            for (const s of section.settings) {
+              if (s.exclusiveGroup === exclusiveGroup && s.id !== settingId) {
+                newSettings[s.id] = false;
+              }
+            }
+          }
+        }
+      }
+
       saveToStorage(SETTINGS_KEY, newSettings);
 
       // Find setting info for undo log
