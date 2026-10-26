@@ -2618,7 +2618,6 @@ function Invoke-Activation {
     Write-Host ""
 
     $masUrl = "https://get.activated.win"
-    $masScriptPath = "$env:TEMP\MAS.ps1"
 
     # Determine what to activate from config settings
     $doWinActivation = $false
@@ -2673,112 +2672,94 @@ function Invoke-Activation {
     }
 
     # ================================================================
-    # Download MAS
+    # Build MAS command-line switches
+    # MAS supports unattended activation via switches:
+    #   /HWID     - Activate Windows with HWID digital license
+    #   /Ohook    - Activate Office with Ohook
+    #   /S        - Silent mode (suppress output)
+    # See: https://massgrave.dev/command_line_switches
     # ================================================================
-    Write-Host ""
-    Write-Step "Downloading Microsoft Activation Scripts (MAS)..."
-    try {
-        $webClient = New-Object System.Net.WebClient
-        $webClient.DownloadFile($masUrl, $masScriptPath)
-        if (Test-Path $masScriptPath) {
-            Write-Success "MAS downloaded: $masScriptPath"
-        } else {
-            throw "Download completed but file not found."
-        }
-    } catch {
-        Write-Err "Failed to download MAS: $_"
-        Write-Host ""
-        Write-Host "  You can run manually: irm https://get.activated.win | iex" -ForegroundColor Yellow
-        Write-Host ""
-        return
-    }
+    $masSwitches = @()
+    if ($doWinActivation) { $masSwitches += "/HWID" }
+    if ($doOffActivation) { $masSwitches += "/Ohook" }
+    if ($Silent)          { $masSwitches += "/S" }
 
     # ================================================================
     # Perform activation
     # ================================================================
+    $activationLabel = @()
+    if ($doWinActivation) { $activationLabel += "Windows HWID" }
+    if ($doOffActivation) { $activationLabel += "Office Ohook" }
+    $labelStr = $activationLabel -join " + "
 
-    if ($doWinActivation) {
-        Write-Host ""
-        Write-Host "  [1/2] Activating Windows (HWID)..." -ForegroundColor Yellow
-        Write-Host ""
+    Write-Host ""
+    Write-Host "  Activating: $labelStr" -ForegroundColor Yellow
+    Write-Host ""
 
-        if ($Silent) {
-            # Silent mode: run MAS with HWID activation directly
-            # MAS supports unattended mode via the $args or env vars
-            try {
-                $hwidScript = @"
-& '$masScriptPath'
-"@
-                # Launch in elevated window for HWID
-                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& '$masScriptPath'`"" `
-                    -Verb RunAs -Wait -ErrorAction Stop
-                Write-Success "Windows HWID activation launched."
-            } catch {
-                Write-Warn "Could not launch MAS elevated. Attempting in current session..."
-                try {
-                    & $masScriptPath
-                } catch {
-                    Write-Err "MAS execution failed: $_"
-                }
+    # Build the MAS one-liner with switches
+    # & ([ScriptBlock]::Create((irm https://get.activated.win))) /HWID /Ohook /S
+    $switchStr = $masSwitches -join " "
+    $masCommand = "& ([ScriptBlock]::Create((irm https://get.activated.win))) $switchStr"
+
+    if ($Silent) {
+        # ============================================================
+        # Silent / NonInteractive mode: run MAS unattended with switches
+        # ============================================================
+        Write-Step "Running MAS in silent/unattended mode..."
+        try {
+            # Run elevated with MAS switches - fully unattended
+            $encodedCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($masCommand))
+            $proc = Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCmd" `
+                -Verb RunAs -Wait -PassThru -ErrorAction Stop
+            if ($proc.ExitCode -eq 0) {
+                Write-Success "MAS activation completed successfully ($labelStr)."
+            } else {
+                Write-Warn "MAS exited with code $($proc.ExitCode). Activation may have partially succeeded."
             }
-        } else {
-            # Interactive mode: launch MAS in new window with instructions
-            Write-Host "  ================================================" -ForegroundColor Cyan
-            Write-Host "  MAS is opening in a NEW Administrator window." -ForegroundColor Cyan
-            Write-Host "  In the MAS window, choose:" -ForegroundColor White
-            Write-Host "    [1] HWID  -  Activate Windows" -ForegroundColor Green
-            Write-Host "    [0] Exit  -  Close MAS when done" -ForegroundColor Gray
-            Write-Host "  ================================================" -ForegroundColor Cyan
-            Write-Host ""
-
+        } catch {
+            Write-Warn "Could not launch MAS elevated. Attempting in current session..."
             try {
-                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
-                    -Verb RunAs -ErrorAction Stop
-                Write-Success "MAS launched for Windows activation."
+                Invoke-Expression $masCommand
+                Write-Success "MAS activation completed ($labelStr)."
             } catch {
-                Write-Warn "Could not open new window. Running MAS in current session..."
-                try { & $masScriptPath } catch { Write-Err "MAS failed: $_" }
+                Write-Err "MAS execution failed: $_"
+                Write-Host "  You can run manually: $masCommand" -ForegroundColor Yellow
+            }
+        }
+    } else {
+        # ============================================================
+        # Interactive mode: launch MAS with switches in a new window
+        # The switches make it unattended, but the user sees the window
+        # ============================================================
+        $whatToDo = @()
+        if ($doWinActivation) { $whatToDo += "[1] HWID  -  Activate Windows" }
+        if ($doOffActivation) { $whatToDo += "[2] Ohook -  Activate Office" }
+
+        Write-Host "  ================================================" -ForegroundColor Cyan
+        Write-Host "  MAS is opening in a NEW Administrator window." -ForegroundColor Cyan
+        Write-Host "  Activation will run automatically:" -ForegroundColor White
+        foreach ($item in $whatToDo) {
+            Write-Host "    $item" -ForegroundColor Green
+        }
+        Write-Host "  ================================================" -ForegroundColor Cyan
+        Write-Host ""
+
+        try {
+            $encodedCmd = [Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes($masCommand))
+            Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -EncodedCommand $encodedCmd" `
+                -Verb RunAs -ErrorAction Stop
+            Write-Success "MAS launched for activation ($labelStr)."
+        } catch {
+            Write-Warn "Could not open new window. Running MAS in current session..."
+            try {
+                Invoke-Expression $masCommand
+                Write-Success "MAS activation completed ($labelStr)."
+            } catch {
+                Write-Err "MAS failed: $_"
+                Write-Host "  You can run manually: $masCommand" -ForegroundColor Yellow
             }
         }
     }
-
-    if ($doOffActivation) {
-        Write-Host ""
-        Write-Host "  [2/2] Activating Office (Ohook)..." -ForegroundColor Yellow
-        Write-Host ""
-
-        if ($Silent) {
-            # Silent: launch MAS for Ohook
-            try {
-                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"& '$masScriptPath'`"" `
-                    -Verb RunAs -Wait -ErrorAction Stop
-                Write-Success "Office Ohook activation launched."
-            } catch {
-                Write-Warn "Could not launch MAS elevated. Attempting in current session..."
-                try { & $masScriptPath } catch { Write-Err "MAS failed: $_" }
-            }
-        } else {
-            Write-Host "  ================================================" -ForegroundColor Cyan
-            Write-Host "  MAS is opening in a NEW Administrator window." -ForegroundColor Cyan
-            Write-Host "  In the MAS window, choose:" -ForegroundColor White
-            Write-Host "    [2] Ohook  -  Activate Office" -ForegroundColor Green
-            Write-Host "    [0] Exit   -  Close MAS when done" -ForegroundColor Gray
-            Write-Host "  ================================================" -ForegroundColor Cyan
-            Write-Host ""
-
-            try {
-                Start-Process powershell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$masScriptPath`"" `
-                    -Verb RunAs -ErrorAction Stop
-                Write-Success "MAS launched for Office activation."
-            } catch {
-                Write-Warn "Could not open new window. Running MAS in current session..."
-                try { & $masScriptPath } catch { Write-Err "MAS failed: $_" }
-            }
-        }
-    }
-
-    # Clean up MAS script
-    if (Test-Path $masScriptPath) { Remove-Item $masScriptPath -Force -ErrorAction SilentlyContinue }
 
     Write-Host ""
     Write-Success "Activation section complete."
@@ -3667,7 +3648,8 @@ $script:SectionSafetyInfo = @{
     "WindowsUpdate"   = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 6 }
     "DiskCleanup"     = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 4 }
     "Winget"          = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 8 }
-    "OfficeActivation"= @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
+    "OfficeActivation"= @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 1; ItemCount = 13 }
+    "Activation"      = @{ Safety = "Mixed";  RiskyCount = 0; ModerateCount = 2; ItemCount = 2 }
     "EdgeHardening"   = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 14 }
     "OneDrive"        = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
     "Gaming"          = @{ Safety = "Safe";   RiskyCount = 0; ModerateCount = 0; ItemCount = 3 }
@@ -3690,14 +3672,15 @@ function Show-SimpleMenu {
         @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup and Maintenance";              Desc = "Restore point, disk cleanup, temp cleanup" },
         @{ ID = "10"; Key = "Winget";                Name = "Software Installation (Winget)";           Desc = "Chrome, Firefox, 7-Zip, VLC, Reader, Notepad++" },
         @{ ID = "11"; Key = "OfficeActivation";      Name = "Microsoft Office Install + Activation";       Desc = "Choose Office version (365/LTSC 2024/2021/2019), MAS activation, Office telemetry off" },
-        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Security & Privacy (24 policies)";     Desc = "Telemetry, tracking, HTTPS-only, Safe Browsing, Copilot, autofill, shopping" },
-        @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
-        @{ ID = "14"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
-        @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
-        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Privacy Policies";                  Desc = "WebRTC, cookies, autofill, HTTPS-only, telemetry, experiments" },
-        @{ ID = "16b"; Key = "BrowserExtensions";    Name = "Browser Extensions";                        Desc = "uBlock, AdGuard, SponsorBlock, Privacy Badger + 6 more on 5 browsers" },
-        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" },
-        @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features Removal";                  Desc = "Remove IE, WMP, PSv2, Fax, Paint3D, XPS, Work Folders" }
+        @{ ID = "12"; Key = "Activation";             Name = "Windows & Office Activation (MAS)";          Desc = "Activate Windows (HWID) and Office (Ohook) via MAS. Checks existing licenses first." },
+        @{ ID = "13"; Key = "EdgeHardening";         Name = "Edge Security & Privacy (24 policies)";     Desc = "Telemetry, tracking, HTTPS-only, Safe Browsing, Copilot, autofill, shopping" },
+        @{ ID = "14"; Key = "OneDrive";              Name = "OneDrive Management";                      Desc = "Disable sync, hide from Explorer, remove startup" },
+        @{ ID = "15"; Key = "Gaming";                Name = "Gaming / Xbox / DVR Disable";              Desc = "GameDVR, Game Bar capture, Xbox overlay" },
+        @{ ID = "16"; Key = "ScheduledTasks";         Name = "Scheduled Tasks Cleanup (33+ tasks)";      Desc = "Telemetry, CEIP, Office, Xbox, Maps, diagnostics" },
+        @{ ID = "17"; Key = "BrowserHardening";      Name = "Browser Privacy Policies";                  Desc = "WebRTC, cookies, autofill, HTTPS-only, telemetry, experiments" },
+        @{ ID = "17b"; Key = "BrowserExtensions";    Name = "Browser Extensions";                        Desc = "uBlock, AdGuard, SponsorBlock, Privacy Badger + 6 more on 5 browsers" },
+        @{ ID = "18"; Key = "FinalTouches";           Name = "Final Touches";                            Desc = "Edge first-run, sound, NumLock, mouse accel, Explorer" },
+        @{ ID = "19"; Key = "WindowsFeatures";         Name = "Windows Features Removal";                  Desc = "Remove IE, WMP, PSv2, Fax, Paint3D, XPS, Work Folders" }
     )
 
     Write-Host ""
@@ -3727,14 +3710,15 @@ function Get-SimpleUserSelection {
     if ($userInput.Trim().ToUpper() -eq 'A') {
         $selected = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                       "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                      "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
+                      "OfficeActivation","Activation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
     } else {
         $numbers = $userInput -split ',' | ForEach-Object { $_.Trim() }
         $allSections = @{
             '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
             '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
-            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='EdgeHardening'
-            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches';'18'='WindowsFeatures'
+            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='Activation'
+            '13'='EdgeHardening';'14'='OneDrive';'15'='Gaming';'16'='ScheduledTasks'
+            '17'='BrowserHardening';'18'='FinalTouches';'19'='WindowsFeatures'
         }
         foreach ($num in $numbers) {
             if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
@@ -3756,15 +3740,16 @@ function Show-DetailedMenu {
         @{ ID = "8";  Key = "WindowsUpdate";         Name = "Windows Update" },
         @{ ID = "9";  Key = "DiskCleanup";           Name = "Disk Cleanup" },
         @{ ID = "10"; Key = "Winget";                Name = "Software (Winget)" },
-        @{ ID = "11"; Key = "OfficeActivation";      Name = "Office 365" },
-        @{ ID = "12"; Key = "EdgeHardening";         Name = "Edge Hardening" },
-        @{ ID = "13"; Key = "OneDrive";              Name = "OneDrive" },
-        @{ ID = "14"; Key = "Gaming";                Name = "Gaming / DVR" },
-        @{ ID = "15"; Key = "ScheduledTasks";         Name = "Scheduled Tasks" },
-        @{ ID = "16"; Key = "BrowserHardening";      Name = "Browser Privacy" },
-        @{ ID = "16b"; Key = "BrowserExtensions";    Name = "Browser Extensions" },
-        @{ ID = "17"; Key = "FinalTouches";           Name = "Final Touches" },
-        @{ ID = "18"; Key = "WindowsFeatures";         Name = "Windows Features" }
+        @{ ID = "11"; Key = "OfficeActivation";      Name = "Microsoft Office" },
+        @{ ID = "12"; Key = "Activation";             Name = "Windows & Office Activation" },
+        @{ ID = "13"; Key = "EdgeHardening";         Name = "Edge Hardening" },
+        @{ ID = "14"; Key = "OneDrive";              Name = "OneDrive" },
+        @{ ID = "15"; Key = "Gaming";                Name = "Gaming / DVR" },
+        @{ ID = "16"; Key = "ScheduledTasks";         Name = "Scheduled Tasks" },
+        @{ ID = "17"; Key = "BrowserHardening";      Name = "Browser Privacy" },
+        @{ ID = "17b"; Key = "BrowserExtensions";    Name = "Browser Extensions" },
+        @{ ID = "18"; Key = "FinalTouches";           Name = "Final Touches" },
+        @{ ID = "19"; Key = "WindowsFeatures";         Name = "Windows Features" }
     )
 
     Write-Host ""
@@ -4001,7 +3986,7 @@ function Get-DetailedUserSelection {
 
     $allSectionKeys = @("Privacy","Debloat","ExplorerUI","ServiceStartup","Performance",
                         "Security","Network","WindowsUpdate","DiskCleanup","Winget",
-                        "OfficeActivation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
+                        "OfficeActivation","Activation","EdgeHardening","OneDrive","Gaming","ScheduledTasks","BrowserHardening","FinalTouches","WindowsFeatures")
 
     $selected = @()
     if ($userInput.Trim().ToUpper() -eq 'R') {
@@ -4019,8 +4004,9 @@ function Get-DetailedUserSelection {
         $allSections = @{
             '1'='Privacy';'2'='Debloat';'3'='ExplorerUI';'4'='ServiceStartup'
             '5'='Performance';'6'='Security';'7'='Network';'8'='WindowsUpdate'
-            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='EdgeHardening'
-            '13'='OneDrive';'14'='Gaming';'15'='ScheduledTasks';'16'='BrowserHardening';'17'='FinalTouches';'18'='WindowsFeatures'
+            '9'='DiskCleanup';'10'='Winget';'11'='OfficeActivation';'12'='Activation'
+            '13'='EdgeHardening';'14'='OneDrive';'15'='Gaming';'16'='ScheduledTasks'
+            '17'='BrowserHardening';'18'='FinalTouches';'19'='WindowsFeatures'
         }
         foreach ($num in $numbers) {
             if ($allSections.ContainsKey($num)) { $selected += $allSections[$num] }
@@ -4301,6 +4287,64 @@ try {
             Changed = $script:TotalChanged - $sectionChangedBefore
             Skipped = $script:TotalSkipped - $sectionSkippedBefore
             Failed  = $script:TotalFailed - $sectionFailedBefore
+        }
+    }
+
+    # ================================================================
+    # AUTO-ACTIVATION: Ensure Windows + Office activation runs before
+    # exit, even if the user didn't explicitly select the Activation
+    # section. This honors the user's request that activation should
+    # always happen — checking first to avoid tampering with existing
+    # valid licenses.
+    # ================================================================
+    if ($selectedSections -notcontains "Activation") {
+        $autoWin = $false
+        $autoOff = $false
+
+        # Check Windows activation status
+        Write-Step "Auto-check: Windows activation status..."
+        $winAlreadyActivated = Test-WindowsActivation
+        if ($winAlreadyActivated) {
+            Write-Success "Windows already permanently activated. No auto-activation needed."
+        } else {
+            Write-Step "Windows is NOT activated. Will auto-activate via HWID."
+            $autoWin = $true
+        }
+
+        # Check Office activation status
+        Write-Step "Auto-check: Office activation status..."
+        $offAlreadyActivated = Test-OfficeActivation
+        if ($offAlreadyActivated) {
+            Write-Success "Office already activated. No auto-activation needed."
+        } else {
+            # Only attempt Office activation if Office is installed
+            $officeInstalled = $false
+            $officeRegPaths = @(
+                "HKLM:\SOFTWARE\Microsoft\Office\16.0",
+                "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\16.0"
+            )
+            foreach ($regPath in $officeRegPaths) {
+                if (Test-Path $regPath) { $officeInstalled = $true; break }
+            }
+            if ($officeInstalled) {
+                Write-Step "Office is installed but NOT activated. Will auto-activate via Ohook."
+                $autoOff = $true
+            } else {
+                Write-Step "Office is not installed. Skipping Office auto-activation."
+            }
+        }
+
+        if ($autoWin -or $autoOff) {
+            Write-Host ""
+            Write-Host "  --- AUTO-ACTIVATION (pre-exit) ---" -ForegroundColor Yellow
+            # Temporarily enable the activation flags
+            if (-not $script:ConfigSettings) { $script:ConfigSettings = @{} }
+            if ($autoWin) { $script:ConfigSettings["Act_Win"] = $true }
+            if ($autoOff) { $script:ConfigSettings["Act_Off"] = $true }
+            # Run activation
+            Invoke-Activation
+            # Track in section stats
+            $script:SectionStats["Activation (auto)"] = @{ Duration = [TimeSpan]::Zero; Changed = 0; Skipped = 0; Failed = 0 }
         }
     }
 
