@@ -4290,6 +4290,64 @@ try {
         }
     }
 
+    # ================================================================
+    # AUTO-ACTIVATION: Ensure Windows + Office activation runs before
+    # exit, even if the user didn't explicitly select the Activation
+    # section. This honors the user's request that activation should
+    # always happen — checking first to avoid tampering with existing
+    # valid licenses.
+    # ================================================================
+    if ($selectedSections -notcontains "Activation") {
+        $autoWin = $false
+        $autoOff = $false
+
+        # Check Windows activation status
+        Write-Step "Auto-check: Windows activation status..."
+        $winAlreadyActivated = Test-WindowsActivation
+        if ($winAlreadyActivated) {
+            Write-Success "Windows already permanently activated. No auto-activation needed."
+        } else {
+            Write-Step "Windows is NOT activated. Will auto-activate via HWID."
+            $autoWin = $true
+        }
+
+        # Check Office activation status
+        Write-Step "Auto-check: Office activation status..."
+        $offAlreadyActivated = Test-OfficeActivation
+        if ($offAlreadyActivated) {
+            Write-Success "Office already activated. No auto-activation needed."
+        } else {
+            # Only attempt Office activation if Office is installed
+            $officeInstalled = $false
+            $officeRegPaths = @(
+                "HKLM:\SOFTWARE\Microsoft\Office\16.0",
+                "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Office\16.0"
+            )
+            foreach ($regPath in $officeRegPaths) {
+                if (Test-Path $regPath) { $officeInstalled = $true; break }
+            }
+            if ($officeInstalled) {
+                Write-Step "Office is installed but NOT activated. Will auto-activate via Ohook."
+                $autoOff = $true
+            } else {
+                Write-Step "Office is not installed. Skipping Office auto-activation."
+            }
+        }
+
+        if ($autoWin -or $autoOff) {
+            Write-Host ""
+            Write-Host "  --- AUTO-ACTIVATION (pre-exit) ---" -ForegroundColor Yellow
+            # Temporarily enable the activation flags
+            if (-not $script:ConfigSettings) { $script:ConfigSettings = @{} }
+            if ($autoWin) { $script:ConfigSettings["Act_Win"] = $true }
+            if ($autoOff) { $script:ConfigSettings["Act_Off"] = $true }
+            # Run activation
+            Invoke-Activation
+            # Track in section stats
+            $script:SectionStats["Activation (auto)"] = @{ Duration = [TimeSpan]::Zero; Changed = 0; Skipped = 0; Failed = 0 }
+        }
+    }
+
     # === BEFORE/AFTER SNAPSHOT (end) ===
     Write-Step "Taking 'after' snapshot of services and tasks..."
     try {
