@@ -1,0 +1,918 @@
+     1→export type SafetyLevel = "Safe" | "Moderate" | "Risky";
+     2→
+     3→export interface SettingDependency {
+     4→  /** Setting IDs that this setting requires to be enabled */
+     5→  requires?: string[];
+     6→  /** Setting IDs that conflict with this setting (cannot both be enabled) */
+     7→  conflicts?: string[];
+     8→  /** Human-readable conflict message */
+     9→  conflictMessage?: string;
+    10→}
+    11→
+    12→export interface Setting {
+    13→  id: string;
+    14→  name: string;
+    15→  safety: SafetyLevel;
+    16→  desc: string;
+    17→  /** Dependencies and conflicts with other settings */
+    18→  deps?: SettingDependency;
+    19→}
+    20→
+    21→export interface Section {
+    22→  id: string;
+    23→  name: string;
+    24→  icon: string;
+    25→  description: string;
+    26→  settings: Setting[];
+    27→}
+    28→
+    29→export interface SoftwareApp {
+    30→  id: string;
+    31→  name: string;
+    32→  category: string;
+    33→  wingetId: string;
+    34→  desc: string;
+    35→}
+    36→
+    37→/** Client scenario — a guided use-case that maps to a profile */
+    38→export interface ClientScenario {
+    39→  id: string;
+    40→  name: string;
+    41→  subtitle: string;
+    42→  description: string;
+    43→  /** Lucide icon name */
+    44→  icon: string;
+    45→  /** Color accent for the scenario card */
+    46→  color: string;
+    47→  /** What this scenario does (bullet points) */
+    48→  highlights: string[];
+    49→  /** What this scenario does NOT do (bullet points) */
+    50→  excludes: string[];
+    51→  /** The builtin profile ID to load when selected */
+    52→  profileId: string;
+    53→  /** Whether this scenario is recommended for first-time users */
+    54→  recommended?: boolean;
+    55→}
+    56→
+    57→export const clientScenarios: ClientScenario[] = [
+    58→  {
+    59→    id: "privacy-security",
+    60→    name: "Privacy & Security Hardening",
+    61→    subtitle: "Harden the system, keep stock apps",
+    62→    description:
+    63→      "For clients who want to tighten privacy and security of Windows but are fine with all or most of the out-of-box apps. This scenario disables telemetry, hardens network and browser settings, and locks down security — without removing any pre-installed applications.",
+    64→    icon: "ShieldCheck",
+    65→    color: "#22c55e",
+    66→    highlights: [
+    67→      "Disable all Windows telemetry and tracking",
+    68→      "Harden security: DNS-over-HTTPS, disable SMBv1, enable firewall, disable LLMNR/WPAD",
+    69→      "Configure Edge and browser privacy (tracking prevention, disable suggestions)",
+    70→      "Lock down OneDrive privacy without removing it",
+    71→      "Disable Office telemetry and connected experiences",
+    72→      "Harden scheduled tasks (disable CEIP, compatibility assistant, app launch telemetry)",
+    73→      "Safe system improvements: file extensions, 24h clock, long paths, restore point",
+    74→    ],
+    75→    excludes: [
+    76→      "No bloatware removal — keeps all pre-installed apps",
+    77→      "No aggressive service disabling",
+    78→      "No OneDrive uninstall",
+    79→      "No risky settings (Error Reporting stays on for diagnostics)",
+    80→      "No performance overclocking or risky tweaks",
+    81→    ],
+    82→    profileId: "privacysecurity",
+    83→    recommended: true,
+    84→  },
+    85→  {
+    86→    id: "app-setup",
+    87→    name: "App Setup & Defender Config",
+    88→    subtitle: "Keep stock system, install apps",
+    89→    description:
+    90→      "For clients who are fine with the out-of-box Windows experience and just need installation of alternative browsers, zip software, essential utilities, plus Windows Defender configuration and browser plugin setup. Minimal system changes — just software.",
+    91→    icon: "Package",
+    92→    color: "#3b82f6",
+    93→    highlights: [
+    94→      "Install alternative browsers: Chrome, Firefox, Brave",
+    95→      "Install essential utilities: 7-Zip, Everything Search, PowerToys",
+    96→      "Install security tools: Bitwarden, VeraCrypt",
+    97→      "Install media and communication apps: VLC, Discord",
+    98→      "Configure Windows Defender and firewall (ensure active)",
+    99→      "Set Edge strict tracking prevention",
+   100→      "Show file extensions (essential for tech-savvy users)",
+   101→    ],
+   102→    excludes: [
+   103→      "No privacy hardening beyond basic Edge tracking prevention",
+   104→      "No bloatware removal",
+   105→      "No telemetry disabling",
+   106→      "No service disabling",
+   107→      "No browser hardening beyond tracking prevention",
+   108→      "No OneDrive changes (except ad notification suppression)",
+   109→    ],
+   110→    profileId: "appsetup",
+   111→  },
+   112→];
+   113→
+   114→export const sections: Section[] = [
+   115→  {
+   116→    id: "Privacy",
+   117→    name: "Privacy and Telemetry",
+   118→    icon: "Shield",
+   119→    description: "Control Windows telemetry, tracking, and data collection settings",
+   120→    settings: [
+   121→      { id: "Priv_1", name: "Disable Windows telemetry", safety: "Safe", desc: "Stops Windows from sending diagnostic and usage data to Microsoft. No functional impact." },
+   122→      { id: "Priv_2", name: "Disable Cortana & Bing search", safety: "Safe", desc: "Removes Cortana and Bing web search from Start menu. Local search still works." },
+   123→      { id: "Priv_3", name: "Disable activity history", safety: "Safe", desc: "Stops Windows from tracking your activity history across devices." },
+   124→      { id: "Priv_4", name: "Disable location tracking", safety: "Moderate", desc: "Disables Windows location services. Some apps (maps, weather) may not work properly." },
+   125→      { id: "Priv_5", name: "Disable advertising ID", safety: "Safe", desc: "Removes unique advertising identifier. Reduces targeted ads across apps." },
+   126→      { id: "Priv_6", name: "Disable Clipboard cloud sync", safety: "Safe", desc: "Prevents clipboard contents from syncing to the cloud and other devices." },
+   127→      { id: "Priv_7", name: "Disable Error Reporting", safety: "Risky", desc: "Stops crash reports to Microsoft. You won't get automated solutions for crashes." },
+   128→      { id: "Priv_8", name: "Disable feedback notifications", safety: "Safe", desc: "Removes Windows Feedback Hub notifications and prompts." },
+   129→      { id: "Priv_9", name: "Disable timeline history", safety: "Safe", desc: "Prevents Windows from saving timeline activity history." },
+   130→      { id: "Priv_10", name: "Disable diagnostic data viewer", safety: "Safe", desc: "Removes the diagnostic data viewer tool and stops data collection for it." },
+   131→      { id: "Priv_11", name: "Disable telemetry in Scheduled Tasks", safety: "Safe", desc: "Disables Microsoft telemetry scheduled tasks that run in the background." },
+   132→    ],
+   133→  },
+   134→  {
+   135→    id: "Debloat",
+   136→    name: "Remove Bloatware",
+   137→    icon: "Trash2",
+   138→    description: "Remove pre-installed bloatware and unnecessary apps",
+   139→    settings: [
+   140→      { id: "Deb_1", name: "Remove sponsored apps", safety: "Safe", desc: "Uninstalls pre-installed third-party sponsored apps (Candy Crush, etc.)." },
+   141→      { id: "Deb_2", name: "Remove Windows Store apps", safety: "Moderate", desc: "Uninstalls UWP apps from the Microsoft Store. May affect Store functionality." },
+   142→      { id: "Deb_3", name: "Remove Xbox Game Bar", safety: "Moderate", desc: "Removes Xbox Game Bar and related components. Game recording won't work." },
+   143→      { id: "Deb_4", name: "Remove OneNote UWP", safety: "Safe", desc: "Uninstalls the UWP OneNote app. Desktop OneNote still works." },
+   144→      { id: "Deb_5", name: "Remove Mail & Calendar", safety: "Safe", desc: "Uninstalls the built-in Mail and Calendar UWP apps." },
+   145→      { id: "Deb_6", name: "Remove Maps app", safety: "Safe", desc: "Uninstalls the Windows Maps application." },
+   146→      { id: "Deb_7", name: "Remove People app", safety: "Safe", desc: "Uninstalls the Microsoft People contacts app." },
+   147→      { id: "Deb_8", name: "Remove Groove Music", safety: "Safe", desc: "Uninstalls the Groove Music UWP app." },
+   148→      { id: "Deb_9", name: "Remove Movies & TV", safety: "Safe", desc: "Uninstalls the Movies & TV UWP player app." },
+   149→      { id: "Deb_10", name: "Remove Paint 3D", safety: "Safe", desc: "Uninstalls the Paint 3D UWP app. Classic Paint still works." },
+   150→      { id: "Deb_11", name: "Remove 3D Viewer", safety: "Safe", desc: "Uninstalls the 3D Viewer application." },
+   151→      { id: "Deb_12", name: "Remove Skype", safety: "Safe", desc: "Uninstalls the pre-installed Skype app." },
+   152→      { id: "Deb_13", name: "Remove Microsoft Teams (personal)", safety: "Safe", desc: "Uninstalls the consumer version of Microsoft Teams." },
+   153→    ],
+   154→  },
+   155→  {
+   156→    id: "ExplorerUI",
+   157→    name: "Explorer and UI",
+   158→    icon: "FolderOpen",
+   159→    description: "Customize Windows Explorer and UI behavior",
+   160→    settings: [
+   161→      { id: "Exp_1", name: "Show file extensions", safety: "Safe", desc: "Displays file extensions for all file types in Explorer." },
+   162→      { id: "Exp_2", name: "Show hidden files", safety: "Safe", desc: "Makes hidden files and folders visible in Explorer." },
+   163→      { id: "Exp_3", name: "Disable Web Search in Start", safety: "Safe", desc: "Removes web search results from the Start menu search." },
+   164→      { id: "Exp_4", name: "Set Explorer to This PC", safety: "Safe", desc: "Opens Explorer to This PC instead of Quick Access." },
+   165→      { id: "Exp_5", name: "Disable recent files in Quick Access", safety: "Safe", desc: "Stops showing recently used files in Quick Access." },
+   166→      { id: "Exp_6", name: "Disable frequent folders in Quick Access", safety: "Safe", desc: "Stops showing frequently used folders in Quick Access." },
+   167→      { id: "Exp_7", name: "Classic context menu (Win11)", safety: "Moderate", desc: "Restores the full classic right-click context menu in Windows 11." },
+   168→      { id: "Exp_8", name: "Disable Taskbar Widgets", safety: "Safe", desc: "Removes the Widgets button from the Windows taskbar." },
+   169→      { id: "Exp_9", name: "Disable Taskbar Chat icon", safety: "Safe", desc: "Removes the Microsoft Teams Chat icon from the taskbar." },
+   170→      { id: "Exp_10", name: "Left-align Taskbar (Win11)", safety: "Safe", desc: "Moves the taskbar icons to the left like Windows 10." },
+   171→      { id: "Exp_11", name: "Disable Snap Layouts (Win11)", safety: "Safe", desc: "Removes the snap layout popup when hovering the maximize button." },
+   172→    ],
+   173→  },
+   174→  {
+   175→    id: "ServiceStartup",
+   176→    name: "Service and Startup",
+   177→    icon: "Settings",
+   178→    description: "Manage Windows services and startup programs",
+   179→    settings: [
+   180→      { id: "Svc_1", name: "Disable SysMain (Superfetch)", safety: "Moderate", desc: "Disables SysMain service. May reduce performance on HDD systems, improves SSD life." },
+   181→      { id: "Svc_2", name: "Disable Windows Search indexer", safety: "Moderate", desc: "Stops search indexing. Search will be slower but reduces disk I/O." },
+   182→      { id: "Svc_3", name: "Disable Print Spooler", safety: "Moderate", desc: "Disables print service. Only disable if you don't use a printer." },
+   183→      { id: "Svc_4", name: "Disable Fax service", safety: "Safe", desc: "Disables the legacy Fax service. Rarely needed." },
+   184→      { id: "Svc_5", name: "Disable Remote Registry", safety: "Safe", desc: "Stops remote registry access. Improves security." },
+   185→      { id: "Svc_6", name: "Disable Connected Standby", safety: "Risky", desc: "Disables connected standby power state. May affect sleep behavior." },
+   186→      { id: "Svc_7", name: "Disable biometric service", safety: "Moderate", desc: "Disables Windows Biometric Service. Windows Hello won't work." },
+   187→      { id: "Svc_8", name: "Disable diagnostic service", safety: "Safe", desc: "Stops the Diagnostic Policy Service from running." },
+   188→      { id: "Svc_9", name: "Disable DMWAPPUSERVICE", safety: "Safe", desc: "Disables the Windows Content Delivery Manager service." },
+   189→      { id: "Svc_10", name: "Disable startup delay", safety: "Safe", desc: "Removes the artificial startup delay for faster boot times." },
+   190→    ],
+   191→  },
+   192→  {
+   193→    id: "Performance",
+   194→    name: "Performance and Power",
+   195→    icon: "Zap",
+   196→    description: "Optimize system performance and power settings",
+   197→    settings: [
+   198→      { id: "Perf_1", name: "Disable visual effects", safety: "Moderate", desc: "Turns off animations, shadows, and transparency for snappier UI." },
+   199→      { id: "Perf_2", name: "Set High Performance power plan", safety: "Safe", desc: "Switches to the High Performance power plan for maximum speed." },
+   200→      { id: "Perf_3", name: "Disable power throttling", safety: "Moderate", desc: "Prevents Windows from throttling background apps. Increases power usage." },
+   201→      { id: "Perf_4", name: "Disable HPET timer", safety: "Risky", desc: "Disables High Precision Event Timer. May improve gaming latency but can cause instability." },
+   202→      { id: "Perf_5", name: "Optimize SSD", safety: "Safe", desc: "Ensures TRIM is enabled and defrag is disabled for SSDs." },
+   203→      { id: "Perf_6", name: "Disable Memory Compression", safety: "Moderate", desc: "Turns off memory compression. Can reduce latency but increases RAM usage." },
+   204→      { id: "Perf_7", name: "Disable Prefetch and Superfetch", safety: "Moderate", desc: "Disables Prefetch/Superfetch. Reduces disk I/O but may slow app launches on HDD." },
+   205→      { id: "Perf_8", name: "Reduce startup wait time", safety: "Safe", desc: "Reduces the time Windows waits for services during boot." },
+   206→      { id: "Perf_9", name: "Disable Core Isolation", safety: "Risky", desc: "Disables Memory Integrity (VBS). Improves performance but reduces security." },
+   207→      { id: "Perf_10", name: "Enable Game Mode", safety: "Safe", desc: "Turns on Windows Game Mode for optimized gaming performance." },
+   208→    ],
+   209→  },
+   210→  {
+   211→    id: "Security",
+   212→    name: "Security Hardening",
+   213→    icon: "Lock",
+   214→    description: "Strengthen Windows security and protection",
+   215→    settings: [
+   216→      { id: "Sec_1", name: "Enable BitLocker", safety: "Risky", desc: "Enables BitLocker drive encryption. Ensure you have recovery key backed up." },
+   217→      { id: "Sec_2", name: "Disable AutoRun/AutoPlay", safety: "Safe", desc: "Prevents automatic execution of programs from inserted media." },
+   218→      { id: "Sec_3", name: "Enable DNS over HTTPS", safety: "Safe", desc: "Encrypts DNS queries for better privacy and security." },
+   219→      { id: "Sec_4", name: "Disable SMBv1", safety: "Safe", desc: "Disables the insecure SMBv1 protocol. Prevents WannaCry-type exploits." },
+   220→      { id: "Sec_5", name: "Disable Remote Desktop", safety: "Moderate", desc: "Disables RDP access. You won't be able to remote into this PC." },
+   221→      { id: "Sec_6", name: "Enable Windows Firewall", safety: "Safe", desc: "Ensures Windows Firewall is active and properly configured." },
+   222→      { id: "Sec_7", name: "Disable LLMNR", safety: "Safe", desc: "Disables Link-Local Multicast Name Resolution. Reduces spoofing attacks." },
+   223→      { id: "Sec_8", name: "Disable WPAD", safety: "Safe", desc: "Disables Web Proxy Auto-Discovery. Prevents proxy hijacking." },
+   224→      { id: "Sec_9", name: "Disable NetBIOS over TCP/IP", safety: "Moderate", desc: "Disables NetBIOS over TCP/IP. May affect file sharing on local networks." },
+   225→      { id: "Sec_10", name: "Enable Credential Guard", safety: "Risky", desc: "Enables Credential Guard via virtualization. Requires compatible hardware." },
+   226→    ],
+   227→  },
+   228→  {
+   229→    id: "Network",
+   230→    name: "Network Optimization",
+   231→    icon: "Wifi",
+   232→    description: "Optimize network settings and connections",
+   233→    settings: [
+   234→      { id: "Net_1", name: "Disable Nagle's Algorithm", safety: "Moderate", desc: "Disables TCP Nagle algorithm. Reduces latency for gaming but may decrease throughput." },
+   235→      { id: "Net_2", name: "Optimize DNS settings", safety: "Safe", desc: "Configures faster DNS resolvers and enables DNS caching optimizations." },
+   236→      { id: "Net_3", name: "Disable Network Throttling", safety: "Moderate", desc: "Removes network throttling for multimedia. Improves network performance." },
+   237→      { id: "Net_4", name: "Disable Wi-Fi Sense", safety: "Safe", desc: "Stops sharing Wi-Fi passwords with contacts." },
+   238→      { id: "Net_5", name: "Disable Network Discovery", safety: "Moderate", desc: "Makes your PC invisible on the network. File sharing won't work." },
+   239→      { id: "Net_6", name: "Optimize TCP window size", safety: "Safe", desc: "Sets optimal TCP window size for better throughput." },
+   240→      { id: "Net_7", name: "Disable peer-to-peer updates", safety: "Safe", desc: "Stops Windows from using your bandwidth to share updates with other PCs." },
+   241→      { id: "Net_8", name: "Set DNS to Cloudflare", safety: "Safe", desc: "Configures DNS to use Cloudflare (1.1.1.1) for faster, private DNS." },
+   242→      { id: "Net_9", name: "Disable LLMNR protocol", safety: "Safe", desc: "Disables LLMNR name resolution protocol for security." },
+   243→      { id: "Net_10", name: "Tweak network adapter settings", safety: "Moderate", desc: "Optimizes network adapter power management and offload settings." },
+   244→    ],
+   245→  },
+   246→  {
+   247→    id: "WindowsUpdate",
+   248→    name: "Windows Update",
+   249→    icon: "RefreshCw",
+   250→    description: "Configure Windows Update behavior",
+   251→    settings: [
+   252→      { id: "WU_1", name: "Disable auto-restart for updates", safety: "Safe", desc: "Prevents Windows from automatically restarting to install updates." },
+   253→      { id: "WU_2", name: "Set active hours (8am-11pm)", safety: "Safe", desc: "Configures active hours so updates don't restart during the day." },
+   254→      { id: "WU_3", name: "Disable delivery optimization", safety: "Safe", desc: "Stops using your PC to distribute updates to other network PCs." },
+   255→      { id: "WU_4", name: "Pause updates for 5 days", safety: "Safe", desc: "Temporarily pauses Windows Update for 5 days." },
+   256→      { id: "WU_5", name: "Disable driver updates via WU", safety: "Moderate", desc: "Prevents Windows Update from automatically updating drivers." },
+   257→      { id: "WU_6", name: "Set update notification mode", safety: "Safe", desc: "Changes to notify-only mode so you choose when to install updates." },
+   258→      { id: "WU_7", name: "Disable Store auto-updates", safety: "Moderate", desc: "Stops the Microsoft Store from auto-updating installed apps." },
+   259→      { id: "WU_8", name: "Disable update restart notifications", safety: "Safe", desc: "Removes restart notifications after updates are installed." },
+   260→      { id: "WU_9", name: "Block Windows Store", safety: "Risky", desc: "Blocks access to Microsoft Store entirely. Store apps can't be installed." },
+   261→    ],
+   262→  },
+   263→  {
+   264→    id: "DiskCleanup",
+   265→    name: "Disk Cleanup",
+   266→    icon: "HardDrive",
+   267→    description: "Clean up disk space and remove temp files",
+   268→    settings: [
+   269→      { id: "Disk_1", name: "Clean temp files", safety: "Safe", desc: "Deletes temporary files from Windows and user temp folders." },
+   270→      { id: "Disk_2", name: "Clean Windows Update cache", safety: "Safe", desc: "Removes downloaded Windows Update files that are no longer needed." },
+   271→      { id: "Disk_3", name: "Clean thumbnail cache", safety: "Safe", desc: "Deletes the thumbnail cache to free up space." },
+   272→      { id: "Disk_4", name: "Clean delivery optimization", safety: "Safe", desc: "Removes delivery optimization files used for peer update distribution." },
+   273→      { id: "Disk_5", name: "Clean old Windows installation", safety: "Moderate", desc: "Removes Windows.old folder. You won't be able to rollback to previous version." },
+   274→      { id: "Disk_6", name: "Disable hibernation file", safety: "Moderate", desc: "Deletes hibernation file (hiberfil.sys). Fast startup and hibernate won't work." },
+   275→      { id: "Disk_7", name: "Clean Software Distribution", safety: "Moderate", desc: "Clears the Software Distribution folder. Pending updates will re-download." },
+   276→      { id: "Disk_8", name: "Compact OS files", safety: "Moderate", desc: "Uses compact OS to reduce Windows installation size. Slightly slower boot." },
+   277→      { id: "Disk_9", name: "Clean error reports", safety: "Safe", desc: "Deletes Windows Error Reporting files and queued reports." },
+   278→      { id: "Disk_10", name: "Clean Font cache", safety: "Safe", desc: "Clears the font cache to rebuild it. Fixes font rendering issues." },
+   279→    ],
+   280→  },
+   281→  {
+   282→    id: "Winget",
+   283→    name: "Software Install",
+   284→    icon: "Package",
+   285→    description: "Install essential software via Winget package manager",
+   286→    settings: [
+   287→      { id: "Wg_1", name: "Install 7-Zip", safety: "Safe", desc: "Installs 7-Zip file archiver for handling archive formats." },
+   288→      { id: "Wg_2", name: "Install VLC", safety: "Safe", desc: "Installs VLC media player for universal media playback." },
+   289→      { id: "Wg_3", name: "Install Notepad++", safety: "Safe", desc: "Installs Notepad++ advanced text editor." },
+   290→      { id: "Wg_4", name: "Install PowerShell 7", safety: "Safe", desc: "Installs the latest PowerShell 7 for improved scripting." },
+   291→      { id: "Wg_5", name: "Install Windows Terminal", safety: "Safe", desc: "Installs Windows Terminal for modern multi-tab terminal experience." },
+   292→      { id: "Wg_6", name: "Install Firefox", safety: "Safe", desc: "Installs Mozilla Firefox web browser." },
+   293→      { id: "Wg_7", name: "Install Chrome", safety: "Safe", desc: "Installs Google Chrome web browser." },
+   294→      { id: "Wg_8", name: "Install VSCode", safety: "Safe", desc: "Installs Visual Studio Code editor." },
+   295→      { id: "Wg_9", name: "Install Git", safety: "Safe", desc: "Installs Git version control system." },
+   296→      { id: "Wg_10", name: "Install Everything Search", safety: "Safe", desc: "Installs Voidtools Everything for instant file search." },
+   297→    ],
+   298→  },
+   299→  {
+   300→    id: "OfficeActivation",
+   301→    name: "Microsoft Office",
+   302→    icon: "FileSpreadsheet",
+   303→    description: "Install, activate, and configure Microsoft Office",
+   304→    settings: [
+   305→      // --- Office Version Selection (mutually exclusive group) ---
+   306→      { id: "Off_V365", name: "Install Office 365 ProPlus", safety: "Safe", desc: "Office 365 ProPlus (subscription) — always latest features, Click-to-Run." },
+   307→      { id: "Off_V2024", name: "Install Office LTSC 2024", safety: "Safe", desc: "Office LTSC 2024 — long-term servicing channel, no feature updates, for stability." },
+   308→      { id: "Off_V2021", name: "Install Office LTSC 2021", safety: "Safe", desc: "Office LTSC 2021 — previous long-term version, extended support until 2026." },
+   309→      { id: "Off_V2019", name: "Install Office 2019", safety: "Safe", desc: "Office 2019 — perpetual license, feature-frozen, security updates only." },
+   310→      // --- Architecture & Language ---
+   311→      { id: "Off_Arch64", name: "64-bit architecture (x64)", safety: "Safe", desc: "Install 64-bit Office. Recommended for modern systems with 4GB+ RAM." },
+   312→      { id: "Off_Arch32", name: "32-bit architecture (x86)", safety: "Safe", desc: "Install 32-bit Office. Only needed for legacy 32-bit COM add-in compatibility." },
+   313→      // --- Activation & Configuration ---
+   314→      { id: "Off_Act", name: "Activate Office (MAS Ohook)", safety: "Moderate", desc: "Enable Office activation via MAS Ohook. The actual activation runs in the Activation section. This is a convenience toggle." },
+   315→      { id: "Off_1", name: "Disable Office telemetry", safety: "Safe", desc: "Stops Office from sending usage and diagnostic data to Microsoft." },
+   316→      { id: "Off_2", name: "Disable Office feedback", safety: "Safe", desc: "Removes feedback prompts and telemetry in Office apps." },
+   317→      { id: "Off_3", name: "Disable Office auto-updates", safety: "Moderate", desc: "Prevents Office from automatically downloading and installing updates." },
+   318→      { id: "Off_4", name: "Disable Connected Experiences", safety: "Moderate", desc: "Disables cloud-connected features in Office. Some features won't work." },
+   319→      { id: "Off_5", name: "Disable Office analytics", safety: "Safe", desc: "Stops Office from collecting analytics on your usage patterns." },
+   320→      { id: "Off_6", name: "Set Office update channel", safety: "Moderate", desc: "Configures Office update channel to Current Channel for stable updates." },
+   321→      { id: "Off_7", name: "Disable macro security warnings", safety: "Risky", desc: "Disables macro security warnings. Increases risk of malicious macro execution." },
+   322→      { id: "Off_8", name: "Disable Office Spotlight", safety: "Safe", desc: "Removes the Spotlight feature from Office apps." },
+   323→    ],
+   324→  },
+   325→  {
+   326→    id: "EdgeHardening",
+   327→    name: "Edge Security & Privacy",
+   328→    icon: "Globe",
+   329→    description: "Harden Microsoft Edge — the default Windows browser — with privacy, security, and anti-tracking policies",
+   330→    settings: [
+   331→      // --- Telemetry & Data Collection ---
+   332→      { id: "Edge_1", name: "Disable Edge telemetry", safety: "Safe", desc: "Stops Edge from sending diagnostic, usage, and crash data to Microsoft." },
+   333→      { id: "Edge_2", name: "Disable Edge suggestions", safety: "Safe", desc: "Removes search suggestions, recommendations, and NTP content suggestions." },
+   334→      { id: "Edge_10", name: "Disable Edge experiments", safety: "Safe", desc: "Blocks A/B testing and experimental feature flags from Microsoft." },
+   335→      { id: "Edge_11", name: "Disable Edge diagnostic data", safety: "Safe", desc: "Sets diagnostic data level to 0 (required minimum). Prevents sending optional diagnostic data." },
+   336→      // --- Anti-Tracking & Privacy ---
+   337→      { id: "Edge_7", name: "Enable strict tracking prevention", safety: "Safe", desc: "Sets Edge tracking prevention to Strict. Blocks most trackers, fingerprinting, and cryptomining." },
+   338→      { id: "Edge_12", name: "Block third-party cookies", safety: "Moderate", desc: "Blocks third-party cookies in Edge. May break some site logins and embedded content." },
+   339→      { id: "Edge_13", name: "Send Do Not Track header", safety: "Safe", desc: "Sends the DNT signal to websites. Honored by some sites, ignored by others." },
+   340→      { id: "Edge_14", name: "Enable HTTPS-Only mode", safety: "Safe", desc: "Forces HTTPS connections. Upgrades HTTP requests to HTTPS automatically." },
+   341→      { id: "Edge_15", name: "Block WebRTC local IP", safety: "Moderate", desc: "Prevents WebRTC from leaking your local IP address. May break video calls in Edge." },
+   342→      // --- Security Hardening ---
+   343→      { id: "Edge_16", name: "Disable password saving", safety: "Moderate", desc: "Prevents Edge from saving passwords. Use a dedicated password manager instead." },
+   344→      { id: "Edge_17", name: "Disable payment autofill", safety: "Safe", desc: "Prevents Edge from saving and autofilling credit card and payment info." },
+   345→      { id: "Edge_18", name: "Disable address autofill", safety: "Safe", desc: "Prevents Edge from saving and autofilling addresses and contact info." },
+   346→      { id: "Edge_19", name: "Disable browser sign-in", safety: "Moderate", desc: "Prevents signing into Edge with a Microsoft account. Disables sync." },
+   347→      { id: "Edge_20", name: "Enhanced Safe Browsing", safety: "Safe", desc: "Enables Enhanced Safe Browsing for proactive protection against malicious sites and downloads." },
+   348→      { id: "Edge_21", name: "Block insecure content", safety: "Moderate", desc: "Blocks mixed content (HTTP resources on HTTPS pages). May break some older sites." },
+   349→      // --- Bloat & Annoyances ---
+   350→      { id: "Edge_3", name: "Block Edge shopping assistant", safety: "Safe", desc: "Disables the shopping/coupons/price comparison feature in Edge." },
+   351→      { id: "Edge_4", name: "Disable Edge Collections", safety: "Safe", desc: "Removes the Collections feature from Edge." },
+   352→      { id: "Edge_5", name: "Disable Edge background mode", safety: "Moderate", desc: "Prevents Edge from running at startup and in background when closed." },
+   353→      { id: "Edge_6", name: "Disable Edge sidebar (Copilot)", safety: "Safe", desc: "Removes the Edge sidebar including Copilot AI assistant." },
+   354→      { id: "Edge_8", name: "Disable Edge autofill", safety: "Moderate", desc: "Disables all autofill for passwords, payments, and addresses." },
+   355→      { id: "Edge_9", name: "Disable Edge startup boost", safety: "Safe", desc: "Disables Edge startup boost to reduce background resource usage." },
+   356→      { id: "Edge_22", name: "Disable Edge first-run experience", safety: "Safe", desc: "Skips the Edge welcome screen and onboarding on first launch." },
+   357→      { id: "Edge_23", name: "Hide Edge default browser prompt", safety: "Safe", desc: "Suppresses the 'Set Edge as default browser' prompt." },
+   358→      { id: "Edge_24", name: "Disable Edge tab preloading", safety: "Safe", desc: "Prevents Edge from preloading tabs in the background at startup." },
+   359→    ],
+   360→  },
+   361→  {
+   362→    id: "OneDrive",
+   363→    name: "OneDrive",
+   364→    icon: "Cloud",
+   365→    description: "Configure or remove Microsoft OneDrive",
+   366→    settings: [
+   367→      { id: "OD_1", name: "Uninstall OneDrive", safety: "Risky", desc: "Completely removes OneDrive. Cloud sync will stop; local files remain." },
+   368→      { id: "OD_2", name: "Disable OneDrive at startup", safety: "Safe", desc: "Prevents OneDrive from launching at Windows startup." },
+   369→      { id: "OD_3", name: "Remove OneDrive from Explorer", safety: "Moderate", desc: "Removes the OneDrive folder from File Explorer navigation pane." },
+   370→      { id: "OD_4", name: "Disable OneDrive file sync", safety: "Moderate", desc: "Pauses OneDrive file synchronization. Files stay local only." },
+   371→      { id: "OD_5", name: "Disable OneDrive ad notifications", safety: "Safe", desc: "Removes OneDrive promotional notifications." },
+   372→      { id: "OD_6", name: "Prevent OneDrive installation", safety: "Risky", desc: "Sets policy to prevent future OneDrive installations. Hard to reverse." },
+   373→      { id: "OD_7", name: "Disable OneDrive Files On-Demand", safety: "Safe", desc: "Disables Files On-Demand. All synced files will be stored locally." },
+   374→    ],
+   375→  },
+   376→  {
+   377→    id: "Gaming",
+   378→    name: "Gaming and DVR",
+   379→    icon: "Gamepad2",
+   380→    description: "Optimize gaming experience and disable DVR",
+   381→    settings: [
+   382→      { id: "Gam_1", name: "Disable Game DVR", safety: "Safe", desc: "Disables Windows Game DVR background recording. Saves CPU and disk." },
+   383→      { id: "Gam_2", name: "Disable Game Bar", safety: "Safe", desc: "Removes the Game Bar overlay. Use third-party alternatives instead." },
+   384→      { id: "Gam_3", name: "Disable Game Mode tips", safety: "Safe", desc: "Removes Game Mode tips and suggestions." },
+   385→      { id: "Gam_4", name: "Enable Game Mode", safety: "Safe", desc: "Enables Windows Game Mode to prioritize gaming processes." },
+   386→      { id: "Gam_5", name: "Disable OpenXR runtime", safety: "Moderate", desc: "Disables the Windows Mixed Reality OpenXR runtime." },
+   387→      { id: "Gam_6", name: "Optimize GPU scheduling", safety: "Moderate", desc: "Enables hardware-accelerated GPU scheduling. Requires compatible GPU." },
+   388→      { id: "Gam_7", name: "Disable Game Input", safety: "Moderate", desc: "Disables Game Input Monitoring Service. May affect some game controllers." },
+   389→      { id: "Gam_8", name: "Set power plan for gaming", safety: "Safe", desc: "Configures power settings optimized for gaming performance." },
+   390→      { id: "Gam_9", name: "Disable fullscreen optimizations", safety: "Moderate", desc: "Disables fullscreen optimizations for exclusive fullscreen mode in games." },
+   391→    ],
+   392→  },
+   393→  {
+   394→    id: "ScheduledTasks",
+   395→    name: "Scheduled Tasks",
+   396→    icon: "CalendarClock",
+   397→    description: "Manage Windows scheduled tasks",
+   398→    settings: [
+   399→      { id: "ST_1", name: "Disable CEIP tasks", safety: "Safe", desc: "Disables Customer Experience Improvement Program scheduled tasks." },
+   400→      { id: "ST_2", name: "Disable compatibility assistant", safety: "Safe", desc: "Disables the Program Compatibility Assistant scheduled task." },
+   401→      { id: "ST_3", name: "Disable consolidated messenger", safety: "Safe", desc: "Disables the Microsoft Consolidated Messenger task." },
+   402→      { id: "ST_4", name: "Disable disk diagnostics", safety: "Moderate", desc: "Disables disk diagnostic tasks. You won't get disk failure warnings." },
+   403→      { id: "ST_5", name: "Disable auto-logout", safety: "Safe", desc: "Prevents automatic logout of inactive RDP sessions." },
+   404→      { id: "ST_6", name: "Disablescheduled defrag", safety: "Moderate", desc: "Disables automatic scheduled defragmentation tasks." },
+   405→      { id: "ST_7", name: "Disable app launch telemetry", safety: "Safe", desc: "Disables Microsoft application launch telemetry tasks." },
+   406→      { id: "ST_8", name: "Disable SysReset task", safety: "Moderate", desc: "Disables the System Reset scheduled task." },
+   407→      { id: "ST_9", name: "Disable license monitoring", safety: "Safe", desc: "Disables the license monitoring scheduled task." },
+   408→    ],
+   409→  },
+   410→  {
+   411→    id: "BrowserHardening",
+   412→    name: "Browser Privacy",
+   413→    icon: "ShieldCheck",
+   414→    description: "Harden browser settings for privacy",
+   415→    settings: [
+   416→      { id: "BH_1", name: "Disable WebRTC", safety: "Moderate", desc: "Disables WebRTC in browsers. Prevents IP leaks but breaks video calls." },
+   417→      { id: "BH_2", name: "Block third-party cookies", safety: "Moderate", desc: "Blocks third-party cookies. May break some website functionality." },
+   418→      { id: "BH_3", name: "Disable browser autofill", safety: "Moderate", desc: "Disables autofill for personal data in browsers." },
+   419→      { id: "BH_4", name: "Enable HTTPS-Only mode", safety: "Safe", desc: "Forces HTTPS connections in supported browsers." },
+   420→      { id: "BH_5", name: "Disable browser telemetry", safety: "Safe", desc: "Stops all browsers from sending usage data and crash reports." },
+   421→      { id: "BH_6", name: "Disable browser experiments", safety: "Safe", desc: "Disables A/B testing and experimental features in browsers." },
+   422→      { id: "BH_7", name: "Disable browser suggestions", safety: "Safe", desc: "Removes search suggestions and URL autocomplete from browsers." },
+   423→      { id: "BH_8", name: "Clear browser data on exit", safety: "Moderate", desc: "Configures browsers to clear browsing data on exit. History won't persist." },
+   424→      { id: "BH_9", name: "Disable password saving", safety: "Moderate", desc: "Prevents browsers from saving passwords. Use a dedicated password manager." },
+   425→    ],
+   426→  },
+   427→  {
+   428→    id: "BrowserExtensions",
+   429→    name: "Browser Extensions",
+   430→    icon: "Puzzle",
+   431→    description: "Force-install privacy and ad-blocking extensions on all browsers",
+   432→    settings: [
+   433→      // --- Ad Blocking ---
+   434→      { id: "BE_1", name: "uBlock Origin", safety: "Safe", desc: "Wide-spectrum content blocker. Blocks ads, trackers, and malware domains. Lightweight and efficient." },
+   435→      { id: "BE_2", name: "AdGuard AdBlocker", safety: "Safe", desc: "Advanced ad blocker with custom filter support. Blocks video ads, social widgets, and annoyances." },
+   436→      { id: "BE_3", name: "AdBlock Plus", safety: "Safe", desc: "Popular ad blocker with acceptable ads policy. Good for users who want some ads whitelisted." },
+   437→      // --- YouTube Ad Blocking ---
+   438→      { id: "BE_4", name: "SponsorBlock for YouTube", safety: "Safe", desc: "Skips YouTube video sponsors, intros, outros, and non-music segments. Community-driven." },
+   439→      { id: "BE_5", name: "YouTube NonStop", safety: "Safe", desc: "Bypasses YouTube 'Video paused. Are you still watching?' checks. Prevents playback interruptions." },
+   440→      // --- Popup & Tracker Blocking ---
+   441→      { id: "BE_6", name: "Privacy Badger", safety: "Safe", desc: "Learns to block invisible trackers. Heuristic-based, no filter lists needed." },
+   442→      { id: "BE_7", name: "Popup Blocker (strict)", safety: "Moderate", desc: "Blocks popups, pop-unders, and redirect ads. May break some legitimate popup-based sites." },
+   443→      { id: "BE_8", name: "Cookie AutoDelete", safety: "Moderate", desc: "Auto-deletes cookies from closed tabs. Keeps cookies for whitelisted sites only." },
+   444→      // --- Extra Privacy ---
+   445→      { id: "BE_9", name: "HTTPS Everywhere", safety: "Safe", desc: "Forces HTTPS connections where supported. Redirects HTTP to HTTPS automatically." },
+   446→      { id: "BE_10", name: "Decentraleyes", safety: "Safe", desc: "Emulates CDN resources locally. Blocks tracking via CDN-delivered content." },
+   447→    ],
+   448→  },
+   449→  {
+   450→    id: "FinalTouches",
+   451→    name: "Final Touches",
+   452→    icon: "Sparkles",
+   453→    description: "Final polish and quality-of-life improvements",
+   454→    settings: [
+   455→      { id: "FT_1", name: "Set dark mode as default", safety: "Safe", desc: "Enables Windows dark mode for system and apps." },
+   456→      { id: "FT_2", name: "Set time format to 24h", safety: "Safe", desc: "Changes the system clock to 24-hour format." },
+   457→      { id: "FT_3", name: "Show seconds in taskbar clock", safety: "Safe", desc: "Displays seconds in the system tray clock." },
+   458→      { id: "FT_4", name: "Disable notification sounds", safety: "Safe", desc: "Mutes system notification sounds." },
+   459→      { id: "FT_5", name: "Set default apps", safety: "Moderate", desc: "Configures preferred default applications for common file types." },
+   460→      { id: "FT_6", name: "Create restore point", safety: "Safe", desc: "Creates a System Restore point before making changes." },
+   461→      { id: "FT_7", name: "Enable long paths", safety: "Safe", desc: "Enables NTFS long path support (over 260 characters)." },
+   462→      { id: "FT_8", name: "Disable sticky keys", safety: "Safe", desc: "Disables the Sticky Keys accessibility shortcut." },
+   463→      { id: "FT_9", name: "Set UTF-8 as default", safety: "Moderate", desc: "Sets system locale to use UTF-8 encoding. May affect legacy apps." },
+   464→      { id: "FT_10", name: "Enable GodMode folder", safety: "Safe", desc: "Creates the GodMode control panel folder on the desktop." },
+   465→    ],
+   466→  },
+   467→  {
+   468→    id: "WindowsFeatures",
+   469→    name: "Windows Features",
+   470→    icon: "Puzzle",
+   471→    description: "Enable or disable optional Windows features",
+   472→    settings: [
+   473→      { id: "WF_1", name: "Disable Hyper-V", safety: "Moderate", desc: "Disables Hyper-V virtualization. Required for some VMs but uses resources." },
+   474→      { id: "WF_2", name: "Disable WSL", safety: "Moderate", desc: "Disables Windows Subsystem for Linux. WSL distros won't run." },
+   475→      { id: "WF_3", name: "Disable SMB1 protocol", safety: "Safe", desc: "Removes the insecure SMB1/CIFS protocol from Windows." },
+   476→      { id: "WF_4", name: "Disable Internet Explorer", safety: "Safe", desc: "Removes Internet Explorer 11 from Windows." },
+   477→      { id: "WF_5", name: "Disable Windows Sandbox", safety: "Moderate", desc: "Disables Windows Sandbox. You can't run apps in isolation." },
+   478→      { id: "WF_6", name: "Enable .NET Framework 3.5", safety: "Safe", desc: "Installs .NET Framework 3.5 for legacy application compatibility." },
+   479→      { id: "WF_7", name: "Disable Print and Document Services", safety: "Moderate", desc: "Removes print and document services. Only if you don't use printers." },
+   480→      { id: "WF_8", name: "Disable Remote Differential Compression", safety: "Safe", desc: "Removes RDC feature. Saves resources if you don't use DFS replication." },
+   481→      { id: "WF_9", name: "Disable Work Folders Client", safety: "Safe", desc: "Removes Work Folders client. Not needed for personal PCs." },
+   482→      { id: "WF_10", name: "Enable Telnet Client", safety: "Moderate", desc: "Enables the Telnet client for network troubleshooting." },
+   483→      { id: "WF_11", name: "Disable Media Features", safety: "Risky", desc: "Removes Windows Media Player and media features. Breaks media playback." },
+   484→    ],
+   485→  },
+   486→  {
+   487→    id: "Activation",
+   488→    name: "Windows & Office Activation",
+   489→    icon: "Lock",
+   490→    description: "Activate Windows and Microsoft Office via MAS (Microsoft Activation Scripts). Checks existing licenses first to avoid tampering.",
+   491→    settings: [
+   492→      { id: "Act_Win", name: "Activate Windows (HWID)", safety: "Moderate", desc: "Permanently activate Windows using HWID digital license method. Skipped if Windows is already permanently activated." },
+   493→      { id: "Act_Off", name: "Activate Office (Ohook)", safety: "Moderate", desc: "Activate Microsoft Office using Ohook method. Skipped if Office is already licensed. Runs after Office install if Office section is enabled." },
+   494→    ],
+   495→  },
+   496→];
+   497→
+   498→export const softwareApps: SoftwareApp[] = [
+   499→  // Browsers
+   500→  { id: "sw_1", name: "Google Chrome", category: "Browsers", wingetId: "Google.Chrome", desc: "Fast, secure web browser by Google" },
+   501→  { id: "sw_2", name: "Mozilla Firefox", category: "Browsers", wingetId: "Mozilla.Firefox", desc: "Privacy-focused open-source browser" },
+   502→  { id: "sw_3", name: "Brave Browser", category: "Browsers", wingetId: "Brave.Brave", desc: "Privacy browser with built-in ad blocking" },
+   503→  { id: "sw_4", name: "Vivaldi", category: "Browsers", wingetId: "Vivaldi.Vivaldi", desc: "Highly customizable browser for power users" },
+   504→  // Utilities
+   505→  { id: "sw_5", name: "7-Zip", category: "Utilities", wingetId: "7zip.7zip", desc: "Free and open-source file archiver" },
+   506→  { id: "sw_6", name: "Everything Search", category: "Utilities", wingetId: "voidtools.Everything", desc: "Instant file name search utility" },
+   507→  { id: "sw_7", name: "PowerToys", category: "Utilities", wingetId: "Microsoft.PowerToys", desc: "Windows system utilities for power users" },
+   508→  { id: "sw_8", name: "ShareX", category: "Utilities", wingetId: "ShareX.ShareX", desc: "Advanced screenshot and screen capture tool" },
+   509→  { id: "sw_9", name: "FluentTerminal", category: "Utilities", wingetId: "AdrianSerioux.FluentTerminal", desc: "UWP-based terminal emulator" },
+   510→  // Dev Tools
+   511→  { id: "sw_10", name: "Visual Studio Code", category: "Dev Tools", wingetId: "Microsoft.VisualStudioCode", desc: "Lightweight but powerful code editor" },
+   512→  { id: "sw_11", name: "Git", category: "Dev Tools", wingetId: "Git.Git", desc: "Distributed version control system" },
+   513→  { id: "sw_12", name: "Windows Terminal", category: "Dev Tools", wingetId: "Microsoft.WindowsTerminal", desc: "Modern terminal application for Windows" },
+   514→  { id: "sw_13", name: "PowerShell 7", category: "Dev Tools", wingetId: "Microsoft.PowerShell", desc: "Cross-platform PowerShell for automation" },
+   515→  { id: "sw_14", name: "Node.js LTS", category: "Dev Tools", wingetId: "OpenJS.NodeJS.LTS", desc: "JavaScript runtime for server-side development" },
+   516→  { id: "sw_15", name: "Python 3", category: "Dev Tools", wingetId: "Python.Python.3.12", desc: "Python programming language interpreter" },
+   517→  { id: "sw_16", name: "Docker Desktop", category: "Dev Tools", wingetId: "Docker.DockerDesktop", desc: "Container platform for application development" },
+   518→  // Media
+   519→  { id: "sw_17", name: "VLC Media Player", category: "Media", wingetId: "VideoLAN.VLC", desc: "Universal media player for all formats" },
+   520→  { id: "sw_18", name: "Spotify", category: "Media", wingetId: "Spotify.Spotify", desc: "Digital music streaming service" },
+   521→  { id: "sw_19", name: "OBS Studio", category: "Media", wingetId: "OBSProject.OBSStudio", desc: "Open-source software for video recording and streaming" },
+   522→  { id: "sw_20", name: "Audacity", category: "Media", wingetId: "Audacity.Audacity", desc: "Free open-source audio editor and recorder" },
+   523→  // Productivity
+   524→  { id: "sw_21", name: "Notion", category: "Productivity", wingetId: "Notion.Notion", desc: "All-in-one workspace for notes and collaboration" },
+   525→  { id: "sw_22", name: "Obsidian", category: "Productivity", wingetId: "Obsidian.Obsidian", desc: "Knowledge base and note-taking app" },
+   526→  { id: "sw_23", name: "Notepad++", category: "Productivity", wingetId: "Notepad++.Notepad++", desc: "Feature-rich text and source code editor" },
+   527→  { id: "sw_24", name: "SumatraPDF", category: "Productivity", wingetId: "SumatraPDF.SumatraPDF", desc: "Lightweight PDF, EPUB, and comic reader" },
+   528→  // Communication
+   529→  { id: "sw_25", name: "Discord", category: "Communication", wingetId: "Discord.Discord", desc: "Voice, video, and text communication platform" },
+   530→  { id: "sw_26", name: "Telegram", category: "Communication", wingetId: "Telegram.TelegramDesktop", desc: "Fast, secure messaging application" },
+   531→  { id: "sw_27", name: "Signal", category: "Communication", wingetId: "OpenWhisperSystems.Signal", desc: "Private messaging with end-to-end encryption" },
+   532→  // Security
+   533→  { id: "sw_28", name: "VeraCrypt", category: "Security", wingetId: "VeraCrypt.VeraCrypt", desc: "Free disk encryption software" },
+   534→  { id: "sw_29", name: "Bitwarden", category: "Security", wingetId: "Bitwarden.Bitwarden", desc: "Open-source password manager" },
+   535→  { id: "sw_30", name: "WinSCP", category: "Security", wingetId: "WinSCP.WinSCP", desc: "SFTP and SCP client for Windows" },
+   536→];
+   537→
+   538→export const softwareCategories = [
+   539→  "Browsers",
+   540→  "Utilities",
+   541→  "Dev Tools",
+   542→  "Media",
+   543→  "Productivity",
+   544→  "Communication",
+   545→  "Security",
+   546→];
+   547→
+   548→export interface Profile {
+   549→  id: string;
+   550→  name: string;
+   551→  description: string;
+   552→  isBuiltin: boolean;
+   553→  settings: Record<string, boolean>;
+   554→  software: string[];
+   555→}
+   556→
+   557→/**
+   558→ * Setting dependency and conflict definitions
+   559→ * Maps setting ID to its dependencies/conflicts
+   560→ */
+   561→export const settingDependencies: Record<string, SettingDependency> = {
+   562→  // Privacy
+   563→  Priv_7: { conflicts: ["Sec_8"], conflictMessage: "Disabling Error Reporting conflicts with Security Audit Logging. Both monitor system issues." },
+   564→  Priv_4: { conflicts: ["Gaming_3"], conflictMessage: "Disabling Location Tracking may break Game DVR location features." },
+   565→
+   566→  // Debloat
+   567→  Deb_6: { conflicts: ["OD_1"], conflictMessage: "Removing OneDrive app conflicts with OneDrive settings. Disable OneDrive instead of removing it." },
+   568→  Deb_7: { conflicts: ["Off_Act"], conflictMessage: "Removing Microsoft Office apps will conflict with Office activation." },
+   569→
+   570→  // Explorer/UI
+   571→  Exp_5: { requires: ["Exp_1"], conflictMessage: "Classic context menu requires Show file extensions to be enabled." },
+   572→  Exp_6: { requires: ["Exp_1"], conflictMessage: "Classic File Explorer requires Show file extensions to be enabled." },
+   573→
+   574→  // Services
+   575→  Svc_1: { conflicts: ["Svc_2"], conflictMessage: "Disabling Windows Search conflicts with disabling Superfetch. Both affect search performance." },
+   576→  Svc_3: { conflicts: ["Perf_5"], conflictMessage: "Disabling Print Spooler conflicts with Performance power plan if you need printing." },
+   577→
+   578→  // Performance
+   579→  Perf_1: { conflicts: ["Gaming_1"], conflictMessage: "Ultimate Performance plan may conflict with Game Mode power settings." },
+   580→  Perf_5: { conflicts: ["Svc_3"], conflictMessage: "High Performance power plan conflicts with disabling Print Spooler." },
+   581→
+   582→  // Network
+   583→  Net_4: { conflicts: ["Net_7"], conflictMessage: "Disabling IPv6 may conflict with DNS-over-HTTPS which can use IPv6 resolvers." },
+   584→  Net_5: { conflicts: ["Net_8"], conflictMessage: "Disabling Network Throttling conflicts with QoS bandwidth reserve. Both manage network bandwidth." },
+   585→
+   586→  // Gaming
+   587→  Gaming_1: { conflicts: ["Perf_1"], conflictMessage: "Game Mode conflicts with Ultimate Performance plan." },
+   588→  Gaming_3: { conflicts: ["Priv_4"], conflictMessage: "Game DVR features conflict with disabling Location Tracking." },
+   589→
+   590→  // OneDrive
+   591→  OD_1: { conflicts: ["Deb_6"], conflictMessage: "Disabling OneDrive conflicts with removing OneDrive app. Choose one approach." },
+   592→  OD_2: { conflicts: ["Deb_6"], conflictMessage: "Preventing OneDrive auto-start conflicts with removing OneDrive. Choose one approach." },
+   593→
+   594→  // Office version — mutually exclusive (can only install one)
+   595→  Off_V365: { conflicts: ["Off_V2024", "Off_V2019", "Off_V2021"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+   596→  Off_V2024: { conflicts: ["Off_V365", "Off_V2019", "Off_V2021"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+   597→  Off_V2021: { conflicts: ["Off_V365", "Off_V2024", "Off_V2019"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+   598→  Off_V2019: { conflicts: ["Off_V365", "Off_V2024", "Off_V2021"], conflictMessage: "You can only install one Office version. Disable other versions first." },
+   599→  // Office architecture — mutually exclusive
+   600→  Off_Arch64: { conflicts: ["Off_Arch32"], conflictMessage: "You can only select one architecture. 64-bit is recommended for most systems." },
+   601→  Off_Arch32: { conflicts: ["Off_Arch64"], conflictMessage: "You can only select one architecture. 32-bit is only for legacy COM add-ins." },
+   602→  // Office activation conflict with debloat
+   603→  Off_Act: { conflicts: ["Deb_7"], conflictMessage: "Office activation conflicts with removing Microsoft Office apps." },
+   604→  Act_Off: { conflicts: ["Deb_7"], conflictMessage: "Office activation conflicts with removing Microsoft Office apps." },
+   605→
+   606→  // Edge
+   607→  Edge_5: { conflicts: ["Edge_1"], conflictMessage: "Enabling Edge Superfetch conflicts with disabling Edge background processes." },
+   608→
+   609→  // Browser
+   610→  BH_3: { requires: ["BH_1"], conflictMessage: "Strict tracking protection requires telemetry blocking to be effective." },
+   611→};
+   612→
+   613→/**
+   614→ * Check for conflicts and unsatisfied dependencies given current settings state
+   615→ */
+   616→export function checkSettingConflicts(
+   617→  settingId: string,
+   618→  settingsState: Record<string, boolean>
+   619→): { type: "conflict" | "unmet_require"; settingId: string; settingName: string; message: string }[] {
+   620→  const warnings: { type: "conflict" | "unmet_require"; settingId: string; settingName: string; message: string }[] = [];
+   621→  const deps = settingDependencies[settingId];
+   622→  if (!deps) return warnings;
+   623→
+   624→  // Check conflicts
+   625→  if (deps.conflicts) {
+   626→    for (const conflictId of deps.conflicts) {
+   627→      if (settingsState[conflictId]) {
+   628→        // Find the name of the conflicting setting
+   629→        let conflictName = conflictId;
+   630→        for (const section of sections) {
+   631→          const found = section.settings.find((s) => s.id === conflictId);
+   632→          if (found) { conflictName = found.name; break; }
+   633→        }
+   634→        warnings.push({
+   635→          type: "conflict",
+   636→          settingId: conflictId,
+   637→          settingName: conflictName,
+   638→          message: deps.conflictMessage || `${settingId} conflicts with ${conflictName}`,
+   639→        });
+   640→      }
+   641→    }
+   642→  }
+   643→
+   644→  // Check unmet requirements (only warn when this setting is being enabled)
+   645→  if (deps.requires && settingsState[settingId]) {
+   646→    for (const reqId of deps.requires) {
+   647→      if (!settingsState[reqId]) {
+   648→        let reqName = reqId;
+   649→        for (const section of sections) {
+   650→          const found = section.settings.find((s) => s.id === reqId);
+   651→          if (found) { reqName = found.name; break; }
+   652→        }
+   653→        warnings.push({
+   654→          type: "unmet_require",
+   655→          settingId: reqId,
+   656→          settingName: reqName,
+   657→          message: deps.conflictMessage || `${settingId} requires ${reqName} to be enabled`,
+   658→        });
+   659→      }
+   660→    }
+   661→  }
+   662→
+   663→  return warnings;
+   664→}
+   665→
+   666→/**
+   667→ * Get all conflicts for all currently enabled settings
+   668→ */
+   669→export function getAllConflicts(
+   670→  settingsState: Record<string, boolean>
+   671→): { settingId: string; settingName: string; type: "conflict" | "unmet_require"; targetId: string; targetName: string; message: string }[] {
+   672→  const allWarnings: { settingId: string; settingName: string; type: "conflict" | "unmet_require"; targetId: string; targetName: string; message: string }[] = [];
+   673→  const seen = new Set<string>();
+   674→
+   675→  for (const section of sections) {
+   676→    for (const setting of section.settings) {
+   677→      if (!settingsState[setting.id]) continue;
+   678→      const deps = settingDependencies[setting.id];
+   679→      if (!deps) continue;
+   680→
+   681→      if (deps.conflicts) {
+   682→        for (const conflictId of deps.conflicts) {
+   683→          if (settingsState[conflictId]) {
+   684→            const key = [setting.id, conflictId].sort().join("|");
+   685→            if (seen.has(key)) continue;
+   686→            seen.add(key);
+   687→            let conflictName = conflictId;
+   688→            for (const s2 of sections) {
+   689→              const found = s2.settings.find((s) => s.id === conflictId);
+   690→              if (found) { conflictName = found.name; break; }
+   691→            }
+   692→            allWarnings.push({
+   693→              settingId: setting.id,
+   694→              settingName: setting.name,
+   695→              type: "conflict",
+   696→              targetId: conflictId,
+   697→              targetName: conflictName,
+   698→              message: deps.conflictMessage || `${setting.name} conflicts with ${conflictName}`,
+   699→            });
+   700→          }
+   701→        }
+   702→      }
+   703→
+   704→      if (deps.requires) {
+   705→        for (const reqId of deps.requires) {
+   706→          if (!settingsState[reqId]) {
+   707→            const key = `${setting.id}|req|${reqId}`;
+   708→            if (seen.has(key)) continue;
+   709→            seen.add(key);
+   710→            let reqName = reqId;
+   711→            for (const s2 of sections) {
+   712→              const found = s2.settings.find((s) => s.id === reqId);
+   713→              if (found) { reqName = found.name; break; }
+   714→            }
+   715→            allWarnings.push({
+   716→              settingId: setting.id,
+   717→              settingName: setting.name,
+   718→              type: "unmet_require",
+   719→              targetId: reqId,
+   720→              targetName: reqName,
+   721→              message: deps.conflictMessage || `${setting.name} requires ${reqName}`,
+   722→            });
+   723→          }
+   724→        }
+   725→      }
+   726→    }
+   727→  }
+   728→
+   729→  return allWarnings;
+   730→}
+   731→
+   732→export const builtinProfiles: Profile[] = [
+   733→  {
+   734→    id: "gaming",
+   735→    name: "Gaming PC",
+   736→    description: "Optimized for maximum gaming performance. Disables DVR, enables Game Mode, disables unnecessary services.",
+   737→    isBuiltin: true,
+   738→    settings: {
+   739→      Priv_1: true, Priv_2: true, Priv_5: true, Priv_6: true, Priv_8: true, Priv_11: true,
+   740→      Deb_1: true, Deb_2: true, Deb_12: true, Deb_13: true,
+   741→      Exp_1: true, Exp_3: true, Exp_4: true,
+   742→      Svc_1: true, Svc_4: true, Svc_5: true, Svc_10: true,
+   743→      Perf_2: true, Perf_10: true, Perf_8: true,
+   744→      Sec_2: true, Sec_4: true, Sec_6: true,
+   745→      Net_1: true, Net_7: true, Net_3: true,
+   746→      WU_1: true, WU_2: true,
+   747→      Disk_1: true, Disk_2: true, Disk_3: true,
+   748→      Gam_1: true, Gam_2: true, Gam_4: true, Gam_6: true, Gam_8: true,
+   749→      FT_1: true, FT_6: true, FT_7: true,
+   750→    },
+   751→    software: ["sw_1", "sw_5", "sw_6", "sw_7", "sw_17", "sw_19", "sw_25", "sw_10"],
+   752→  },
+   753→  {
+   754→    id: "office",
+   755→    name: "Office Laptop",
+   756→    description: "Balanced settings for office work. Privacy improvements, stable performance, essential software.",
+   757→    isBuiltin: true,
+   758→    settings: {
+   759→      Priv_1: true, Priv_2: true, Priv_3: true, Priv_5: true, Priv_6: true, Priv_8: true, Priv_11: true,
+   760→      Deb_1: true, Deb_12: true, Deb_13: true,
+   761→      Exp_1: true, Exp_3: true, Exp_4: true,
+   762→      Svc_5: true,
+   763→      Sec_2: true, Sec_4: true, Sec_6: true, Sec_7: true, Sec_8: true,
+   764→      Net_7: true, Net_8: true,
+   765→      WU_1: true, WU_2: true,
+   766→      Disk_1: true, Disk_2: true,
+   767→      Edge_1: true, Edge_2: true, Edge_7: true, Edge_10: true, Edge_12: true, Edge_14: true, Edge_17: true, Edge_18: true, Edge_20: true, Edge_22: true,
+   768→      BH_4: true, BH_5: true,
+   769→      // Browser Extensions — essential adblocking + YouTube
+   770→      BE_1: true, BE_4: true, BE_6: true,
+   771→      FT_1: true, FT_6: true,
+   772→    },
+   773→    software: ["sw_2", "sw_5", "sw_7", "sw_23", "sw_24", "sw_21", "sw_26"],
+   774→  },
+   775→  {
+   776→    id: "minimal",
+   777→    name: "Minimal",
+   778→    description: "Minimal changes. Only the safest optimizations with no risk of breaking anything.",
+   779→    isBuiltin: true,
+   780→    settings: {
+   781→      Priv_5: true, Priv_6: true, Priv_8: true,
+   782→      Deb_1: true,
+   783→      Exp_1: true,
+   784→      Sec_2: true, Sec_4: true,
+   785→      WU_1: true,
+   786→      Disk_1: true,
+   787→      FT_6: true,
+   788→    },
+   789→    software: [],
+   790→  },
+   791→  {
+   792→    id: "maxprivacy",
+   793→    name: "Maximum Privacy",
+   794→    description: "Aggressive privacy settings. May break some functionality. Maximum data protection.",
+   795→    isBuiltin: true,
+   796→    settings: {
+   797→      Priv_1: true, Priv_2: true, Priv_3: true, Priv_4: true, Priv_5: true, Priv_6: true, Priv_7: true,
+   798→      Priv_8: true, Priv_9: true, Priv_10: true, Priv_11: true,
+   799→      Deb_1: true, Deb_2: true, Deb_3: true, Deb_4: true, Deb_5: true, Deb_6: true, Deb_7: true,
+   800→      Deb_8: true, Deb_9: true, Deb_10: true, Deb_11: true, Deb_12: true, Deb_13: true,
+   801→      Exp_1: true, Exp_3: true, Exp_4: true, Exp_5: true, Exp_6: true, Exp_8: true, Exp_9: true,
+   802→      Svc_5: true, Svc_8: true, Svc_9: true,
+   803→      Sec_2: true, Sec_4: true, Sec_6: true, Sec_7: true, Sec_8: true, Sec_9: true,
+   804→      Net_4: true, Net_5: true, Net_7: true, Net_8: true, Net_9: true,
+   805→      WU_1: true, WU_3: true,
+   806→      Edge_1: true, Edge_2: true, Edge_3: true, Edge_4: true, Edge_5: true, Edge_6: true, Edge_7: true, Edge_8: true, Edge_9: true,
+   807→      Edge_10: true, Edge_11: true, Edge_12: true, Edge_13: true, Edge_14: true, Edge_15: true, Edge_16: true,
+   808→      Edge_17: true, Edge_18: true, Edge_19: true, Edge_20: true, Edge_21: true, Edge_22: true, Edge_23: true, Edge_24: true,
+   809→      BH_1: true, BH_2: true, BH_4: true, BH_5: true, BH_6: true, BH_7: true, BH_8: true, BH_9: true,
+   810→      // Browser Extensions — full privacy suite
+   811→      BE_1: true, BE_2: true, BE_4: true, BE_5: true, BE_6: true, BE_7: true, BE_8: true, BE_9: true, BE_10: true,
+   812→      OD_2: true, OD_3: true, OD_5: true,
+   813→      FT_1: true, FT_6: true,
+   814→    },
+   815→    software: ["sw_2", "sw_3", "sw_29", "sw_27"],
+   816→  },
+   817→  {
+   818→    id: "developer",
+   819→    name: "Developer",
+   820→    description: "Optimized for software development. Installs dev tools, enables WSL, disables telemetry.",
+   821→    isBuiltin: true,
+   822→    settings: {
+   823→      Priv_1: true, Priv_2: true, Priv_5: true, Priv_6: true, Priv_8: true,
+   824→      Deb_1: true, Deb_12: true, Deb_13: true,
+   825→      Exp_1: true, Exp_3: true, Exp_4: true, Exp_7: true,
+   826→      Svc_5: true, Svc_10: true,
+   827→      Perf_8: true,
+   828→      Sec_2: true, Sec_4: true, Sec_6: true,
+   829→      Net_7: true, Net_8: true,
+   830→      WU_1: true, WU_2: true,
+   831→      Disk_1: true,
+   832→      FT_1: true, FT_6: true, FT_7: true, FT_9: true,
+   833→    },
+   834→    software: ["sw_10", "sw_11", "sw_12", "sw_13", "sw_14", "sw_15", "sw_16", "sw_5", "sw_6", "sw_7", "sw_2", "sw_25"],
+   835→  },
+   836→  {
+   837→    id: "privacysecurity",
+   838→    name: "Privacy & Security Only",
+   839→    description: "Tighten privacy and security while keeping all default Windows apps intact. No debloat or app removal — ideal for clients who want a hardened system without changing the out-of-box experience.",
+   840→    isBuiltin: true,
+   841→    settings: {
+   842→      // Privacy — all Safe + Moderate (skip Risky Error Reporting to keep crash diagnostics)
+   843→      Priv_1: true, Priv_2: true, Priv_3: true, Priv_4: true, Priv_5: true, Priv_6: true,
+   844→      Priv_8: true, Priv_9: true, Priv_10: true, Priv_11: true,
+   845→      // NO debloat — keep all pre-installed apps
+   846→      // Explorer — minimal safe changes
+   847→      Exp_1: true, Exp_3: true,
+   848→      // Services — only security-relevant
+   849→      Svc_5: true, Svc_8: true, Svc_9: true,
+   850→      // Performance — only safe
+   851→      Perf_5: true, Perf_8: true,
+   852→      // Security — all Safe + DNS over HTTPS
+   853→      Sec_2: true, Sec_3: true, Sec_4: true, Sec_6: true, Sec_7: true, Sec_8: true,
+   854→      // Network — privacy-focused
+   855→      Net_2: true, Net_4: true, Net_7: true, Net_8: true, Net_9: true,
+   856→      // Windows Update — sane defaults
+   857→      WU_1: true, WU_2: true, WU_3: true,
+   858→      // Edge — privacy & security (don't remove Edge, but harden it thoroughly)
+   859→      Edge_1: true, Edge_2: true, Edge_3: true, Edge_6: true, Edge_7: true, Edge_9: true,
+   860→      Edge_10: true, Edge_11: true, Edge_12: true, Edge_14: true, Edge_17: true, Edge_18: true, Edge_20: true, Edge_22: true,
+   861→      // Browser hardening — Safe items
+   862→      BH_4: true, BH_5: true, BH_6: true, BH_7: true,
+   863→      // Browser Extensions — adblocking + YouTube + privacy
+   864→      BE_1: true, BE_4: true, BE_6: true, BE_10: true,
+   865→      // OneDrive — privacy only (don't uninstall)
+   866→      OD_2: true, OD_5: true,
+   867→      // Office — privacy only
+   868→      Off_1: true, Off_2: true, Off_5: true, Off_8: true,
+   869→      // Scheduled tasks — Safe privacy-relevant
+   870→      ST_1: true, ST_2: true, ST_3: true, ST_7: true, ST_9: true,
+   871→      // Final touches — safe system improvements
+   872→      FT_1: true, FT_6: true, FT_7: true,
+   873→    },
+   874→    software: ["sw_29"], // Bitwarden for password security
+   875→  },
+   876→  {
+   877→    id: "appsetup",
+   878→    name: "App Setup",
+   879→    description: "Keep the out-of-box Windows experience almost unchanged. Just install alternative browsers, essential utilities (zip, search), configure Windows Defender, and set up browser plugins. Perfect for clients who only need software and Defender configuration.",
+   880→    isBuiltin: true,
+   881→    settings: {
+   882→      // Minimal system changes — only the safest, non-disruptive ones
+   883→      Exp_1: true, // Show file extensions (essential for tech users)
+   884→      // Security — Defender-focused
+   885→      Sec_2: true, // Disable AutoRun/AutoPlay
+   886→      Sec_6: true, // Ensure Firewall is on
+   887→      // Windows Update — just active hours
+   888→      WU_2: true, // Set active hours
+   889→      // OneDrive — just stop startup nag (keep OneDrive functional)
+   890→      OD_5: true, // Disable OneDrive ad notifications
+   891→      // Edge — privacy & security for the default browser
+   892→      Edge_1: true, Edge_2: true, Edge_7: true, Edge_9: true, Edge_10: true, Edge_12: true, Edge_14: true,
+   893→      Edge_17: true, Edge_18: true, Edge_20: true, Edge_22: true, Edge_23: true,
+   894→      // Browser Extensions — essential adblocking for all users
+   895→      BE_1: true, BE_2: true, BE_4: true, BE_5: true, BE_6: true, BE_7: true,
+   896→      // Final touches
+   897→      FT_6: true, // Create restore point
+   898→    },
+   899→    software: [
+   900→      // Alternative browsers
+   901→      "sw_1", // Google Chrome
+   902→      "sw_2", // Mozilla Firefox
+   903→      "sw_3", // Brave Browser
+   904→      // Essential utilities
+   905→      "sw_5", // 7-Zip
+   906→      "sw_6", // Everything Search
+   907→      "sw_7", // PowerToys
+   908→      // Security tools
+   909→      "sw_29", // Bitwarden password manager
+   910→      "sw_28", // VeraCrypt disk encryption
+   911→      // Media
+   912→      "sw_17", // VLC Media Player
+   913→      // Communication
+   914→      "sw_25", // Discord
+   915→    ],
+   916→  },
+   917→];
+   918→
