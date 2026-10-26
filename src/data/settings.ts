@@ -446,6 +446,13 @@ export const sections: Section[] = [
       // --- Extra Privacy ---
       { id: "BE_9", name: "HTTPS Everywhere", safety: "Safe", desc: "Forces HTTPS connections where supported. Redirects HTTP to HTTPS automatically." },
       { id: "BE_10", name: "Decentraleyes", safety: "Safe", desc: "Emulates CDN resources locally. Blocks tracking via CDN-delivered content." },
+      // --- Tracker & Privacy Suite ---
+      { id: "BE_11", name: "Ghostery", safety: "Safe", desc: "Privacy ad-blocker that reveals and blocks trackers, ads, and popups. Shows who tracks you on every site with detailed breakdown." },
+      // --- YouTube Ad Blocking (extended) ---
+      { id: "BE_12", name: "Return YouTube Dislike", safety: "Safe", desc: "Restores the YouTube dislike count and ratio. Community-powered, open-source." },
+      { id: "BE_13", name: "Enhancer for YouTube", safety: "Safe", desc: "YouTube enhancement suite: cinema mode, ad skip, playback speed, volume boost, screenshot, and 50+ features." },
+      { id: "BE_14", name: "YouTube Auto HD + FPS", safety: "Safe", desc: "Automatically sets YouTube videos to your preferred resolution and frame rate. No more manual quality switching." },
+      { id: "BE_15", name: "Clickbait Remover for YouTube", safety: "Safe", desc: "Replaces clickbait thumbnails with actual video frames and shows real titles. Works on homepage, search, and sidebar." },
     ],
   },
   {

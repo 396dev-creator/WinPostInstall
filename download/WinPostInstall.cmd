@@ -3151,13 +3151,33 @@ function Invoke-BrowserHardening {
     $decentChromeID    = "ldpochfccmkkmhnbpcgljndlmkfmokom"
     $decentFirefoxID   = "jid1-MnnxcxisBPnSXQ@jetpack-decentraleyes"
     $decentAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/decentraleyes/addon-641469-latest.xpi"
+    # Ghostery (BE_11)
+    $ghosteryChromeID    = "mlomiejdfolodflgpocbcnmfpfjocbgd"
+    $ghosteryFirefoxID   = "firefox@ghostery.com"
+    $ghosteryAMOUrl     = "https://addons.mozilla.org/firefox/downloads/latest/ghostery/addon-385765-latest.xpi"
+    # Return YouTube Dislike (BE_12)
+    $rydChromeID         = "pdpahhpgkhikkgomnlkgkiokcgnkegai"
+    $rydFirefoxID        = "return-youtube-dislike@addons.return-youtube-dislike.com"
+    $rydAMOUrl           = "https://addons.mozilla.org/firefox/downloads/latest/return-youtube-dislike/addon-746291-latest.xpi"
+    # Enhancer for YouTube (BE_13)
+    $ytEnhancerChromeID  = "ponfpcmkhhfckloclldcjbhdpijlbjhp"
+    $ytEnhancerFirefoxID = "enhancerforyoutube@maximerf.addons.mozilla.org"
+    $ytEnhancerAMOUrl    = "https://addons.mozilla.org/firefox/downloads/latest/enhancer-for-youtube/addon-950502-latest.xpi"
+    # YouTube Auto HD + FPS (BE_14)
+    $ytAutoHDChromeID    = "fihhholklkcjckdbpehbloajfjnmpbji"
+    $ytAutoHDFirefoxID   = "{2e5f8b5a-6b4a-4c8c-9f1a-7d6e5f4a3b2c}"
+    $ytAutoHDAMOUrl      = "https://addons.mozilla.org/firefox/downloads/latest/youtube-auto-hd/addon-783817-latest.xpi"
+    # Clickbait Remover for YouTube (BE_15)
+    $clickbaitChromeID   = "mckmbnhopaefnfmkhbkedpcjjgljgbkc"
+    $clickbaitFirefoxID  = "clickbait-remover-for-youtube@example.com"
+    $clickbaitAMOUrl     = "https://addons.mozilla.org/firefox/downloads/latest/clickbait-remover/addon-1004681-latest.xpi"
 
     # Chromium extension update URLs
     $chromeWebStoreUrl = "https://clients2.google.com/service/update2/crx"
     $edgeAddonsUrl    = "https://edge.microsoft.com/extensionwebstorebase/v1/crx"
 
     # ================================================================
-    # Build extension lists from config (BE_1..BE_10)
+    # Build extension lists from config (BE_1..BE_15)
     # ================================================================
     # Default: if no config, enable uBlock Origin + Privacy Badger (backward compat)
     $extUblock    = $true   # BE_1
@@ -3170,6 +3190,11 @@ function Invoke-BrowserHardening {
     $extCookieAD  = $false  # BE_8
     $extHTTPSE    = $false  # BE_9
     $extDecent    = $false  # BE_10
+    $extGhostery  = $false  # BE_11
+    $extRYD       = $false  # BE_12
+    $extYTEnhancer= $false  # BE_13
+    $extYTAutoHD  = $false  # BE_14
+    $extClickbait = $false  # BE_15
 
     if ($script:ConfigSettings) {
         $extUblock    = [bool]$script:ConfigSettings["BE_1"]
@@ -3182,6 +3207,11 @@ function Invoke-BrowserHardening {
         $extCookieAD  = [bool]$script:ConfigSettings["BE_8"]
         $extHTTPSE    = [bool]$script:ConfigSettings["BE_9"]
         $extDecent    = [bool]$script:ConfigSettings["BE_10"]
+        $extGhostery  = [bool]$script:ConfigSettings["BE_11"]
+        $extRYD       = [bool]$script:ConfigSettings["BE_12"]
+        $extYTEnhancer= [bool]$script:ConfigSettings["BE_13"]
+        $extYTAutoHD  = [bool]$script:ConfigSettings["BE_14"]
+        $extClickbait = [bool]$script:ConfigSettings["BE_15"]
     }
 
     # --- Helper: Add extension to Chromium ExtensionInstallForcelist ---
@@ -3237,6 +3267,11 @@ function Invoke-BrowserHardening {
         if ($extCookieAD)  { Add-ChromiumExtension -RegPath $RegPath -ExtID $cookieAutoDelChromeID -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Cookie AutoDelete" }
         if ($extHTTPSE)    { Add-ChromiumExtension -RegPath $RegPath -ExtID $httpsEChromeID    -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "HTTPS Everywhere" }
         if ($extDecent)    { Add-ChromiumExtension -RegPath $RegPath -ExtID $decentChromeID    -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Decentraleyes" }
+        if ($extGhostery)  { Add-ChromiumExtension -RegPath $RegPath -ExtID $ghosteryChromeID  -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Ghostery" }
+        if ($extRYD)       { Add-ChromiumExtension -RegPath $RegPath -ExtID $rydChromeID       -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Return YouTube Dislike" }
+        if ($extYTEnhancer){ Add-ChromiumExtension -RegPath $RegPath -ExtID $ytEnhancerChromeID -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Enhancer for YouTube" }
+        if ($extYTAutoHD)  { Add-ChromiumExtension -RegPath $RegPath -ExtID $ytAutoHDChromeID  -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "YouTube Auto HD + FPS" }
+        if ($extClickbait) { Add-ChromiumExtension -RegPath $RegPath -ExtID $clickbaitChromeID -UpdateUrl $UpdateUrl -BrowserName $BrowserName -ExtName "Clickbait Remover" }
     }
 
     # --- Google Chrome ---
@@ -3313,6 +3348,11 @@ function Invoke-BrowserHardening {
         if ($extCookieAD)  { $extSettings[$cookieAutoDelFirefoxID] = @{ "installation_mode" = "force_installed"; "install_url" = $cookieAutoDelAMOUrl } }
         if ($extHTTPSE)    { $extSettings[$httpsEFirefoxID]    = @{ "installation_mode" = "force_installed"; "install_url" = $httpsEAMOUrl } }
         if ($extDecent)    { $extSettings[$decentFirefoxID]    = @{ "installation_mode" = "force_installed"; "install_url" = $decentAMOUrl } }
+        if ($extGhostery)  { $extSettings[$ghosteryFirefoxID]  = @{ "installation_mode" = "force_installed"; "install_url" = $ghosteryAMOUrl } }
+        if ($extRYD)       { $extSettings[$rydFirefoxID]       = @{ "installation_mode" = "force_installed"; "install_url" = $rydAMOUrl } }
+        if ($extYTEnhancer){ $extSettings[$ytEnhancerFirefoxID]= @{ "installation_mode" = "force_installed"; "install_url" = $ytEnhancerAMOUrl } }
+        if ($extYTAutoHD)  { $extSettings[$ytAutoHDFirefoxID]  = @{ "installation_mode" = "force_installed"; "install_url" = $ytAutoHDAMOUrl } }
+        if ($extClickbait) { $extSettings[$clickbaitFirefoxID] = @{ "installation_mode" = "force_installed"; "install_url" = $clickbaitAMOUrl } }
 
         $firefoxPolicy["policies"] = $p
         $jsonOutput = $firefoxPolicy | ConvertTo-Json -Depth 10 -Compress
@@ -4296,7 +4336,7 @@ try {
             "Gaming"            { Invoke-GamingDisable }
             "ScheduledTasks"    { Invoke-ScheduledTasksCleanup }
             "BrowserHardening"  { Invoke-BrowserHardening }
-            "BrowserExtensions" { Invoke-BrowserHardening }   # Alias  -  extensions config (BE_1..BE_10) is read inside the function
+            "BrowserExtensions" { Invoke-BrowserHardening }   # Alias  -  extensions config (BE_1..BE_15) is read inside the function
             "FinalTouches"      { Invoke-FinalTouches }
             "WindowsFeatures"   { Invoke-WindowsFeaturesRemoval }
             default { Write-Warn "Unknown section: $section (skipped)" }
