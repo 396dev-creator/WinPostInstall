@@ -146,6 +146,14 @@ $script:RiskyDescriptions = @()       # Collect risky setting descriptions for m
 # Prevent window from closing on crash (keeps window open no matter what)
 $ErrorActionPreference = "Continue"
 
+# Suppress Write-Progress records. The script never calls Write-Progress itself,
+# but built-in cmdlets do (Checkpoint-Computer during restore point creation,
+# Invoke-WebRequest during downloads, WinGet during installs). When stdout/stderr
+# are redirected (Tauri captures both via pipes), PowerShell serializes progress
+# records to CLIXML XML on stderr — which the UI then displays as a wall of red
+# "errors". SilentlyContinue drops them at the source.
+$ProgressPreference = "SilentlyContinue"
+
 # Auto-bypass execution policy for this session (handles 'downloaded from internet' block)
 if ((Get-ExecutionPolicy -Scope Process) -ne 'Bypass') {
     try { Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop } catch { }

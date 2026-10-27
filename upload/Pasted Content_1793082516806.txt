@@ -1,0 +1,1106 @@
+[OK] Restore point created
+
+  [AV SHIELD] Windows Defender Self-Exclusion
+   + --------------------------------------------------
+
+  [09:22:07] Defender exclusion already exists for this script.
+
+  [SAFETY] Registry Backup
+   + --------------------------------------------------
+
+  [09:22:07] Exporting registry hives to C:\Temp\PostInstall_RegBackup...
+  [OK] Exported: HKLM\SOFTWARE\Policies
+  [OK] Exported: HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies
+  [OK] Exported: HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer
+  [OK] Exported: HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR
+  [OK] Registry backup saved to: C:\Temp\PostInstall_RegBackup
+
+
+================================================================
+  Windows Post-Installation Optimizer v4.1.6
+  Target: Windows 11 (Build 26300)
+  Computer: DESKTOP-QUSLBIR
+  Chassis: Desktop
+  Log file: C:\Temp\PostInstall_20261027_092206.log
+================================================================
+
+
+  [PRE-FLIGHT] System Prerequisites Check
+   + --------------------------------------------------
+
+  [09:22:08] Checking internet connectivity...
+  [OK] Internet connectivity: OK
+  [09:22:08] Checking free disk space...
+  [OK] Free disk space: 143.11 GB (OK)
+  [09:22:08] Checking for pending reboot...
+  [OK] No pending reboot.
+
+  Pre-flight summary: 3 passed, 0 warnings
+
+
+  [SAFETY] System Restore Verification
+   + --------------------------------------------------
+
+  [09:22:08] Checking System Restore status on C:...
+  [OK] System Restore is already enabled on C:.
+  [09:22:08] Configuring System Restore disk space...
+  [OK] Restore disk space set to 5% of drive.
+
+
+  [SAFETY] Creating System Restore Point
+   + --------------------------------------------------
+
+  [09:22:08] Creating restore point: 'Pre-Optimization'...
+  [OK] Restore point created successfully via Checkpoint-Computer.
+
+  ====================================================================
+  RESTORE POINT CREATED: 'Pre-Optimization'
+  You can roll back all changes via:
+    System Properties > System Protection > System Restore
+  ====================================================================
+
+  [09:22:23] Loading configuration from: C:\Users\TECHDE~1\AppData\Local\Temp\WinPostInstall_5cd847fd-0a2e-4a52-87f5-67509357b6f2\WinPostInstall-Config.json
+  [OK] Loaded sections from config: Privacy, Debloat, ExplorerUI, ServiceStartup, Performance, Security, Network, WindowsUpdate, DiskCleanup, Winget, OfficeActivation, EdgeHardening, OneDrive, Gaming, ScheduledTasks, BrowserHardening, BrowserExtensions, FinalTouches, WindowsFeatures, Activation
+  [OK] Loaded 88 setting toggles from config.
+  [OK] Software selection loaded from config (4 apps).
+
+  SECTIONS SELECTED:
+    - Privacy
+    - Debloat
+    - ExplorerUI
+    - ServiceStartup
+    - Performance
+    - Security
+    - Network
+    - WindowsUpdate
+    - DiskCleanup
+    - Winget
+    - OfficeActivation
+    - EdgeHardening
+    - OneDrive
+    - Gaming
+    - ScheduledTasks
+    - BrowserHardening
+    - BrowserExtensions
+    - FinalTouches
+    - WindowsFeatures
+    - Activation
+
+  [09:22:23] Taking 'before' snapshot of services and tasks...
+  [OK] Before snapshots saved to C:\Temp\PostInstall_RegBackup
+
+--- PRIVACY and TELEMETRY (Aggressive) ---
+
+  [09:22:24] Disabling Windows telemetry...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\AllowTelemetry = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection\AllowTelemetry = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\DoNotShowFeedbackNotifications = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\LimitDiagnosticLogCollection = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\LimitDumpCollection = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat\AITEnable = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat\DisableInventory = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat\DisableUAR = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\SQMClient\Windows\CEIPEnable = 0
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\SQMClient\Windows\CEIPEnable = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableTailoredExperiencesWithDiagnosticData = 1
+  [09:22:25] Stopping and disabling diagnostic tracking services...
+  [OK] Service disabled: DiagTrack
+  [OK] Service disabled: dmwappushservice
+  [OK] Service disabled: WerSvc
+  [WARN] Service not found: diagnosticshub.standardcollector.service
+  [09:22:25] Killing CompatTelRunner via IFEO...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\CompatTelRunner.exe\Debugger = %windir%\System32\taskkill.exe
+  [09:22:25] Disabling activity history...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System\EnableActivityFeed = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System\PublishUserActivities = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System\UploadUserActivities = 0
+  [09:22:25] Disabling location tracking...
+  [MODERATE] Disables geolocation service  -  breaks Find My Device and Maps location
+  [09:22:25] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location\Value = Deny
+  [MODERATE] Disables geolocation service  -  breaks Find My Device and Maps location
+  [09:22:25] Already set: HKLM:\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration\Status = 0
+  [09:22:25] Disabling advertising ID...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo\DisabledByGroupPolicy = 1
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo\Enabled = 0
+  [09:22:25] Disabling Cortana (multi-layer)...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search\AllowCortana = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search\AllowSearchToUseLocation = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search\AllowCloudSearch = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search\DisableWebSearch = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search\ConnectedSearchUseWeb = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsStore\DisableWindowsStoreRealTimeConfig = 1
+  [09:22:25] Disabling Bing search in Start Menu...
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search\BingSearchEnabled = 0
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search\CortanaConsent = 0
+  [09:22:25] Disabling Copilot (multi-layer)...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot\TurnOffWindowsCopilot = 1
+  [09:22:25] Already set: HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsCopilot\TurnOffWindowsCopilot = 1
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowCopilotButton = 0
+  [09:22:25] Disabling Windows Recall...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI\AllowRecallEnablement = 0
+  [09:22:25] Already set: HKCU:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI\AllowRecallEnablement = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI\DisableAIDataAnalysis = 1
+  [09:22:25] Disabling AI features...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI\DisableClickToDo = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI\DisableImageCreator = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI\DisableCocreator = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsAI\DisableGenerativeFill = 1
+  [09:22:25] Disabling AI features in Paint...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\PaintStudio\DisableImageCreator = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\PaintStudio\DisableCocreator = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\PaintStudio\DisableGenerativeFill = 1
+  [09:22:25] Disabling Clipboard cloud sync and history...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System\AllowClipboardHistory = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System\AllowCrossDeviceClipboard = 0
+  [09:22:25] Disabling input/typing telemetry...
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\InputPersonalization\RestrictImplicitTextCollection = 1
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\InputPersonalization\RestrictImplicitInkCollection = 1
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore\HarvestContacts = 0
+  [09:22:25] Disabling Feedback notifications...
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\Siuf\Rules\NumberOfSIUFInPeriod = 0
+  [09:22:25] Disabling targeted tips and suggestions...
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Start_TrackProgs = 0
+  [09:22:25] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Start_TrackDocs = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableSoftLanding = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableWindowsConsumerFeatures = 1
+  [09:22:25] Disabling Wi-Fi Sense...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowWiFiHotSpotReporting\Value = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Microsoft\PolicyManager\default\WiFi\AllowAutoConnectToWiFiSenseHotspots\Value = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Microsoft\WcmSvc\wifinetworkmanager\config\AutoConnectAllowedOEM = 0
+  [09:22:25] Disabling Windows Error Reporting...
+  [MODERATE] Stops Windows Error Reporting  -  makes troubleshooting harder
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting\Disabled = 1
+  [09:22:25] Disabling Windows Insider experiments...
+  [MODERATE] Disables Windows Insider experiments  -  stops A/B testing and flighting
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds\EnableExperimentation = 0
+  [MODERATE] Disables Windows Insider experiments  -  stops A/B testing and flighting
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds\EnableConfigFlighting = 0
+  [MODERATE] Disables Windows Insider experiments  -  stops A/B testing and flighting
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\PreviewBuilds\AllowBuildPreview = 0
+  [09:22:25] Disabling Setting Sync / Windows Backup...
+  [MODERATE] Disables Setting Sync  -  stops cloud settings sync
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync\DisableSettingSync = 2
+  [MODERATE] Disables Setting Sync  -  stops cloud settings sync
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\SettingSync\DisableSettingSyncUserOverride = 1
+  [09:22:25] Locking down all diagnostics and analytics for developers...
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\AllowTelemetry = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableTailoredExperiencesWithDiagnosticData = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\DoNotShowFeedbackNotifications = 1
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\EnableDiagnosticDataViewer = 0
+  [09:22:25] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\LimitDiagnosticLogCollection = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\LimitDumpCollection = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat\AITEnable = 0
+  [09:22:26] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceCensus\DisableDeviceCensus = 1
+  [MODERATE] Stops Watson error reporting telemetry  -  makes troubleshooting harder
+  [09:22:26] Already set: HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Disabled = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\SQMClient\Windows\CEIPEnable = 0
+  [MODERATE] Stops Windows Error Reporting  -  makes troubleshooting harder
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting\Disabled = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppCompat\DisablePCA = 1
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppHost\EnableWebContentEvaluation = 0
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System\PublishUserActivities = 0
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\System\UploadUserActivities = 0
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\FullTelemetryOnInstall = 0
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection\AllowUpdateComplianceTelemetry = 0
+  [09:22:26] Disabling background app diagnostics...
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications\GlobalUserDisabled = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy\LetAppsGetDiagnosticInfo = 2
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy\LetAppsAccessActivityHistory = 2
+  [09:22:26] Disabling advertising and personalization data sharing...
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo\DisabledByGroupPolicy = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableCloudOptimizedContent = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableThirdPartySuggestions = 1
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-338389Enabled = 0
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-310093Enabled = 0
+  [09:22:26] Disabling optional diagnostic data providers...
+  [09:22:26] Already set: HKLM:\SYSTEM\CurrentControlSet\Control\WMI\Autologger\AutoLogger-Diagtrack-Listener\Start = 0
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator\NoActiveProbe = 1
+  [09:22:26] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\UserProfile\DisableUserProfileTelemetry = 1
+  [09:22:26] Disabling Windows Spotlight and lock screen ads...
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\ContentDeliveryEnabled = 0
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-338387Enabled = 0
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-338388Enabled = 0
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\RotatingLockScreenEnabled = 0
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\RotatingLockScreenOverlayEnabled = 0
+  [09:22:26] Disabling lock screen app notifications...
+  [09:22:26] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\NOC_GLOBAL_SETTING_TOASTS_ENABLED = 0
+
+  [OK] Privacy and Telemetry section complete (26 items).
+
+--- DEBLOAT: Removing Bloatware ---
+
+  [MODERATE] Removes Gaming App  -  WARNING: gamers need this
+  [MODERATE] Removes Gaming Services  -  WARNING: gamers need this
+  [MODERATE] Removes Mixed Reality Portal  -  VR headsets need this
+  SKIPPED (risky): Removes Clock/Alarms  -  WARNING: some users rely on this  -  use -AllowRisky or enable in menu
+  [MODERATE] Removes Xbox App  -  WARNING: gamers need these
+  [MODERATE] Removes Xbox TCUI  -  WARNING: gamers need these
+  [MODERATE] Removes Xbox Game Overlay  -  WARNING: gamers need these
+  [MODERATE] Removes Xbox Gaming Overlay  -  WARNING: gamers need these
+  [MODERATE] Removes Xbox Identity Provider  -  WARNING: gamers need these
+  [MODERATE] Removes Xbox Speech-to-Text  -  WARNING: gamers need these
+  [09:22:38] Cleaning provisioned (stub) packages...
+
+  [OK] Debloat complete. Removed: 0 | Already removed: 82 | Skipped risky: 1 | Provisioned removed: 0 | Provisioned clean: 82
+
+--- EXPLORER and UI OPTIMIZATIONS ---
+
+  [09:22:49] Showing file extensions...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\HideFileExt = 0
+  [09:22:49] Showing hidden files...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\Hidden = 1
+  [09:22:49] Enabling classic right-click context menu...
+  [09:22:49] Already set: HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32\(Default) = 
+  [09:22:49] Locking down Content Delivery Manager...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-338387Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-338388Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-338389Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-338393Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-353694Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-353696Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-353698Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-314559Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContent-310093Enabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\ContentDeliveryAllowed = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\FeatureManagementEnabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\OemPreInstalledAppsEnabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\PreInstalledAppsEnabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\PreInstalledAppsEverEnabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SilentInstalledAppsEnabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SubscribedContentEnabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\SystemPaneSuggestionsEnabled = 0
+  [09:22:49] Disabling File Explorer ads...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowSyncProviderNotifications = 0
+  [09:22:49] Disabling Lock Screen...
+  [09:22:49] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\Personalization\NoLockScreen = 1
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\RotatingLockScreenEnabled = 0
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\ContentDeliveryManager\RotatingLockScreenOverlayEnabled = 0
+  [09:22:49] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\CloudContent\DisableWindowsConsumerFeatures = 1
+  [09:22:49] Removing Chat icon from Taskbar...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarMn = 0
+  [09:22:49] Removing Widgets from Taskbar...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarDa = 0
+  [09:22:49] Removing Search from Taskbar...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarSearchBox = 0
+  [09:22:49] Disabling Snap Layouts flyout...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\EnableSnapAssistFlyout = 0
+  [09:22:49] Enabling 'End Task' in Taskbar right-click menu...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\TaskbarEndTask\TaskbarEndTask = 1
+  [09:22:49] Setting File Explorer to open 'This PC'...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\LaunchTo = 1
+  [09:22:49] Removing 3D Objects from This PC...
+  [09:22:49] Disabling Drag Tray...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\DragBetweenWindows = 0
+  [09:22:49] Removing Task View button from Taskbar...
+  [OK] Registry: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowTaskViewButton = 0
+  [09:22:49] Setting Search bar to icon-only mode...
+  [OK] Registry: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search\SearchboxTaskbarMode = 1
+  [09:22:49] Hiding Copilot button from Taskbar...
+  [09:22:49] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Advanced\ShowCopilotButton = 0
+  [09:22:49] Removing 'Cast to Device' from context menu...
+  [09:23:01] Removing 'Share with Skype' from context menu...
+  [09:23:13] Removing 'Give access to' from context menu...
+  [09:23:19] Removing 'Include in library' from context menu...
+
+  [OK] Explorer and UI optimizations complete.
+
+--- SERVICE and STARTUP OPTIMIZATION ---
+
+  SKIPPED (risky): Disables Windows Search  -  WARNING: breaks Start menu search, Cortana, Office search  -  use -AllowRisky or enable in menu
+  [WARN] Service not found: WMPNetworkSvc
+  [WARN] Service not found: WpcSvc
+  [WARN] Service not found: TabletInputService
+  [09:23:22] Already disabled: Retail Demo Service
+  [WARN] Service not found: PimIndexMaintenance
+  [09:23:22] Already disabled: Messaging Service
+  [09:23:22] Already disabled: Downloaded Maps Manager
+  [MODERATE] Disables Geolocation  -  breaks Find My Device and Maps location
+  [09:23:22] Already disabled: Geolocation Service
+  [MODERATE] Disables Hyper-V Host  -  WARNING: needed for VMs, WSL2, Docker
+  [09:23:22] Already disabled: Hyper-V Host Compute Service
+  [09:23:22] Already disabled: Windows Insider Service
+  [MODERATE] Disables OneSync  -  may affect Mail/Calendar sync
+  [09:23:22] Already disabled: OneSync Sync Host
+  [09:23:22] Already disabled: User Data Storage Service
+  [09:23:22] Already disabled: Push to Install Service
+  [09:23:22] Disabling Startup delay...
+  [09:23:22] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Serialize\StartupDelayInMSec = 0
+
+  [OK] Service and Startup optimization complete.
+
+--- PERFORMANCE and POWER SETTINGS ---
+
+  [09:23:24] Boot drive type detected: HDD
+  [09:23:24] Chassis type: Desktop  -  setting High Performance power plan.
+  [09:23:24] Total RAM detected: 15.87 GB
+  [09:23:24] Disabling Hibernation...
+  [OK] Hibernation disabled. hiberfil.sys removed.
+  [09:23:24] Disabling Fast Startup...
+  [09:23:24] Already set: HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power\HiberbootEnabled = 0
+  [09:23:24] Disabling Modern Standby network connectivity...
+  [09:23:24] Already set: HKLM:\SYSTEM\CurrentControlSet\Control\Power\ModernSleep = 0
+  [09:23:24] Setting High Performance power plan (desktop)...
+  [OK] Power plan set to High Performance (8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c)
+  [09:23:25] Disabling lid close action (desktop)...
+  [OK] Lid close action set to 'Do nothing' (desktop).
+  [09:23:27] Setting visual effects to 'Best Performance'...
+  [09:23:27] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects\VisualFXSetting = 2
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\ListBoxSmoothScrolling = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\DragFullWindows = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\CursorShadow = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\ComboBoxAnimation = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\ListviewAlphaSelect = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\SelectionFade = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\MenuAnimation = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\AnimateMinMaxMenus = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\TooltipAnimation = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\ListviewShadow = 0
+  [09:23:27] Already set: HKCU:\Control Panel\Desktop\TaskbarAnimations = 0
+  [09:23:27] Already set: HKCU:\SOFTWARE\Microsoft\Windows\DWM\EnableAeroPeek = 0
+  HDD detected: Keeping SysMain (SuperFetch) enabled  -  disabling on HDD kills performance.
+  [09:23:27] HDD detected: Keeping SysMain (SuperFetch) and Prefetch enabled.
+  [09:23:27] Limiting Windows Defender CPU usage...
+  [OK] Defender CPU limit set to 25% via Set-MpPreference
+  [09:23:27] Disabling OEM telemetry services...
+  [09:23:27] Increasing SvcHost split threshold...
+  [09:23:27] Already set: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ServiceHostConfiguration\SvcHostSplitThresholdInKB = 67108864
+  [09:23:27] Disabling NTFS last access time updates...
+  [OK] NTFS last access time updates disabled.
+
+  [OK] Performance and Power optimization complete.
+
+--- SECURITY HARDENING ---
+
+  [09:23:27] Ensuring Windows Defender real-time protection is on...
+  [OK] Defender real-time protection ensured via Set-MpPreference
+  [09:23:27] Configuring DNS-over-HTTPS...
+  [09:23:27] Already set: HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\EnableAutoDoh = 2
+  [09:23:27] Disabling USB auto-run...
+  [09:23:27] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer\NoDriveTypeAutoRun = 255
+  [09:23:27] Disabling Remote Desktop...
+  [09:23:27] Already set: HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\fDenyTSConnections = 1
+  [09:23:27] Disabling SMBv1...
+  [09:23:27] Already set: HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters\SMB1 = 0
+  [09:23:45] Disabling PowerShell v2...
+  [MODERATE] Disabling PowerShell v2  -  breaks very old PS scripts
+  [09:23:46] PowerShell v2 feature not found or already disabled.
+  [09:23:46] Ensuring UAC is enabled...
+  [09:23:46] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\EnableLUA = 1
+  [09:23:46] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\ConsentPromptBehaviorAdmin = 5
+  [09:23:46] Disabling password reveal in credential UI...
+  [09:23:46] Already set: HKLM:\Software\Policies\Microsoft\Windows\CredUI\DisablePasswordReveal = 1
+
+  [OK] Security hardening complete.
+
+--- NETWORK OPTIMIZATIONS ---
+
+  [09:23:46] Setting DNS servers to Cloudflare (1.1.1.1) and Google (8.8.8.8)...
+  [OK] DNS set on adapter: Ethernet 45
+  [OK] DNS set on adapter: vEthernet (Default Switch)
+  [OK] DNS set on adapter: VMware Network Adapter VMnet1
+  [OK] DNS set on adapter: VMware Network Adapter VMnet8
+  [OK] DNS set on adapter: HotspotShield WinTun
+  [OK] DNS set on adapter: Ethernet
+  [09:23:49] Disabling network throttling...
+  [OK] Registry: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\NetworkThrottlingIndex = -1
+  [09:23:49] Already set: HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\NoLazyMode = 1
+  [09:23:49] Disabling Nagle Algorithm (reduces latency)...
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{02c0020a-4c89-4bab-b26b-c72c5baeeec1}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{06d394ab-c400-44c8-8c35-5385a01c5b29}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{08010469-1c13-4a68-90e8-232d716976ec}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{08839176-3f5d-46fd-aa64-8de82f5a483c}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{0b96331f-4e9a-4fd6-8418-bf77c0e1e8e2}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{0e115890-29ba-4949-9ae8-08fe19388d3d}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{10506acf-1381-4107-8d0e-d012e1f4bbb2}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{174bb18a-77bc-44f0-af7a-224d971e7163}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1acc0784-0006-495e-bd11-746dad1c79bf}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1bbe02ae-3340-4021-8263-56fd7984531d}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1c95579a-fff1-4e4f-bbaf-8a0aea62ba0e}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1dbd9659-98f2-4f6f-b7c7-1fa343afab22}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1e607caf-1f9e-4df5-99e5-e96b8d546c18}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{202e0d76-4c88-48f6-b68d-868c35904fdb}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{23ef59db-91d7-4d51-bbe6-95fe41933f46}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{28be6504-2b85-4171-9177-7cda04948ab8}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{2ad70a2d-b2c6-46dc-b449-1b77d316c4c3}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{2c9f6179-2b0a-4d23-92e6-91d3b3096aee}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{3d573329-5a89-4724-bbe6-ebc2d13d6408}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{41d21705-1df8-4fe8-aaa7-bcbd59436644}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{427c5a75-1a79-453b-9d54-1bef5f5b74be}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{445ecf9e-8cb6-46ae-8fa0-a32e6d89a635}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{4c325800-8f00-469b-bf0c-f5e7b9723aae}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{4cb1de27-725a-4133-8404-02695486b87e}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{4d361a08-0955-4e30-b215-e8fcf39031d9}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{504d4811-6fec-11f1-b0a4-806e6f6e6963}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{51792813-3976-4669-b987-4d5d763b13e6}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{52124635-d320-4e80-b097-987f4770ee2a}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{53a03874-cfe1-45aa-8f6c-e20fb3826dbf}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{54424c06-4222-485a-869f-93614d0f015d}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{5588b756-de05-4d40-87af-722dc1cd1a17}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{5709542e-5b8e-43f3-b726-258dee49738a}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{5e72c8a7-9569-43e1-85ef-372014af48aa}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{64542d9d-9804-474e-9613-9347a2930997}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{68eeb2ec-09c6-4337-8aad-09e2d83fbe0e}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{694fb452-2ffa-4888-8f75-e40e2fb1afe6}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6c05aaa3-0bf8-4987-8fac-fe030927989d}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6cb620c5-db43-4959-b424-6995592caa5f}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6e8ec43f-ac31-471a-b971-8a51613c072f}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6ec9d8d2-5104-4f16-8495-97e37fe0060a}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{71d332f6-052f-4572-af55-a48e2583b689}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{72cb6741-3620-4f1f-b0dd-ffb49d537daf}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{758768e3-2936-4873-849c-97e2ec2424fc}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{767bbc3c-63fe-42f4-a1c3-2e357adc204f}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{77f85781-a4fa-49b4-b608-e50c8ce8f796}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{7840a501-1d9f-4641-82b9-83f26414b6f0}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{79765a76-9659-41fe-bae1-3cdbf5046dd4}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{7ced6294-497b-4885-86ae-15e4e2541a62}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{7eb201a7-aff6-4dc0-8141-a854f0f76730}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{80336bef-24f9-4090-9d53-942dc42817b9}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8177c072-7615-4274-8d50-b3d10f2dd485}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{82296f8e-118d-43f7-a5f7-4dbb1e22db06}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8381d164-4323-425c-b702-ca5efe42753d}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{84ae30fc-c430-4b4c-b9f1-107cde3ca45f}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8c621d73-6b5e-4b56-a8ef-63249c65be83}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8e7bbe8f-3617-4ae9-acbc-6b7f4d55880f}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8ea70597-e51a-4276-b9e9-0c2a2577dcb6}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8eb9d613-3bb9-4384-a4b3-b28624a699f3}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8f1031d4-fed4-4f4c-b759-75c4739461d4}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{9097ecf9-f81a-4d8a-96e4-ac8fe83aec15}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{925e7122-c61c-4b4d-9c6d-d43afa6c0c2b}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{938cda7e-ede4-4871-bd6b-433a0f9cb8aa}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{94a68b30-4f3e-4c4a-9af6-7a695d375e76}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{9610abee-5128-4546-832c-54387d49c6e6}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{9bf1e542-8feb-4366-9459-83bb9812fe5c}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a1c6d532-d559-4a01-9fce-b5499ac66226}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a1fbcc08-3840-4f01-bf07-75a1df7fd30d}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a33b2696-de63-4ee9-8971-d6aab1d51915}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a5680d30-13fd-418b-9a7b-4c5102979017}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a56a1e8a-dcf8-4937-ab50-6a4a64cbfbd7}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a5fa28a5-f5a2-4367-9608-61d27a9ed104}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a65afe3e-53ee-4cdc-bfb0-207cbd3b9c06}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a7d890ec-de28-4718-9199-b1dea331857c}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{aab48602-e634-4918-8cfb-0ba9eb7b686b}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{ad333940-0c9d-4fd3-b16e-f86b1fbd4a10}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{adccc99d-4388-49e9-b084-d559e16c58ab}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{adddd8c8-722e-4893-bd33-bfe1d7505ba2}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b05fa030-8a99-4aaa-8005-bf4c9871d336}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b214e92f-01fd-4bbe-9e40-ecd7c774efc6}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b34089f4-b3ff-4b80-9fc3-664b407d740f}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b457f091-c16e-470d-a713-ee7315763495}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b6b7b99e-8f1e-40cb-b21a-5c3a7b94f0b1}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{bbf83f83-19df-4f19-83f5-2a9c29d6bfa7}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{c69638a3-831d-4c1e-8691-9ff55e682b92}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{d15cbefc-bb7c-442f-839c-94e84e25f613}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{d21f242c-2fd4-4f10-881d-4c4ec52f21fb}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{d7c7ef29-ca80-4ead-8889-7b5db7769042}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{da1da831-25b4-4eb4-855e-e8576e41fa71}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{dbd26169-28c3-4171-9a7d-010829704912}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{dbf5352a-e8ee-4d58-ada1-3e0d226b7ee4}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{dd0ed531-82af-4975-9c53-26af2eaa93d0}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{ed1cd86f-ba1a-4add-a56a-79878310e73b}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{ee258b6e-0912-4388-9386-96fac67af5ca}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f3087b1a-4b1d-4f3d-8db9-a74dba63c448}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f376724b-b83d-4879-89f6-8dc20c0c7e7b}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f3cefc8c-e003-4ac9-8169-50514b130d85}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f97a7847-f1a4-4e61-a5e4-e1483bd0c032}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fa680e11-bc68-4a14-98a3-37aa851fa8a5}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fb49367a-78c5-481d-b74e-48c78ccbbca4}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fc01fcd5-2b9d-2fd8-78d8-cb78b313e2b2}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fe03be53-bc93-45e6-afc3-9dda1f326352}\TcpAckFrequency = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{02c0020a-4c89-4bab-b26b-c72c5baeeec1}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{06d394ab-c400-44c8-8c35-5385a01c5b29}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{08010469-1c13-4a68-90e8-232d716976ec}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{08839176-3f5d-46fd-aa64-8de82f5a483c}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{0b96331f-4e9a-4fd6-8418-bf77c0e1e8e2}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{0e115890-29ba-4949-9ae8-08fe19388d3d}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{10506acf-1381-4107-8d0e-d012e1f4bbb2}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{174bb18a-77bc-44f0-af7a-224d971e7163}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1acc0784-0006-495e-bd11-746dad1c79bf}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1bbe02ae-3340-4021-8263-56fd7984531d}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1c95579a-fff1-4e4f-bbaf-8a0aea62ba0e}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1dbd9659-98f2-4f6f-b7c7-1fa343afab22}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{1e607caf-1f9e-4df5-99e5-e96b8d546c18}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{202e0d76-4c88-48f6-b68d-868c35904fdb}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{23ef59db-91d7-4d51-bbe6-95fe41933f46}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{28be6504-2b85-4171-9177-7cda04948ab8}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{2ad70a2d-b2c6-46dc-b449-1b77d316c4c3}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{2c9f6179-2b0a-4d23-92e6-91d3b3096aee}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{3d573329-5a89-4724-bbe6-ebc2d13d6408}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{41d21705-1df8-4fe8-aaa7-bcbd59436644}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{427c5a75-1a79-453b-9d54-1bef5f5b74be}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{445ecf9e-8cb6-46ae-8fa0-a32e6d89a635}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{4c325800-8f00-469b-bf0c-f5e7b9723aae}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{4cb1de27-725a-4133-8404-02695486b87e}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{4d361a08-0955-4e30-b215-e8fcf39031d9}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{504d4811-6fec-11f1-b0a4-806e6f6e6963}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{51792813-3976-4669-b987-4d5d763b13e6}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{52124635-d320-4e80-b097-987f4770ee2a}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{53a03874-cfe1-45aa-8f6c-e20fb3826dbf}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{54424c06-4222-485a-869f-93614d0f015d}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{5588b756-de05-4d40-87af-722dc1cd1a17}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{5709542e-5b8e-43f3-b726-258dee49738a}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{5e72c8a7-9569-43e1-85ef-372014af48aa}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{64542d9d-9804-474e-9613-9347a2930997}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{68eeb2ec-09c6-4337-8aad-09e2d83fbe0e}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{694fb452-2ffa-4888-8f75-e40e2fb1afe6}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6c05aaa3-0bf8-4987-8fac-fe030927989d}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6cb620c5-db43-4959-b424-6995592caa5f}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6e8ec43f-ac31-471a-b971-8a51613c072f}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{6ec9d8d2-5104-4f16-8495-97e37fe0060a}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{71d332f6-052f-4572-af55-a48e2583b689}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{72cb6741-3620-4f1f-b0dd-ffb49d537daf}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{758768e3-2936-4873-849c-97e2ec2424fc}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{767bbc3c-63fe-42f4-a1c3-2e357adc204f}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{77f85781-a4fa-49b4-b608-e50c8ce8f796}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{7840a501-1d9f-4641-82b9-83f26414b6f0}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{79765a76-9659-41fe-bae1-3cdbf5046dd4}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{7ced6294-497b-4885-86ae-15e4e2541a62}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{7eb201a7-aff6-4dc0-8141-a854f0f76730}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{80336bef-24f9-4090-9d53-942dc42817b9}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8177c072-7615-4274-8d50-b3d10f2dd485}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{82296f8e-118d-43f7-a5f7-4dbb1e22db06}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8381d164-4323-425c-b702-ca5efe42753d}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{84ae30fc-c430-4b4c-b9f1-107cde3ca45f}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8c621d73-6b5e-4b56-a8ef-63249c65be83}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8e7bbe8f-3617-4ae9-acbc-6b7f4d55880f}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8ea70597-e51a-4276-b9e9-0c2a2577dcb6}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8eb9d613-3bb9-4384-a4b3-b28624a699f3}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{8f1031d4-fed4-4f4c-b759-75c4739461d4}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{9097ecf9-f81a-4d8a-96e4-ac8fe83aec15}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{925e7122-c61c-4b4d-9c6d-d43afa6c0c2b}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{938cda7e-ede4-4871-bd6b-433a0f9cb8aa}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{94a68b30-4f3e-4c4a-9af6-7a695d375e76}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{9610abee-5128-4546-832c-54387d49c6e6}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{9bf1e542-8feb-4366-9459-83bb9812fe5c}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a1c6d532-d559-4a01-9fce-b5499ac66226}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a1fbcc08-3840-4f01-bf07-75a1df7fd30d}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a33b2696-de63-4ee9-8971-d6aab1d51915}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a5680d30-13fd-418b-9a7b-4c5102979017}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a56a1e8a-dcf8-4937-ab50-6a4a64cbfbd7}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a5fa28a5-f5a2-4367-9608-61d27a9ed104}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a65afe3e-53ee-4cdc-bfb0-207cbd3b9c06}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{a7d890ec-de28-4718-9199-b1dea331857c}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{aab48602-e634-4918-8cfb-0ba9eb7b686b}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{ad333940-0c9d-4fd3-b16e-f86b1fbd4a10}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{adccc99d-4388-49e9-b084-d559e16c58ab}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{adddd8c8-722e-4893-bd33-bfe1d7505ba2}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b05fa030-8a99-4aaa-8005-bf4c9871d336}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b214e92f-01fd-4bbe-9e40-ecd7c774efc6}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b34089f4-b3ff-4b80-9fc3-664b407d740f}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b457f091-c16e-470d-a713-ee7315763495}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{b6b7b99e-8f1e-40cb-b21a-5c3a7b94f0b1}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{bbf83f83-19df-4f19-83f5-2a9c29d6bfa7}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{c69638a3-831d-4c1e-8691-9ff55e682b92}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{d15cbefc-bb7c-442f-839c-94e84e25f613}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{d21f242c-2fd4-4f10-881d-4c4ec52f21fb}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{d7c7ef29-ca80-4ead-8889-7b5db7769042}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{da1da831-25b4-4eb4-855e-e8576e41fa71}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{dbd26169-28c3-4171-9a7d-010829704912}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{dbf5352a-e8ee-4d58-ada1-3e0d226b7ee4}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{dd0ed531-82af-4975-9c53-26af2eaa93d0}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{ed1cd86f-ba1a-4add-a56a-79878310e73b}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{ee258b6e-0912-4388-9386-96fac67af5ca}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f3087b1a-4b1d-4f3d-8db9-a74dba63c448}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f376724b-b83d-4879-89f6-8dc20c0c7e7b}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f3cefc8c-e003-4ac9-8169-50514b130d85}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{f97a7847-f1a4-4e61-a5e4-e1483bd0c032}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fa680e11-bc68-4a14-98a3-37aa851fa8a5}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fb49367a-78c5-481d-b74e-48c78ccbbca4}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fc01fcd5-2b9d-2fd8-78d8-cb78b313e2b2}\TCPNoDelay = 1
+  [09:23:49] Already set: Microsoft.PowerShell.Core\Registry::HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{fe03be53-bc93-45e6-afc3-9dda1f326352}\TCPNoDelay = 1
+  [09:23:49] Disabling NCSI active probing...
+  [09:23:49] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator\NoActiveProbe = 1
+  [09:23:49] Disabling Teredo...
+  [09:23:49] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\TCPIP\v6Transition\Teredo_State = Disabled
+  [09:23:49] Configuring DNS-over-HTTPS with Cloudflare...
+
+
+  [OK] DNS set to Cloudflare (1.1.1.1, 1.0.0.1) on Ethernet.
+  [09:23:52] Already set: HKLM:\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\EnableAutoDoh = 2
+  [09:23:52] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient\EnableDOH = 1
+  [09:23:52] Hardening hosts file against telemetry domains...
+  [09:23:52] All telemetry domains already in hosts file.
+  [09:23:52] Verifying DNS resolution after hosts file modification...
+  [OK] DNS resolution OK: microsoft.com resolves correctly.
+
+  [OK] Network optimizations complete.
+
+  [09:23:52] Configuring Windows Update behavior...
+  [09:23:52] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\AUOptions = 4
+  [09:23:52] Disabling automatic reboot after updates...
+  [09:23:52] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU\NoAutoRebootWithLoggedOnUsers = 1
+  [09:23:52] Disabling Delivery Optimization...
+  [09:23:52] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeliveryOptimization\DODownloadMode = 0
+  [09:23:52] Excluding drivers from quality updates...
+  [09:23:52] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\ExcludeWUDriversInQualityUpdate = 1
+  [09:23:52] Setting active hours to 09:00 - 21:00...
+  [09:23:52] Already set: HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UFH\ActiveHoursStart = 9
+  [09:23:52] Already set: HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UFH\ActiveHoursEnd = 21
+  [09:23:52] Preventing device companion app auto-install...
+  [09:23:52] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\DoNotConnectToWindowsUpdateInternetLocations = 0
+  [09:23:52] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DriverSearching\SearchOrderConfig = 0
+
+  [OK] Windows Update configuration complete.
+
+  [09:23:52] Configuring Disk Cleanup options...
+  [09:23:52] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\ActiveSetupTemp\StateFlags0001 = 2
+  [09:23:52] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\OldFiles\StateFlags0001 = 2
+  [09:23:52] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches\ServicePackCleanup\StateFlags0001 = 2
+  [09:23:52] Running Disk Cleanup...
+  [OK] Disk Cleanup completed.
+  [09:24:14] Cleaning temp folders...
+  [09:24:14] Disabling Storage Sense...
+  [09:24:14] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\StorageSense\AllowStorageSenseGlobal = 0
+
+  [OK] Disk cleanup and maintenance complete.
+
+  [OK] Using config-driven software list (4 apps).
+  [OK] Winget found.
+
+  Apps to install:
+    1. Mozilla Firefox (Mozilla.Firefox)
+    2. Brave Browser (Brave.Brave)
+    3. Bitwarden (Bitwarden.Bitwarden)
+    4. Signal (OpenWhisperSystems.Signal)
+
+  [09:24:18] Installing Mozilla Firefox...
+  [WARN] Exit code -1978335230 for Mozilla Firefox
+  [09:24:19] Installing Brave Browser...
+  [WARN] Exit code -1978335230 for Brave Browser
+  [09:24:20] Installing Bitwarden...
+  [WARN] Exit code -1978335230 for Bitwarden
+  [09:24:20] Installing Signal...
+  [WARN] Exit code -1978335230 for Signal
+
+  [OK] Software install complete. Installed: 0 | Skipped: 0 | Issues: 4
+
+  [Step 1/3] Office 365 ProPlus (x64) Installation
+
+  [09:24:21] Office 365 ProPlus detected. Skipping download.
+
+
+  [09:24:21] Office activation skipped (not selected in config).
+
+  [Bonus] Disabling Office telemetry...
+
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\sendcustomerdata = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Uploaddocs = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Feedback\Enabled = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Feedback\IncludeScreenshot = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\ptws\ptws = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Internet\UseOnlineContent = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\SignIn\SignInOptions = 3
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy\ContentServicesEnabled = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy\DownloadContent = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy\EnableInsights = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy\EnableUserInputTelemetry = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Common\Privacy\EnablePersonalization = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Excel\Options\Voice = 0
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\FirstRun\BootedRTM = 1
+  [09:24:21] Already set: HKCU:\SOFTWARE\Microsoft\Office\16.0\Outlook\Options\Calendar\EnableOnlineCalendar = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\sendcustomerdata = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Uploaddocs = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Office\16.0\Common\Privacy\ContentServicesEnabled = 0
+  [OK] Office telemetry disabled (18 keys).
+
+  [OK] Office section complete.
+
+
+  [09:24:21] Applying Edge security & privacy policies...
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\MetricsReportingEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\SendSiteInfoToImproveServices = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\PersonalizationReportingEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\SearchSuggestEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\ShowRecommendationsEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\EdgeShoppingAssistantEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\DiagnosticData = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\TrackingPrevention = 3
+  [MODERATE] Blocks third-party cookies in Edge
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\BlockThirdPartyCookies = 1
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\SendSiteSettingsDoNotTrack = 1
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\HttpsOnlyMode = 2
+  [MODERATE] Prevents WebRTC local IP leak in Edge
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebRtcLocalhostIpHandling = 1
+  [MODERATE] Disables Edge password saving
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\PasswordManagerEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\AutofillCreditCardEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\AutofillAddressEnabled = 0
+  [MODERATE] Disables Edge browser sign-in
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\BrowserSignin = 0
+  [MODERATE] Disables Edge sync
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\SyncDisabled = 1
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\SafeBrowsingLevel = 2
+  [MODERATE] Blocks insecure/mixed content in Edge
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\BlockInsecurePrivateNetworkRequests = 1
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\EdgeShoppingAssistantEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\CollectionsEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\HubsSidebarEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\CopilotPageContext = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\CopilotCDPPageContext = 0
+  [MODERATE] Disables Edge autofill
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\AutofillCreditCardEnabled = 0
+  [MODERATE] Disables Edge address autofill
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\AutofillAddressEnabled = 0
+  [MODERATE] Disables Edge password saving
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\PasswordManagerEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\StartupBoostEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main\DisallowFirstRun = 1
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\DefaultBrowserSettingEnabled = 0
+  [09:24:21] Already set: HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader\AllowTabPreloading = 0
+  [09:24:22] Already set: HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main\AllowPrelaunch = 0
+  [09:24:22] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Edge\UserFeedbackAllowed = 0
+
+  [OK] Edge security & privacy hardening complete.
+
+  [09:24:22] Disabling OneDrive...
+  [09:24:22] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\OneDrive\DisableFileSyncNGSC = 1
+  [09:24:22] Hiding OneDrive from File Explorer...
+  [09:24:22] Already set: HKCR:\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}\System.IsPinnedToNameSpaceTree = 0
+  [09:24:22] Already set: HKCR:\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}\System.IsPinnedToNameSpaceTree = 0
+  [09:24:22] Removing OneDrive from startup...
+
+  [OK] OneDrive management complete.
+
+  [09:24:22] Disabling GameDVR...
+  [09:24:22] Already set: HKLM:\SOFTWARE\Policies\Microsoft\Windows\GameDVR\AllowgameDVR = 0
+  [09:24:22] Disabling Game Bar capture...
+  [09:24:22] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR\AppCaptureEnabled = 0
+  [09:24:22] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR\AppCaptureEnabled = 0
+  [09:24:22] Already set: HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR\HistoricalCaptureEnabled = 0
+  [09:24:22] Already set: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR\HistoricalCaptureEnabled = 0
+  [09:24:22] Disabling GameDVR_Enabled...
+  [09:24:22] Already set: HKCU:\System\GameConfigStore\GameDVR_Enabled = 0
+  [09:24:22] Already set: HKLM:\System\GameConfigStore\GameDVR_Enabled = 0
+
+  [OK] Gaming / Xbox / DVR disable complete.
+
+  [09:24:27] Already disabled: \Microsoft\Windows\Application Experience\StartupAppTask
+  [09:24:28] Already disabled: \Microsoft\Windows\Customer Experience Improvement Program\Consolidator
+  [09:24:30] Already disabled: \Microsoft\Windows\Customer Experience Improvement Program\UsbCeip
+  [09:24:32] Already disabled: \Microsoft\Windows\Device Information\Device
+  [09:24:35] Already disabled: \Microsoft\Windows\Windows Error Reporting\QueueReporting
+  [09:24:39] Already disabled: \Microsoft\Windows\Maps\MapsUpdateTask
+  [09:24:41] Already disabled: \Microsoft\Windows\Maps\MapsToastTask
+  [09:24:42] Already disabled: \Microsoft\Windows\Maintenance\WinSAT
+  [09:24:44] Already disabled: \Microsoft\Windows\Shell\FamilySafetyMonitor
+  [09:24:48] Already disabled: \Microsoft\Windows\Power Efficiency Diagnostics\AnalyzeSystem
+  [09:24:49] Already disabled: \Microsoft\Windows\PI\Sqm-Tasks
+  [09:24:52] Already disabled: \Microsoft\XblGameSave\XblGameSaveTask
+  [09:24:57] Already disabled: \Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector
+  [09:24:58] Already disabled: \Microsoft\Windows\DiskFootprint\Diagnostics
+  [09:25:00] Already disabled: \Microsoft\Windows\License Manager\TempSignedLicenseExchange
+  [09:25:01] Already disabled: \Microsoft\Windows\Subscription\EnableLicenseAcquisition
+  [09:25:03] Already disabled: \Microsoft\Windows\Subscription\LicenseAcquisition
+
+  [OK] Scheduled tasks cleanup complete. Processed 35 tasks.
+
+  [09:25:12] Configuring Google Chrome extensions...
+  [09:25:12] Chrome: uBlock Origin already in forcelist.
+  [09:25:12] Chrome: AdGuard AdBlocker already in forcelist.
+  [09:25:12] Chrome: SponsorBlock already in forcelist.
+  [09:25:12] Chrome: YouTube NonStop already in forcelist.
+  [09:25:12] Chrome: Privacy Badger already in forcelist.
+  [09:25:12] Chrome: Popup Blocker already in forcelist.
+  [09:25:12] Chrome: Cookie AutoDelete already in forcelist.
+  [09:25:12] Chrome: HTTPS Everywhere already in forcelist.
+  [09:25:12] Chrome: Decentraleyes already in forcelist.
+  [09:25:12] Configuring Microsoft Edge extensions...
+  [09:25:12] Edge: uBlock Origin already in forcelist.
+  [09:25:12] Edge: AdGuard AdBlocker already in forcelist.
+  [09:25:12] Edge: SponsorBlock already in forcelist.
+  [09:25:12] Edge: YouTube NonStop already in forcelist.
+  [09:25:12] Edge: Privacy Badger already in forcelist.
+  [09:25:12] Edge: Popup Blocker already in forcelist.
+  [09:25:12] Edge: Cookie AutoDelete already in forcelist.
+  [09:25:12] Edge: HTTPS Everywhere already in forcelist.
+  [09:25:12] Edge: Decentraleyes already in forcelist.
+  [09:25:12] Configuring Brave extensions...
+  [09:25:12] Brave: uBlock Origin already in forcelist.
+  [09:25:12] Brave: AdGuard AdBlocker already in forcelist.
+  [09:25:12] Brave: SponsorBlock already in forcelist.
+  [09:25:12] Brave: YouTube NonStop already in forcelist.
+  [09:25:12] Brave: Privacy Badger already in forcelist.
+  [09:25:12] Brave: Popup Blocker already in forcelist.
+  [09:25:12] Brave: Cookie AutoDelete already in forcelist.
+  [09:25:12] Brave: HTTPS Everywhere already in forcelist.
+  [09:25:12] Brave: Decentraleyes already in forcelist.
+  [09:25:12] Configuring Opera extensions...
+  [09:25:12] Opera not detected. Setting policies (may not apply - Opera has limited policy support).
+  [09:25:12] Opera: uBlock Origin already in forcelist.
+  [09:25:12] Opera: AdGuard AdBlocker already in forcelist.
+  [09:25:12] Opera: SponsorBlock already in forcelist.
+  [09:25:12] Opera: YouTube NonStop already in forcelist.
+  [09:25:12] Opera: Privacy Badger already in forcelist.
+  [09:25:12] Opera: Popup Blocker already in forcelist.
+  [09:25:12] Opera: Cookie AutoDelete already in forcelist.
+  [09:25:12] Opera: HTTPS Everywhere already in forcelist.
+  [09:25:12] Opera: Decentraleyes already in forcelist.
+  [09:25:12] Configuring Firefox extensions via policies...
+  [OK] Firefox: Force-installed uBlock Origin, AdGuard, SponsorBlock, YouTube NonStop, Privacy Badger, Popup Blocker, Cookie AutoDelete, HTTPS Everywhere, Decentraleyes via policies.json
+
+  [Privacy Settings]
+
+  [09:25:13] Applying Chrome privacy policies...
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SendSiteInfoToImproveServices = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SafeBrowsingExtendedReportingEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\UrlKeyedAnonymizedDataCollectionEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\DefaultBrowserSettingEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\WebRtcLocalhostIpHandling = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\RestoreOnStartup = 4
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\AlternateErrorPagesEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\BlockThirdPartyCookies = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SyncDisabled = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\WebRtcUdpPortRange = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\BrowserSignin = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\IncognitoModeAvailability = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SearchSuggestEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\MetricsReportingEnabled = 0
+  [09:25:13] Applying Brave privacy policies...
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\MetricsReportingEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\WebRtcLocalhostIpHandling = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\RestoreOnStartup = 4
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\UrlKeyedAnonymizedDataCollectionEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\SendSiteInfoToImproveServices = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\DefaultBrowserSettingEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\SearchSuggestEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\BraveSyncEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\BrowserSignin = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\SyncDisabled = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\BlockThirdPartyCookies = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\AlternateErrorPagesEnabled = 0
+  [09:25:13] Applying Opera privacy policies...
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Opera\MetricsReportingEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Opera\UrlKeyedAnonymizedDataCollectionEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Opera\SyncDisabled = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Opera\AlternateErrorPagesEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Opera\BlockThirdPartyCookies = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Opera\SearchSuggestEnabled = 0
+  [09:25:13] Applying Firefox privacy policies...
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisableTelemetry = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisableFirefoxStudies = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisablePocket = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisableFormHistory = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\OfferToSaveLogins = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\PasswordManagerEnabled = 0
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\SanitizeOnShutdown = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DontCheckDefaultBrowser = 1
+  [09:25:13] Configuring Firefox strict tracking protection + DoH...
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection\Value = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection\Cryptomining = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection\Fingerprinting = 1
+  [09:25:13] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS\Enabled = 1
+  [09:25:13] Updating Firefox policies.json with privacy settings...
+  [OK] Firefox policies.json updated with all privacy settings.
+
+  [OK] Browser extensions and privacy configuration complete.
+
+  NOTE: Extensions install on next browser launch.
+  NOTE: Policies apply even to browsers installed AFTER running this.
+
+
+  [09:25:13] Configuring Google Chrome extensions...
+  [09:25:13] Chrome: uBlock Origin already in forcelist.
+  [09:25:13] Chrome: AdGuard AdBlocker already in forcelist.
+  [09:25:13] Chrome: SponsorBlock already in forcelist.
+  [09:25:13] Chrome: YouTube NonStop already in forcelist.
+  [09:25:13] Chrome: Privacy Badger already in forcelist.
+  [09:25:13] Chrome: Popup Blocker already in forcelist.
+  [09:25:13] Chrome: Cookie AutoDelete already in forcelist.
+  [09:25:13] Chrome: HTTPS Everywhere already in forcelist.
+  [09:25:14] Chrome: Decentraleyes already in forcelist.
+  [09:25:14] Configuring Microsoft Edge extensions...
+  [09:25:14] Edge: uBlock Origin already in forcelist.
+  [09:25:14] Edge: AdGuard AdBlocker already in forcelist.
+  [09:25:14] Edge: SponsorBlock already in forcelist.
+  [09:25:14] Edge: YouTube NonStop already in forcelist.
+  [09:25:14] Edge: Privacy Badger already in forcelist.
+  [09:25:14] Edge: Popup Blocker already in forcelist.
+  [09:25:14] Edge: Cookie AutoDelete already in forcelist.
+  [09:25:14] Edge: HTTPS Everywhere already in forcelist.
+  [09:25:14] Edge: Decentraleyes already in forcelist.
+  [09:25:14] Configuring Brave extensions...
+  [09:25:14] Brave: uBlock Origin already in forcelist.
+  [09:25:14] Brave: AdGuard AdBlocker already in forcelist.
+  [09:25:14] Brave: SponsorBlock already in forcelist.
+  [09:25:14] Brave: YouTube NonStop already in forcelist.
+  [09:25:14] Brave: Privacy Badger already in forcelist.
+  [09:25:14] Brave: Popup Blocker already in forcelist.
+  [09:25:14] Brave: Cookie AutoDelete already in forcelist.
+  [09:25:14] Brave: HTTPS Everywhere already in forcelist.
+  [09:25:14] Brave: Decentraleyes already in forcelist.
+  [09:25:14] Configuring Opera extensions...
+  [09:25:14] Opera not detected. Setting policies (may not apply - Opera has limited policy support).
+  [09:25:14] Opera: uBlock Origin already in forcelist.
+  [09:25:14] Opera: AdGuard AdBlocker already in forcelist.
+  [09:25:14] Opera: SponsorBlock already in forcelist.
+  [09:25:14] Opera: YouTube NonStop already in forcelist.
+  [09:25:14] Opera: Privacy Badger already in forcelist.
+  [09:25:14] Opera: Popup Blocker already in forcelist.
+  [09:25:14] Opera: Cookie AutoDelete already in forcelist.
+  [09:25:14] Opera: HTTPS Everywhere already in forcelist.
+  [09:25:14] Opera: Decentraleyes already in forcelist.
+  [09:25:14] Configuring Firefox extensions via policies...
+  [OK] Firefox: Force-installed uBlock Origin, AdGuard, SponsorBlock, YouTube NonStop, Privacy Badger, Popup Blocker, Cookie AutoDelete, HTTPS Everywhere, Decentraleyes via policies.json
+
+  [Privacy Settings]
+
+  [09:25:14] Applying Chrome privacy policies...
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SendSiteInfoToImproveServices = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SafeBrowsingExtendedReportingEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\UrlKeyedAnonymizedDataCollectionEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\DefaultBrowserSettingEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\WebRtcLocalhostIpHandling = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\RestoreOnStartup = 4
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\AlternateErrorPagesEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\BlockThirdPartyCookies = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SyncDisabled = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\WebRtcUdpPortRange = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\BrowserSignin = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\IncognitoModeAvailability = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\SearchSuggestEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Google\Chrome\MetricsReportingEnabled = 0
+  [09:25:14] Applying Brave privacy policies...
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\MetricsReportingEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\WebRtcLocalhostIpHandling = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\RestoreOnStartup = 4
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\UrlKeyedAnonymizedDataCollectionEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\SendSiteInfoToImproveServices = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\DefaultBrowserSettingEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\SearchSuggestEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\BraveSyncEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\BrowserSignin = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\SyncDisabled = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\BlockThirdPartyCookies = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\BraveSoftware\Brave\AlternateErrorPagesEnabled = 0
+  [09:25:14] Applying Opera privacy policies...
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Opera\MetricsReportingEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Opera\UrlKeyedAnonymizedDataCollectionEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Opera\SyncDisabled = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Opera\AlternateErrorPagesEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Opera\BlockThirdPartyCookies = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Opera\SearchSuggestEnabled = 0
+  [09:25:14] Applying Firefox privacy policies...
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisableTelemetry = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisableFirefoxStudies = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisablePocket = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DisableFormHistory = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\OfferToSaveLogins = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\PasswordManagerEnabled = 0
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\SanitizeOnShutdown = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DontCheckDefaultBrowser = 1
+  [09:25:14] Configuring Firefox strict tracking protection + DoH...
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection\Value = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection\Cryptomining = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection\Fingerprinting = 1
+  [09:25:14] Already set: HKLM:\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS\Enabled = 1
+  [09:25:14] Updating Firefox policies.json with privacy settings...
+  [OK] Firefox policies.json updated with all privacy settings.
+
+  [OK] Browser extensions and privacy configuration complete.
+
+  NOTE: Extensions install on next browser launch.
+  NOTE: Policies apply even to browsers installed AFTER running this.
+
+
+  [09:25:14] Disabling Edge first-run (additional)...
+  [09:25:14] Already set: HKCU:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\Main\DisableFirstRunSettings = 1
+  [09:25:14] Hiding Windows Insider page...
+  [09:25:14] Already set: HKLM:\SOFTWARE\Microsoft\WindowsSelfHost\UI\Visibility\HideInsiderPage = 1
+  [09:25:14] Setting sound scheme to No Sounds...
+  [09:25:14] Already set: HKCU:\AppEvents\Schemes\(Default) = .None
+  [09:25:14] Setting NumLock OFF at startup...
+  [OK] Registry: HKU:\.DEFAULT\Control Panel\Keyboard\InitialKeyboardIndicators = 0
+  [09:25:14] Disabling mouse acceleration...
+  [09:25:14] Already set: HKCU:\Control Panel\Mouse\MouseSpeed = 1
+  [09:25:14] Already set: HKCU:\Control Panel\Mouse\MouseThreshold1 = 0
+  [09:25:14] Already set: HKCU:\Control Panel\Mouse\MouseThreshold2 = 0
+  [09:25:14] Disabling Sticky Keys...
+  [09:25:14] Already set: HKCU:\Control Panel\Accessibility\StickyKeys\Flags = 506
+  [09:25:14] Restarting File Explorer to apply changes...
+  [OK] File Explorer restarted.
+
+  [OK] Final touches complete.
+
+  [09:25:17] Checking feature: Internet Explorer (Internet-Explorer-Optional-amd64)...
+  [WARN] Feature not found: Internet-Explorer-Optional-amd64
+  [09:25:18] Checking feature: Media Playback (MediaPlayback)...
+  [09:25:20] Already disabled: Media Playback
+  [09:25:20] Checking feature: Windows Media Player (WindowsMediaPlayer)...
+  [09:25:21] Already disabled: Windows Media Player
+  [MODERATE] Removes PowerShell v2 engine  -  legacy only, breaks very old scripts
+  [09:25:21] Checking feature: PowerShell V2 (MicrosoftWindowsPowerShellV2)...
+  [WARN] Feature not found: MicrosoftWindowsPowerShellV2
+  [MODERATE] Removes PowerShell v2 root  -  legacy only
+  [09:25:21] Checking feature: PowerShell V2 Root (MicrosoftWindowsPowerShellV2Root)...
+  [WARN] Feature not found: MicrosoftWindowsPowerShellV2Root
+  [09:25:21] Checking feature: Fax (Fax)...
+  [WARN] Feature not found: Fax
+  SKIPPED (risky): Removes Windows Hello Face  -  WARNING: breaks facial recognition login  -  use -AllowRisky or enable in menu
+  [09:25:22] Checking feature: Math Recognizer (Math-Recognizer)...
+  [WARN] Feature not found: Math-Recognizer
+  [09:25:22] Checking feature: Paint 3D (Paint3D)...
+  [WARN] Feature not found: Paint3D
+  [09:25:22] Checking feature: XPS Printer Driver (Xps-Foundation-XpsDriver)...
+  [WARN] Feature not found: Xps-Foundation-XpsDriver
+  [09:25:23] Checking feature: Internet Printing (InternetPrintPrintOverInternet)...
+  [WARN] Feature not found: InternetPrintPrintOverInternet
+  [09:25:23] Checking feature: Work Folders Client (WorkFolders-Client)...
+  [09:25:23] Already disabled: Work Folders Client
+  SKIPPED (risky): Removes WCF Services  -  WARNING: some .NET apps require this  -  use -AllowRisky or enable in menu
+  [MODERATE] Removes SMB Direct  -  needed only for RDMA network storage
+  [09:25:25] Checking feature: SMB Direct (SmbDirect)...
+  [09:25:25] Already disabled: SMB Direct
+
+  [OK] Windows Features removal complete. Disabled: 0 | Already off: 4 | Not found: 8
+
+  [09:25:25] No activation requested. Skipping.
+  [09:25:25] Taking 'after' snapshot of services and tasks...
+  [OK] After snapshots saved to C:\Temp\PostInstall_RegBackup
+  Before/after snapshots saved to C:\Temp\PostInstall_RegBackup
+
+  SECTION SUMMARY:
+   + ----------------------------------------------------------------------
+  Privacy              | Changed:   0 | Skipped:  93 | Failed: 0 | 00:01
+  Debloat              | Changed:   0 | Skipped:   0 | Failed: 0 | 00:22
+  ExplorerUI           | Changed:   2 | Skipped:  33 | Failed: 0 | 00:33
+  ServiceStartup       | Changed:   0 | Skipped:   1 | Failed: 0 | 00:00
+  Performance          | Changed:   0 | Skipped:  16 | Failed: 0 | 00:04
+  Security             | Changed:   0 | Skipped:   7 | Failed: 0 | 00:18
+  Network              | Changed:   1 | Skipped: 207 | Failed: 0 | 00:06
+  WindowsUpdate        | Changed:   0 | Skipped:   8 | Failed: 0 | 00:00
+  DiskCleanup          | Changed:   0 | Skipped:   4 | Failed: 0 | 00:21
+  Winget               | Changed:   0 | Skipped:   0 | Failed: 0 | 00:06
+  OfficeActivation     | Changed:   0 | Skipped:  18 | Failed: 0 | 00:00
+  EdgeHardening        | Changed:   0 | Skipped:  33 | Failed: 0 | 00:00
+  OneDrive             | Changed:   0 | Skipped:   3 | Failed: 0 | 00:00
+  Gaming               | Changed:   0 | Skipped:   7 | Failed: 0 | 00:00
+  ScheduledTasks       | Changed:   0 | Skipped:  17 | Failed: 0 | 00:49
+  BrowserHardening     | Changed:   0 | Skipped:  44 | Failed: 0 | 00:01
+  BrowserExtensions    | Changed:   0 | Skipped:  44 | Failed: 0 | 00:01
+  FinalTouches         | Changed:   1 | Skipped:   7 | Failed: 0 | 00:02
+  WindowsFeatures      | Changed:   0 | Skipped:   4 | Failed: 0 | 00:08
+  Activation           | Changed:   0 | Skipped:   0 | Failed: 0 | 00:00
+   + ----------------------------------------------------------------------
+  TOTAL                | Changed:   4 | Skipped: 546 | Failed: 0
+
+
+================================================================
+  OPTIMIZATION COMPLETE
+  Duration: 00:03:02
+  Sections run: 20
+  Changes: 4 | Skipped: 546 | Failed: 0
+  Log saved to: C:\Temp\PostInstall_20261027_092206.log
+================================================================
+
+  A RESTART is recommended to apply all changes.
+
+
+  ================================================================
+  UNDO SCRIPT SAVED:
+  C:\Users\Tech Depot\AppData\Local\Temp\WinPostInstall_5cd847fd-0a2e-4a52-87f5-67509357b6f2\WinPostInstall-Undo.ps1
+
+  To undo ALL changes:
+      powershell -ExecutionPolicy Bypass -File "WinPostInstall-Undo.ps1" -Silent
+
+  To undo SELECTED changes (interactive menu):
+      powershell -ExecutionPolicy Bypass -File "WinPostInstall-Undo.ps1"
+  ================================================================

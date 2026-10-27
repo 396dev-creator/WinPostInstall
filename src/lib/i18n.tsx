@@ -53,7 +53,7 @@ export interface TranslationStrings {
 const translations: Record<Locale, TranslationStrings> = {
   en: {
     appTitle: "WinPostInstall",
-    appVersion: "v4.1.6 Optimizer",
+    appVersion: "v4.1.7 Optimizer",
     tabDashboard: "Dashboard",
     tabSoftware: "Software",
     tabProfiles: "Profiles",
@@ -89,7 +89,7 @@ const translations: Record<Locale, TranslationStrings> = {
   },
   ar: {
     appTitle: "وين بوست إنستول",
-    appVersion: "v4.1.6 محسن",
+    appVersion: "v4.1.7 محسن",
     tabDashboard: "لوحة التحكم",
     tabSoftware: "البرمجيات",
     tabProfiles: "الملفات الشخصية",
@@ -125,7 +125,7 @@ const translations: Record<Locale, TranslationStrings> = {
   },
   zh: {
     appTitle: "WinPostInstall",
-    appVersion: "v4.1.6 优化工具",
+    appVersion: "v4.1.7 优化工具",
     tabDashboard: "仪表板",
     tabSoftware: "软件",
     tabProfiles: "配置方案",

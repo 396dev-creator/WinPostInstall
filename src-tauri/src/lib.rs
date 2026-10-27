@@ -58,6 +58,13 @@ fn run_powershell_captured(script: &str) -> Result<std::process::Output, String>
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
         "-NonInteractive",
+        // -OutputFormat Text: when stdout/stderr are redirected (which is
+        // always the case here — cmd.output() captures via anonymous pipes),
+        // PowerShell defaults to serializing non-Output streams (Progress,
+        // Warning, Verbose, Error, Debug) as CLIXML XML on stderr. That XML
+        // is unreadable in the UI and looks like a wall of red errors.
+        // -OutputFormat Text forces plain-text rendering of every stream.
+        "-OutputFormat", "Text",
         "-EncodedCommand",
         &encode_ps_command(&ps_script),
     ]);
@@ -151,6 +158,7 @@ fn resolve_script(app_handle: Option<&tauri::AppHandle>) -> Result<String, Strin
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
             "-NonInteractive",
+            "-OutputFormat", "Text",
             "-Command",
             &format!("Invoke-WebRequest -Uri '{}' -OutFile '{}' -UseBasicParsing", github_url, ps1_path.to_string_lossy()),
         ])
@@ -242,6 +250,12 @@ async fn apply_config(app_handle: tauri::AppHandle, config_json: String, create_
     let encoding_preamble = r#"
 [Console]::InputEncoding  = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+# Suppress Write-Progress records from Checkpoint-Computer below (and from the
+# PS1 script's own cmdlet calls). When stdout/stderr are redirected via pipes,
+# PowerShell serializes progress records as CLIXML XML on stderr — which the UI
+# then displays as a wall of red "errors". This also matches the PS1's own
+# startup setting, so behavior is consistent regardless of entry point.
+$ProgressPreference = 'SilentlyContinue'
 "#;
 
     // Self-elevation check: if not admin, warn (the PS1 script has its own
