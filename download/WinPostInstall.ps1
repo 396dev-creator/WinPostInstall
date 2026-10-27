@@ -38,6 +38,21 @@
     Disclaimer:          Use at your own risk. Review all changes before deploying.
 
     CHANGELOG:
+    v4.1.6 - Reliability fixes for PS 5.1 compatibility and HKCR/HKU registry paths:
+             [Fix] Mounted HKCR: and HKU: PSDrives at script start (not present by default;
+                   only HKLM: and HKCU: exist out of the box). Without these, Set-ItemProperty
+                   falls back to FileSystem provider which has no -Type parameter, causing
+                   "A parameter cannot be found that matches parameter name 'Type'" errors
+                   on OneDrive CLSID writes and NumLock HKU:\.DEFAULT writes.
+             [Fix] Added reg.exe fallback in Set-Registry for HKCR/HKU/HKCC/HKPD paths,
+                   so registry writes succeed even if PSDrive mounting fails.
+             [Fix] Added ConvertFrom-JsonToHashtable helper (PS 5.1-compatible replacement
+                   for `ConvertFrom-Json -AsHashtable` which only exists in PS 6+).
+                   Fixes Firefox policies.json update failures on stock Windows PowerShell.
+             [Fix] Disk Cleanup section now preserves the PostInstall_RegBackup directory
+                   when wiping C:\Temp contents. Previously cleanmgr.exe + the temp wipe
+                   deleted the backup mid-run, causing "after" snapshot CSV writes to fail
+                   with "Could not find a part of the path" errors.
     v4.1.2 - Execution reliability + browser extension expansion:
              [Fix] Self-elevation now works when script runs from memory (irm | iex)
                    - $PSCommandPath is empty in that context; script now re-downloads
@@ -107,7 +122,7 @@ trap {
     exit 1
 }
 
-$ScriptVersion = "4.1.2"
+$ScriptVersion = "4.1.6"
 $LogFile = "$env:SYSTEMDRIVE\Temp\PostInstall_$(Get-Date -Format 'yyyyMMdd_HHmmss').log"
 
 # Undo command tracker (for rollback script generation)
@@ -294,6 +309,26 @@ function Initialize-Script {
         Write-Host "  Press Enter to exit..." -ForegroundColor DarkGray
         try { Read-Host "  " } catch { }
         exit 1
+    }
+
+    # Mount HKCR: and HKU: PSDrives (not mounted by default; only HKLM: and HKCU: exist).
+    # Many sections reference HKCR:\ (HKEY_CLASSES_ROOT) for shell/CLSID entries and
+    # HKU:\ (HKEY_USERS) for the .DEFAULT user hive. Without these PSDrives, calls to
+    # Set-ItemProperty / Get-ItemProperty fall back to the FileSystem provider, which
+    # doesn't support the -Type parameter — causing "A parameter cannot be found that
+    # matches parameter name 'Type'" errors on OneDrive and NumLock registry writes.
+    foreach ($drive in @(
+        @{ Name = 'HKCR'; Root = 'HKEY_CLASSES_ROOT' },
+        @{ Name = 'HKU';  Root = 'HKEY_USERS' }
+    )) {
+        if (-not (Get-PSDrive -Name $drive.Name -ErrorAction SilentlyContinue)) {
+            try {
+                New-PSDrive -Name $drive.Name -PSProvider Registry -Root $drive.Root -Scope Script -ErrorAction Stop | Out-Null
+            } catch {
+                # Non-fatal: if mount fails, registry writes to HKCR:/HKU: will fail individually
+                Write-Warn "Could not mount $($drive.Name): PSDrive: $_"
+            }
+        }
     }
 
     $logDir = "$env:SYSTEMDRIVE\Temp"
@@ -500,6 +535,33 @@ function Get-BootDriveType {
     } catch { }
 
     return $bootType
+}
+
+# Convert JSON string to an ordered hashtable (PS 5.1-compatible replacement for
+# `ConvertFrom-Json -AsHashtable`, which only exists in PowerShell 6+).
+# Windows PowerShell 5.1's ConvertFrom-Json returns PSCustomObject, which doesn't
+# support the indexer syntax `$obj["key"]` used throughout the Firefox policies.json
+# merging logic. This helper recursively converts PSCustomObject → OrderedDictionary.
+function ConvertFrom-JsonToHashtable {
+    param([Parameter(Mandatory=$true)][string]$Json)
+    $obj = $null
+    try { $obj = ConvertFrom-Json -InputObject $Json -ErrorAction Stop } catch { return @{} }
+    if ($null -eq $obj) { return @{} }
+
+    function ConvertToHashtable($item) {
+        if ($item -is [System.Array]) {
+            return @($item | ForEach-Object { ConvertToHashtable $_ })
+        } elseif ($item -is [System.Management.Automation.PSCustomObject]) {
+            $ht = [System.Collections.Specialized.OrderedDictionary]::new()
+            foreach ($prop in $item.PSObject.Properties) {
+                $ht[$prop.Name] = ConvertToHashtable $prop.Value
+            }
+            return $ht
+        } else {
+            return $item
+        }
+    }
+    return ConvertToHashtable $obj
 }
 
 function Write-Step([string]$Message) {
@@ -831,6 +893,7 @@ function Set-Registry {
             # Convert registry path to HKLM/HKCU short form for reg.exe
             $regKey = $Path -replace '^HKLM:\\', 'HKLM\' -replace '^HKCU:\\', 'HKCU\' `
                                 -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM\' -replace '^HKEY_CURRENT_USER\\', 'HKCU\' `
+                                -replace '^HKCR:\\', 'HKCR\' -replace '^HKU:\\', 'HKU\' `
                                 -replace '\\', '\'
             $hexVal = '0x{0:X}' -f [long]$Value
             $regArgs = @('add', $regKey, '/v', $Name, '/t', 'REG_DWORD', '/d', $hexVal, '/f')
@@ -842,9 +905,30 @@ function Set-Registry {
             # QWord values exceeding [long]::MaxValue are extremely rare; fallback to reg.exe
             $regKey = $Path -replace '^HKLM:\\', 'HKLM\' -replace '^HKCU:\\', 'HKCU\' `
                                 -replace '^HKEY_LOCAL_MACHINE\\', 'HKLM\' -replace '^HKEY_CURRENT_USER\\', 'HKCU\' `
+                                -replace '^HKCR:\\', 'HKCR\' -replace '^HKU:\\', 'HKU\' `
                                 -replace '\\', '\'
             $hexVal = '0x{0:X}' -f [long]$Value
             $regArgs = @('add', $regKey, '/v', $Name, '/t', 'REG_QWORD', '/d', $hexVal, '/f')
+            $regResult = & reg.exe @regArgs 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                throw "reg.exe failed: $regResult"
+            }
+        } elseif ($Path -match '^(HKCR|HKU|HKCC|HKPD):\\') {
+            # Defensive fallback: if HKCR:/HKU:/HKCC:/HKPD: PSDrive still isn't available
+            # (mounting failed or running in constrained environment), use reg.exe directly.
+            $regKey = $Path -replace '^HKCR:\\', 'HKCR\' -replace '^HKU:\\', 'HKU\' `
+                                -replace '^HKCC:\\', 'HKCC\' -replace '^HKPD:\\', 'HKPD\' `
+                                -replace '\\', '\'
+            $regType = switch ($Type) {
+                "DWord"        { "REG_DWORD" }
+                "QWord"        { "REG_QWORD" }
+                "String"       { "REG_SZ" }
+                "ExpandString" { "REG_EXPAND_SZ" }
+                "MultiString"  { "REG_MULTI_SZ" }
+                "Binary"       { "REG_BINARY" }
+                default         { "REG_SZ" }
+            }
+            $regArgs = @('add', $regKey, '/v', $Name, '/t', $regType, '/d', "$Value", '/f')
             $regResult = & reg.exe @regArgs 2>&1
             if ($LASTEXITCODE -ne 0) {
                 throw "reg.exe failed: $regResult"
@@ -2276,13 +2360,21 @@ function Invoke-DiskCleanup {
     Start-Process -FilePath "cleanmgr.exe" -ArgumentList "/sagerun:1" -NoNewWindow -Wait -ErrorAction SilentlyContinue
     Write-Success "Disk Cleanup completed."
 
-    # 3. Clean temp folders
+    # 3. Clean temp folders (but PRESERVE the PostInstall_RegBackup directory,
+    #    which is created under C:\Temp\ to hold the before/after snapshots and
+    #    registry hive exports. Without this exclusion, cleanmgr.exe + the temp
+    #    wipe below would delete the backup mid-run, causing the "after" snapshot
+    #    to fail with "Could not find a part of the path" errors.)
     Write-Step "Cleaning temp folders..."
     @($env:TEMP, "$env:LOCALAPPDATA\Temp", "$env:SYSTEMDRIVE\Temp",
       "$env:SystemRoot\Temp",
       "$env:SystemRoot\ServiceProfiles\LocalService\AppData\Local\Temp") | ForEach-Object {
         if (Test-Path $_) {
-            Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $_ -Recurse -Force -ErrorAction SilentlyContinue | Where-Object {
+                # Never delete the registry backup directory itself or anything inside it
+                $itemPath = (Resolve-Path $_.FullName -ErrorAction SilentlyContinue).Path
+                -not $itemPath.StartsWith($script:BackupDir, [System.StringComparison]::OrdinalIgnoreCase)
+            } | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
 
@@ -3307,7 +3399,7 @@ function Invoke-BrowserHardening {
 
         $firefoxPolicy = @{}
         if (Test-Path $policyFile) {
-            try { $firefoxPolicy = Get-Content $policyFile -Raw | ConvertFrom-Json -AsHashtable } catch { $firefoxPolicy = @{} }
+            try { $firefoxPolicy = ConvertFrom-JsonToHashtable -Json (Get-Content $policyFile -Raw) } catch { $firefoxPolicy = @{} }
         }
 
         if (-not $firefoxPolicy.ContainsKey("policies")) { $firefoxPolicy["policies"] = @{} }
@@ -3473,7 +3565,7 @@ function Invoke-BrowserHardening {
         Write-Step "Updating Firefox policies.json with privacy settings..."
         try {
             $policyFile = Join-Path $firefoxRoot "distribution\policies.json"
-            $ffPolicy = Get-Content $policyFile -Raw | ConvertFrom-Json -AsHashtable
+            $ffPolicy = ConvertFrom-JsonToHashtable -Json (Get-Content $policyFile -Raw)
             $fp = $ffPolicy["policies"]
             $fp["DisableTelemetry"]      = $true
             $fp["DisableFirefoxStudies"] = $true
