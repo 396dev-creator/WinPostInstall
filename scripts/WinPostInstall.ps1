@@ -537,11 +537,13 @@ function Get-BootDriveType {
     return $bootType
 }
 
-# Convert JSON string to an ordered hashtable (PS 5.1-compatible replacement for
+# Convert JSON string to a hashtable (PS 5.1-compatible replacement for
 # `ConvertFrom-Json -AsHashtable`, which only exists in PowerShell 6+).
 # Windows PowerShell 5.1's ConvertFrom-Json returns PSCustomObject, which doesn't
 # support the indexer syntax `$obj["key"]` used throughout the Firefox policies.json
-# merging logic. This helper recursively converts PSCustomObject → OrderedDictionary.
+# merging logic. This helper recursively converts PSCustomObject → Hashtable.
+# Uses Hashtable (not OrderedDictionary) because the codebase calls .ContainsKey(),
+# which only exists on Hashtable.
 function ConvertFrom-JsonToHashtable {
     param([Parameter(Mandatory=$true)][string]$Json)
     $obj = $null
@@ -552,7 +554,7 @@ function ConvertFrom-JsonToHashtable {
         if ($item -is [System.Array]) {
             return @($item | ForEach-Object { ConvertToHashtable $_ })
         } elseif ($item -is [System.Management.Automation.PSCustomObject]) {
-            $ht = [System.Collections.Specialized.OrderedDictionary]::new()
+            $ht = @{}
             foreach ($prop in $item.PSObject.Properties) {
                 $ht[$prop.Name] = ConvertToHashtable $prop.Value
             }
@@ -3566,6 +3568,7 @@ function Invoke-BrowserHardening {
         try {
             $policyFile = Join-Path $firefoxRoot "distribution\policies.json"
             $ffPolicy = ConvertFrom-JsonToHashtable -Json (Get-Content $policyFile -Raw)
+            if (-not $ffPolicy.ContainsKey("policies")) { $ffPolicy["policies"] = @{} }
             $fp = $ffPolicy["policies"]
             $fp["DisableTelemetry"]      = $true
             $fp["DisableFirefoxStudies"] = $true
