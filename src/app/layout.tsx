@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "WinPostInstall v4.1.2 - Windows Post-Installation Optimizer",
+  title: "WinPostInstall v4.1.6 - Windows Post-Installation Optimizer",
   description: "GUI optimizer for Windows post-installation configuration. Toggle settings, manage profiles, and generate config files for WinPostInstall.ps1.",
 };
 

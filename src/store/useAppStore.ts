@@ -624,7 +624,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       .filter(Boolean);
 
     return {
-      version: "4.1.2",
+      version: "4.1.6",
       generatedAt: new Date().toISOString(),
       sections: configSections,
       software: softwareWithIds,
